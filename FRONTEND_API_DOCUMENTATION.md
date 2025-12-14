@@ -24,8 +24,8 @@
 ## Overview
 
 This backend server provides APIs for:
-- **Admin Panel**: Admin authentication, retailer management
-- **Retailer App**: Retailer authentication, customer registration with device IMEI tracking
+- **Admin Panel**: Admin authentication, retailer management, customer data access
+- **Retailer App**: Retailer authentication, customer registration with device IMEI tracking and EMI plans (3% interest rate)
 
 ### Tech Stack
 - **Runtime**: Node.js v22.12.0
@@ -67,6 +67,15 @@ Authorization: Bearer <your_jwt_token>
 ## Admin APIs
 
 Base Path: `/api/admin`
+
+**Admin API Endpoints:**
+1. Health Check - Server status
+2. Send OTP - Admin login (Step 1)
+3. Verify OTP - Admin authentication (Step 2)
+4. Retailer Management - Create, list, update, delete retailers
+5. **Get All Customers** - View all customers across all retailers with complete EMI details
+
+---
 
 ### 1. Health Check
 
@@ -387,9 +396,129 @@ GET /api/admin/retailers?page=1&limit=20&search=john&status=ACTIVE
 
 ---
 
+### 5. Get All Customers (Admin Only)
+
+**Endpoint:** `GET /api/admin/customers`  
+**Authentication:** Required (Admin only)  
+**Purpose:** Get all customers across all retailers with complete details including EMI information
+
+**Request Headers:**
+```
+Authorization: Bearer <admin_jwt_token>
+```
+
+**Query Parameters:**
+- `page` (optional): Page number (default: 1)
+- `limit` (optional): Items per page (default: 20)
+- `search` (optional): Search by name, mobile, Aadhar, IMEI
+
+**Example Request:**
+```
+GET /api/admin/customers?page=1&limit=20&search=rajesh
+```
+
+**Success Response (200):**
+```json
+{
+  "success": true,
+  "message": "Customers fetched successfully",
+  "data": {
+    "customers": [
+      {
+        "id": "6750abcd1234567890123456",
+        "fullName": "Rajesh Kumar Singh",
+        "mobileNumber": "9876543210",
+        "mobileVerified": true,
+        "aadharNumber": "123456789012",
+        "dob": "1995-05-15T00:00:00.000Z",
+        "imei1": "123456789012345",
+        "imei2": "987654321098765",
+        "fatherName": "Ram Kumar Singh",
+        "address": {
+          "village": "Sitapur",
+          "nearbyLocation": "Near Government School",
+          "post": "Sitapur Post Office",
+          "district": "Sitapur",
+          "pincode": "400001"
+        },
+        "documents": {
+          "customerPhoto": "https://res.cloudinary.com/.../photo.jpg",
+          "aadharFrontPhoto": "https://res.cloudinary.com/.../front.jpg",
+          "aadharBackPhoto": "https://res.cloudinary.com/.../back.jpg",
+          "signaturePhoto": "https://res.cloudinary.com/.../signature.jpg"
+        },
+        "emiDetails": {
+          "branch": "Main Branch Mumbai",
+          "phoneType": "NEW",
+          "model": "iPhone 14",
+          "productName": "iPhone 14 Pro Max 256GB",
+          "sellPrice": 120000,
+          "landingPrice": 115000,
+          "downPayment": 20000,
+          "downPaymentPending": 5000,
+          "emiRate": 3,
+          "numberOfMonths": 8,
+          "balanceAmount": 95000,
+          "emiPerMonth": 12206.25,
+          "totalEmiAmount": 97650,
+          "emiMonths": [
+            { "month": 1, "paid": false, "amount": 12206.25 },
+            { "month": 2, "paid": false, "amount": 12206.25 },
+            { "month": 3, "paid": false, "amount": 12206.25 },
+            { "month": 4, "paid": false, "amount": 12206.25 },
+            { "month": 5, "paid": false, "amount": 12206.25 },
+            { "month": 6, "paid": false, "amount": 12206.25 },
+            { "month": 7, "paid": false, "amount": 12206.25 },
+            { "month": 8, "paid": false, "amount": 12206.25 }
+          ]
+        },
+        "retailer": {
+          "id": "6750xyz1234567890123456",
+          "name": "Amit Sharma",
+          "shopName": "Sharma Mobile Store",
+          "mobile": "9876543210"
+        },
+        "createdAt": "2025-12-14T10:30:00.000Z",
+        "updatedAt": "2025-12-14T10:30:00.000Z"
+      }
+    ],
+    "pagination": {
+      "currentPage": 1,
+      "totalPages": 10,
+      "totalItems": 200,
+      "itemsPerPage": 20,
+      "hasNextPage": true,
+      "hasPrevPage": false
+    }
+  }
+}
+```
+
+**Error Responses:**
+
+**401 - Unauthorized:**
+```json
+{
+  "success": false,
+  "message": "Admin authentication required",
+  "error": "UNAUTHORIZED"
+}
+```
+
+**Usage:**
+- View all customers registered across all retailers
+- Search by customer name, mobile, Aadhar, or IMEI
+- Monitor EMI payment status across all customers
+- Track which retailer registered each customer
+- Access complete customer data including documents and EMI details
+
+---
+
 ## Retailer APIs
 
 Base Path: `/api/retailer`
+
+**Important:** All customer EMI plans automatically include a **3% interest rate** applied to the balance amount.
 
 ### 1. Retailer Authentication
 
@@ -506,15 +635,36 @@ Authorization: Bearer <retailer_jwt_token>
 
 ---
 
-### 3. Customer Registration (4-Step Form, 3 APIs)
+### 3. Customer Registration (5-Step Form, 3 APIs)
 
-This is a **4-step form flow** with 3 API calls. The frontend collects data across 4 steps, validates the mobile number in step 2, and submits everything in the final step.
+This is a **5-step form flow** with 3 API calls. The frontend collects data across 5 steps, validates the mobile number in step 2, and submits everything in the final step.
+
+**💰 EMI Calculation (Automatic 3% Interest Rate):**
+```
+Balance Amount = Landing Price - Down Payment
+Interest Amount = Balance Amount × 3%
+Total EMI Amount = Balance Amount + Interest Amount
+EMI Per Month = Total EMI Amount ÷ Number of Months
+```
+
+**Example Calculation:**
+```
+Landing Price: ₹115,000
+Down Payment:  ₹15,000
+Balance:       ₹100,000
+Interest (3%): ₹100,000 × 0.03 = ₹3,000
+Total EMI:     ₹100,000 + ₹3,000 = ₹103,000
+Per Month:     ₹103,000 ÷ 8 = ₹12,875/month
+```
+
+**Note:** The 3% interest is automatically calculated by the backend. You only need to send the base values (sellPrice, landingPrice, downPayment, numberOfMonths).
 
 #### Flow Overview:
 - **Step 1 (Frontend)**: Collect basic details (fullName, aadharNumber, dob, pincode, imei1, imei2)
 - **Step 2 (API 1 & 2)**: Send OTP → Customer enters OTP → Verify OTP → Proceed if verified
 - **Step 3 (Frontend)**: Collect address details (fatherName, village, nearbyLocation, post, district)
-- **Step 4 (API 3)**: Upload 4 documents + Submit all data → Customer created
+- **Step 4 (Frontend)**: Upload 4 documents (customerPhoto, aadharFront, aadharBack, signature)
+- **Step 5 (API 3)**: Collect EMI details + Submit all data → Customer created with EMI plan (3% interest auto-applied)
 
 ---
 
@@ -629,9 +779,144 @@ Content-Type: application/json
 
 ---
 
-#### 3.3 Step 4: Create Customer with All Data
+#### 3.3 Step 5: Create Customer with All Data and EMI Details
 
-**Endpoint:** `POST /api/retailer/customers
+**Endpoint:** `POST /api/retailer/customers`  
+**Authentication:** Required (Retailer only)  
+**Purpose:** Create customer with all details, IMEI, EMI information, and document uploads in a single API call
+
+**Request Headers:**
+```
+Authorization: Bearer <retailer_jwt_token>
+Content-Type: multipart/form-data
+```
+
+**Request Body (Form Data):**
+
+**Text Fields (21 fields):**
+```
+// Step 1: Basic Details
+fullName: "Customer Full Name"
+aadharNumber: "123456789012"
+dob: "1995-05-15"
+pincode: "400001"
+imei1: "123456789012345"
+imei2: "987654321098765"
+
+// Step 2: Mobile (already verified via OTP in previous APIs)
+mobileNumber: "9876543210"
+
+// Step 3: Address Details
+fatherName: "Father's Full Name"
+village: "Village Name"
+nearbyLocation: "Nearby Landmark"
+post: "Post Office Name"
+district: "District Name"
+
+// Step 5: EMI Details
+branch: "Main Branch"
+phoneType: "NEW"                        // or "OLD"
+model: "iPhone 14"
+productName: "iPhone 14 Pro Max"
+sellPrice: "120000"                     // Actual price
+landingPrice: "115000"                  // Negotiated price
+downPayment: "15000"
+downPaymentPending: "5000"              // Amount pending from down payment
+numberOfMonths: "8"                     // Number of EMI months
+```
+
+**File Fields (4 documents from Step 4):**
+```
+customerPhoto: <File>     // Customer's photo
+aadharFront: <File>       // Aadhar card front photo
+aadharBack: <File>        // Aadhar card back photo
+signature: <File>         // Customer's signature
+```
+
+**What This API Does:**
+1. Validates all 21 text fields
+2. Checks for duplicate IMEI1, IMEI2, and Aadhar number
+3. Validates all 4 image files are present
+4. Validates downPaymentPending doesn't exceed downPayment
+5. Calculates EMI details automatically with 3% interest:
+   - balanceAmount = landingPrice - downPayment
+   - interestAmount = balanceAmount × 3%
+   - totalEmiAmount = balanceAmount + interestAmount
+   - emiPerMonth = totalEmiAmount / numberOfMonths
+   - Creates emiMonths array with payment tracking (all unpaid initially)
+5. Uploads images to Cloudinary (4 parallel uploads)
+6. Creates customer record in database with:
+   - All customer details from Steps 1-5
+   - IMEI1 and IMEI2 (device tracking)
+   - Document URLs from Cloudinary
+   - EMI details with payment schedule
+   - Retailer ID (from JWT token)
+   - Mobile verified status (true - verified in Step 2)
+7. Returns complete customer data with EMI plan
+
+**Success Response (201):**
+```json
+{
+  "success": true,
+  "message": "Customer registered successfully with device and EMI information",
+  "data": {
+    "customerId": "6750abcd1234567890123456",
+    "customer": {
+      "fullName": "Customer Full Name",
+      "mobileNumber": "9876543210",
+      "aadharNumber": "123456789012",
+      "dob": "1995-05-15T00:00:00.000Z",
+      "fatherName": "Father's Full Name",
+      "address": {
+        "village": "Village Name",
+        "nearbyLocation": "Nearby Landmark",
+        "post": "Post Office Name",
+        "district": "District Name",
+        "pincode": "400001"
+      },
+      "imei1": "123456789012345",
+      "imei2": "987654321098765"
+    },
+    "documents": {
+      "customerPhoto": "https://res.cloudinary.com/.../photo.jpg",
+      "aadharFrontPhoto": "https://res.cloudinary.com/.../front.jpg",
+      "aadharBackPhoto": "https://res.cloudinary.com/.../back.jpg",
+      "signaturePhoto": "https://res.cloudinary.com/.../signature.jpg"
+    },
+    "emiDetails": {
+      "branch": "Main Branch",
+      "phoneType": "NEW",
+      "model": "iPhone 14",
+      "productName": "iPhone 14 Pro Max",
+      "sellPrice": 120000,
+      "landingPrice": 115000,
+      "downPayment": 15000,
+      "downPaymentPending": 5000,
+      "emiRate": 3,
+      "numberOfMonths": 8,
+      "balanceAmount": 100000,
+      "emiPerMonth": 12875,
+      "totalEmiAmount": 103000,
+      "emiMonths": [
+        { "month": 1, "paid": false, "amount": 12875 },
+        { "month": 2, "paid": false, "amount": 12875 },
+        { "month": 3, "paid": false, "amount": 12875 },
+        { "month": 4, "paid": false, "amount": 12875 },
+        { "month": 5, "paid": false, "amount": 12875 },
+        { "month": 6, "paid": false, "amount": 12875 },
+        { "month": 7, "paid": false, "amount": 12875 },
+        { "month": 8, "paid": false, "amount": 12875 }
+      ]
+    },
+    "createdAt": "2025-12-14T10:30:00.000Z"
+  }
+}
+```
+
+**Error Responses:**
+
+**400 - No Files:**
+```json
 {
   "success": false,
   "message": "No files uploaded",
@@ -651,62 +936,117 @@ Content-Type: application/json
 }
 ```
 
-**400 - Missing Fields:**
+**400 - Validation Error:**
 ```json
 {
   "success": false,
-  "message": Create customer with all details, IMEI, OTP verification, and document uploads in a single API call
-
-**Request Headers:**
+  "message": "Validation failed",
+  "error": "VALIDATION_ERROR",
+  "details": {
+    "fullName": "Full name is required",
+    "imei1": "IMEI 1 must be exactly 15 digits",
+    "branch": "Branch is required",
+    "phoneType": "Phone type must be NEW or OLD",
+    "sellPrice": "Valid sell price is required",
+    "downPaymentPending": "Valid down payment pending amount is required"
+  }
+}
 ```
-Authorization: Bearer <retailer_jwt_token>
-Content-Type: multipart/form-data
+
+**400 - Invalid EMI Details:**
+```json
+{
+  "success": false,
+  "message": "Down payment cannot be greater than landing price",
+  "error": "INVALID_EMI_DETAILS"
+}
 ```
 
-**Request Body (Form Data):**
-
-**Text Fields (17 fields):**
+**400 - Invalid Down Payment Pending:**
+```json
+{
+  "success": false,
+  "message": "Down payment pending cannot be greater than down payment",
+  "error": "INVALID_DOWN_PAYMENT_PENDING"
+}
 ```
-fullName: "Customer Full Name"
-aadharNumber: "123456789012"
-dob: "1995-05-15"
-pincode: "400001"
-imei1: "123456789012345"
-imei2: "987654321098765"
-mobileNumber: "9876543210"
-otp: "123456step1Data.imei2);
-formData.append('mobileNumber', step2Data.mobileNumber);
-formData.append('fatherName', step3Data.fatherName);
-formData.append('village', step3Data.village);
-formData.append('nearbyLocation', step3Data.nearbyLocation);
-formData.append('post', step3Data.post);
-formData.append('district', step3Data.district);
 
-// Add image files
-formData.append('customerPhoto', customerPhotoFile);
-formData.append('aadharFront', aadharFrontFile);
-formData.append('aadharBack', aadharBackFile);
-formData.append('signature', signatureFile);
+**400 - Duplicate IMEI/Aadhar:**
+```json
+{
+  "success": false,
+  "message": "IMEI 1 already exists in the system",
+  "error": "DUPLICATE_IMEI1"
+}
+```
 
-// Send request
-const response = await fetch('http://your-server/api/retailer/products/submit', {
-  method: 'POST',
-  headers: {
-    'Authorization': `Bearer ${retailerToken}`
-    // DO NOT set Content-Type - browser will set it automatically with boundary
-  },
-  body: formData7 text fields (including OTP)
-2. Verifies OTP with Twilio
-3. Checks for duplicate IMEI1, IMEI2, and Aadhar
-4. Validates all 4 image files are present
-5. Uploads images to Cloudinary (4 parallel uploads)
-6. Creates customer record in database with:
-   - All customer details
-   - IMEI1 and IMEI2 (associated with customer)
-   - Document URLs from Cloudinary
-   - Retailer ID (from JWT token)
-   - Mobile verified status (true)
-7*Endpoint:** `GET /api/retailer/customers`  
+**Frontend Implementation:**
+
+```javascript
+// Collect all data from 5 steps and submit in final step
+const createCustomer = async () => {
+  const formData = new FormData();
+
+  // Step 1 data
+  formData.append('fullName', step1Data.fullName);
+  formData.append('aadharNumber', step1Data.aadharNumber);
+  formData.append('dob', step1Data.dob);
+  formData.append('pincode', step1Data.pincode);
+  formData.append('imei1', step1Data.imei1);
+  formData.append('imei2', step1Data.imei2);
+  
+  // Step 2 data (mobile already verified)
+  formData.append('mobileNumber', step2Data.mobileNumber);
+  
+  // Step 3 data
+  formData.append('fatherName', step3Data.fatherName);
+  formData.append('village', step3Data.village);
+  formData.append('nearbyLocation', step3Data.nearbyLocation);
+  formData.append('post', step3Data.post);
+  formData.append('district', step3Data.district);
+
+  // Step 4 data (documents)
+  formData.append('customerPhoto', step4Data.customerPhotoFile);
+  formData.append('aadharFront', step4Data.aadharFrontFile);
+  formData.append('aadharBack', step4Data.aadharBackFile);
+  formData.append('signature', step4Data.signatureFile);
+
+  // Step 5 data (EMI details)
+  formData.append('branch', step5Data.branch);
+  formData.append('phoneType', step5Data.phoneType);
+  formData.append('model', step5Data.model);
+  formData.append('productName', step5Data.productName);
+  formData.append('sellPrice', step5Data.sellPrice);
+  formData.append('landingPrice', step5Data.landingPrice);
+  formData.append('downPayment', step5Data.downPayment);
+  formData.append('downPaymentPending', step5Data.downPaymentPending);
+  formData.append('numberOfMonths', step5Data.numberOfMonths);
+
+  // Send request
+  const response = await fetch('http://your-server/api/retailer/customers', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${retailerToken}`
+      // DO NOT set Content-Type - browser will set it automatically with boundary
+    },
+    body: formData
+  });
+
+  const data = await response.json();
+  
+  if (data.success) {
+    console.log('Customer created with EMI plan:', data.data.emiDetails);
+  } else {
+    alert(data.message);
+  }
+};
+```
+
+---
+
+### 4. Get All Customers
+
+**Endpoint:** `GET /api/retailer/customers`  
 **Authentication:** Required (Retailer only)  
 **Purpose:** Get paginated list of all customers registered by the retailer
 
@@ -893,6 +1233,27 @@ const createCustomer = async (otp) => {
     aadharFrontPhoto: String,    // Cloudinary URL
     aadharBackPhoto: String,     // Cloudinary URL
     signaturePhoto: String       // Cloudinary URL
+  },
+  emiDetails: {
+    branch: String,              // Branch name
+    phoneType: String,           // "NEW" or "OLD"
+    model: String,               // Phone model
+    productName: String,         // Product name
+    sellPrice: Number,           // Actual price
+    landingPrice: Number,        // Negotiated price
+    downPayment: Number,         // Down payment amount
+    downPaymentPending: Number,  // Pending down payment amount
+    emiRate: Number,             // Interest rate (default: 3%)
+    numberOfMonths: Number,      // EMI duration
+    balanceAmount: Number,       // landingPrice - downPayment
+    emiPerMonth: Number,         // balanceAmount / numberOfMonths
+    totalEmiAmount: Number,      // Total EMI amount (= balanceAmount)
+    emiMonths: [{                // Payment tracking array
+      month: Number,             // Month number (1, 2, 3, ...)
+      paid: Boolean,             // Payment status
+      paidDate: Date,            // Payment date (if paid)
+      amount: Number             // EMI amount for this month
+    }]
   },
   retailerId: ObjectId,          // Reference to Retailer
   createdAt: Date,
@@ -1318,6 +1679,12 @@ STEP 4: Document Upload
 
 ### Using Postman
 
+**Quick Start Guide for Testing APIs**
+
+#### Available Endpoints:
+- Admin: 5 endpoints (auth, retailers CRUD, customers view)
+- Retailer: 5 endpoints (auth, permissions, customer registration, customer list)
+
 1. **Import Environment**
    ```json
    {
@@ -1346,15 +1713,30 @@ STEP 4: Document Upload
    - Verify OTP: POST `{{base_url}}/api/retailer/auth/verify-otp`
    - Copy token and set `retailer_token`
 
-5. **Test Customer Registration**
-   - Step 1: POST `{{base_url}}/api/retailer/products/step1`
-   - Step 2a: POST `{{base_url}}/api/retailer/products/step2/send-otp`
-   - Step 2b: POST `{{base_url}}/api/retailer/products/step2/verify-otp`
-   - Step 3: POST `{{base_url}}/api/retailer/products/step3`
-   - Step 4: POST `{{base_url}}/api/retailer/products/submit`
-     - Use form-data (not JSON)
-     - Add all text fields
-     - Add 4 image files
+5. **Test Customer Registration (5-Step Flow with 3% EMI)**
+   - Step 2a: POST `{{base_url}}/api/retailer/customers/send-otp`
+     - Body (JSON): `{ "mobileNumber": "9876543210" }`
+   - Step 2b: POST `{{base_url}}/api/retailer/customers/verify-otp`
+     - Body (JSON): `{ "mobileNumber": "9876543210", "otp": "123456" }`
+   - Step 5: POST `{{base_url}}/api/retailer/customers`
+     - Header: `Authorization: Bearer {{retailer_token}}`
+     - Body type: **form-data** (NOT JSON)
+     - Add 21 text fields:
+       * Basic: fullName, aadharNumber, dob, pincode, imei1, imei2
+       * Mobile: mobileNumber (already verified)
+       * Address: fatherName, village, nearbyLocation, post, district
+       * EMI: branch, phoneType, model, productName, sellPrice, landingPrice, downPayment, downPaymentPending, numberOfMonths
+       * **Note:** 3% interest is auto-calculated by backend
+     - Add 4 image files:
+       * customerPhoto
+       * aadharFront
+       * aadharBack
+       * signature
+
+6. **Test Get All Customers (Admin)**
+   - GET `{{base_url}}/api/admin/customers?page=1&limit=20&search=rajesh`
+   - Header: `Authorization: Bearer {{admin_token}}`
+   - View all customers with EMI details across all retailers
 
 ---
 

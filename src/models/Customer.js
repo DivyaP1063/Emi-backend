@@ -82,6 +82,93 @@ const customerSchema = new mongoose.Schema({
       required: true
     }
   },
+  emiDetails: {
+    branch: {
+      type: String,
+      required: true,
+      trim: true
+    },
+    phoneType: {
+      type: String,
+      required: true,
+      enum: ['NEW', 'OLD'],
+      uppercase: true
+    },
+    model: {
+      type: String,
+      required: true,
+      trim: true
+    },
+    productName: {
+      type: String,
+      required: true,
+      trim: true
+    },
+    sellPrice: {
+      type: Number,
+      required: true,
+      min: 0
+    },
+    landingPrice: {
+      type: Number,
+      required: true,
+      min: 0
+    },
+    downPayment: {
+      type: Number,
+      required: true,
+      min: 0
+    },
+    downPaymentPending: {
+      type: Number,
+      required: true,
+      min: 0,
+      default: 0
+    },
+    emiRate: {
+      type: Number,
+      required: true,
+      default: 3,
+      min: 0
+    },
+    numberOfMonths: {
+      type: Number,
+      required: true,
+      min: 1
+    },
+    emiMonths: [{
+      month: {
+        type: Number,
+        required: true
+      },
+      paid: {
+        type: Boolean,
+        default: false
+      },
+      paidDate: {
+        type: Date
+      },
+      amount: {
+        type: Number,
+        required: true
+      }
+    }],
+    balanceAmount: {
+      type: Number,
+      required: true,
+      min: 0
+    },
+    emiPerMonth: {
+      type: Number,
+      required: true,
+      min: 0
+    },
+    totalEmiAmount: {
+      type: Number,
+      required: true,
+      min: 0
+    }
+  },
   retailerId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Retailer',

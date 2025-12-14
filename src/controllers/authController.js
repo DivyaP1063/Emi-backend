@@ -163,9 +163,98 @@ const verifyOtpController = async (req, res) => {
   }
 };
 
+/**
+ * Get all customers (Admin only)
+ */
+const getAllCustomers = async (req, res) => {
+  try {
+    const Customer = require('../models/Customer');
+    const { page = 1, limit = 20, search = '' } = req.query;
+
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const skip = (pageNum - 1) * limitNum;
+
+    // Build search query
+    let searchQuery = {};
+    if (search) {
+      searchQuery = {
+        $or: [
+          { fullName: { $regex: search, $options: 'i' } },
+          { mobileNumber: { $regex: search, $options: 'i' } },
+          { aadharNumber: { $regex: search, $options: 'i' } },
+          { imei1: { $regex: search, $options: 'i' } },
+          { imei2: { $regex: search, $options: 'i' } }
+        ]
+      };
+    }
+
+    // Get total count
+    const totalCustomers = await Customer.countDocuments(searchQuery);
+
+    // Fetch customers with pagination
+    const customers = await Customer.find(searchQuery)
+      .populate('retailerId', 'basicInfo.fullName basicInfo.shopName basicInfo.mobileNumber')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limitNum)
+      .lean();
+
+    // Format response
+    const formattedCustomers = customers.map(customer => ({
+      id: customer._id.toString(),
+      fullName: customer.fullName,
+      mobileNumber: customer.mobileNumber,
+      mobileVerified: customer.mobileVerified,
+      aadharNumber: customer.aadharNumber,
+      dob: customer.dob,
+      imei1: customer.imei1,
+      imei2: customer.imei2,
+      fatherName: customer.fatherName,
+      address: customer.address,
+      documents: customer.documents,
+      emiDetails: customer.emiDetails,
+      retailer: customer.retailerId ? {
+        id: customer.retailerId._id?.toString(),
+        name: customer.retailerId.basicInfo?.fullName,
+        shopName: customer.retailerId.basicInfo?.shopName,
+        mobile: customer.retailerId.basicInfo?.mobileNumber
+      } : null,
+      createdAt: customer.createdAt,
+      updatedAt: customer.updatedAt
+    }));
+
+    const totalPages = Math.ceil(totalCustomers / limitNum);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Customers fetched successfully',
+      data: {
+        customers: formattedCustomers,
+        pagination: {
+          currentPage: pageNum,
+          totalPages,
+          totalItems: totalCustomers,
+          itemsPerPage: limitNum,
+          hasNextPage: pageNum < totalPages,
+          hasPrevPage: pageNum > 1
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Get all customers error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch customers',
+      error: 'SERVER_ERROR'
+    });
+  }
+};
+
 module.exports = {
   sendOtpController,
   verifyOtpController,
   sendOtpValidation,
-  verifyOtpValidation
+  verifyOtpValidation,
+  getAllCustomers
 };

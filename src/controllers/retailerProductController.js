@@ -123,7 +123,10 @@ const createCustomer = async (req, res) => {
     const {
       fullName, aadharNumber, dob, pincode, imei1, imei2,
       mobileNumber,
-      fatherName, village, nearbyLocation, post, district
+      fatherName, village, nearbyLocation, post, district,
+      // EMI Details (Step 5)
+      branch, phoneType, model, productName, sellPrice, landingPrice, 
+      downPayment, downPaymentPending, numberOfMonths
     } = req.body;
 
     // Validate required fields
@@ -141,6 +144,17 @@ const createCustomer = async (req, res) => {
     if (!nearbyLocation || !nearbyLocation.trim()) validationErrors.nearbyLocation = 'Nearby location is required';
     if (!post || !post.trim()) validationErrors.post = 'Post is required';
     if (!district || !district.trim()) validationErrors.district = 'District is required';
+    
+    // EMI Details validation
+    if (!branch || !branch.trim()) validationErrors.branch = 'Branch is required';
+    if (!phoneType || !['NEW', 'OLD'].includes(phoneType.toUpperCase())) validationErrors.phoneType = 'Phone type must be NEW or OLD';
+    if (!model || !model.trim()) validationErrors.model = 'Model is required';
+    if (!productName || !productName.trim()) validationErrors.productName = 'Product name is required';
+    if (!sellPrice || isNaN(sellPrice) || Number(sellPrice) <= 0) validationErrors.sellPrice = 'Valid sell price is required';
+    if (!landingPrice || isNaN(landingPrice) || Number(landingPrice) <= 0) validationErrors.landingPrice = 'Valid landing price is required';
+    if (downPayment === undefined || isNaN(downPayment) || Number(downPayment) < 0) validationErrors.downPayment = 'Valid down payment is required';
+    if (downPaymentPending === undefined || isNaN(downPaymentPending) || Number(downPaymentPending) < 0) validationErrors.downPaymentPending = 'Valid down payment pending amount is required';
+    if (!numberOfMonths || isNaN(numberOfMonths) || Number(numberOfMonths) < 1) validationErrors.numberOfMonths = 'Valid number of months is required';
 
     if (Object.keys(validationErrors).length > 0) {
       return res.status(400).json({
@@ -148,6 +162,47 @@ const createCustomer = async (req, res) => {
         message: 'Validation failed',
         error: 'VALIDATION_ERROR',
         details: validationErrors
+      });
+    }
+    
+    // Calculate EMI details with 3% interest rate
+    const sellPriceNum = Number(sellPrice);
+    const landingPriceNum = Number(landingPrice);
+    const downPaymentNum = Number(downPayment);
+    const downPaymentPendingNum = Number(downPaymentPending);
+    const numberOfMonthsNum = Number(numberOfMonths);
+    const emiRate = 3; // 3% interest rate
+    
+    const balanceAmount = landingPriceNum - downPaymentNum;
+    const interestAmount = (balanceAmount * emiRate) / 100;
+    const totalEmiAmount = balanceAmount + interestAmount;
+    const emiPerMonth = totalEmiAmount / numberOfMonthsNum;
+    
+    // Validate balance amount is positive
+    if (balanceAmount < 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Down payment cannot be greater than landing price',
+        error: 'INVALID_EMI_DETAILS'
+      });
+    }
+    
+    // Validate down payment pending doesn't exceed down payment
+    if (downPaymentPendingNum > downPaymentNum) {
+      return res.status(400).json({
+        success: false,
+        message: 'Down payment pending cannot be greater than down payment',
+        error: 'INVALID_DOWN_PAYMENT_PENDING'
+      });
+    }
+    
+    // Create EMI months array with interest (all unpaid by default)
+    const emiMonths = [];
+    for (let i = 1; i <= numberOfMonthsNum; i++) {
+      emiMonths.push({
+        month: i,
+        paid: false,
+        amount: Math.round(emiPerMonth * 100) / 100 // Round to 2 decimal places
       });
     }
 
@@ -161,11 +216,9 @@ const createCustomer = async (req, res) => {
       });
     }
 
-    // Check duplicate IMEI2 if provided
+    // Check duplicate IMEI2 (if provided)
     if (imei2) {
-      const existingCustomer2 = await Customer.findOne({
-        $or: [{ imei1: imei2 }, { imei2: imei2 }]
-      });
+      const existingCustomer2 = await Customer.findOne({ imei2 });
       if (existingCustomer2) {
         return res.status(400).json({
           success: false,
@@ -197,7 +250,7 @@ const createCustomer = async (req, res) => {
 
     const [customerPhotoUrl, aadharFrontUrl, aadharBackUrl, signatureUrl] = uploadResults.map(r => r.secure_url);
 
-    // Create customer with IMEI information
+    // Create customer with IMEI and EMI information
     const customer = await Customer.create({
       fullName,
       aadharNumber,
@@ -220,12 +273,28 @@ const createCustomer = async (req, res) => {
         aadharBackPhoto: aadharBackUrl,
         signaturePhoto: signatureUrl
       },
+      emiDetails: {
+        branch,
+        phoneType: phoneType.toUpperCase(),
+        model,
+        productName,
+        sellPrice: sellPriceNum,
+        landingPrice: landingPriceNum,
+        downPayment: downPaymentNum,
+        downPaymentPending: downPaymentPendingNum,
+        emiRate,
+        numberOfMonths: numberOfMonthsNum,
+        emiMonths,
+        balanceAmount,
+        emiPerMonth: Math.round(emiPerMonth * 100) / 100,
+        totalEmiAmount: Math.round(totalEmiAmount * 100) / 100
+      },
       retailerId
     });
 
     return res.status(201).json({
       success: true,
-      message: 'Customer registered successfully with device information',
+      message: 'Customer registered successfully with device and EMI information',
       data: {
         customerId: customer._id.toString(),
         customer: {
@@ -239,6 +308,7 @@ const createCustomer = async (req, res) => {
           imei2: customer.imei2 || null
         },
         documents: customer.documents,
+        emiDetails: customer.emiDetails,
         createdAt: customer.createdAt
       }
     });
