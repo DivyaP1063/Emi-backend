@@ -7,140 +7,19 @@ const { sendOTP, verifyOTP } = require('../utils/otpService');
 const { uploadToCloudinary, deleteFromCloudinary } = require('../config/cloudinary');
 
 /**
- * Step 1: Validate customer basic details and IMEI
- * Validation rules for step 1
+ * Send OTP to customer mobile number
  */
-const validateStep1 = [
-  body('fullName')
-    .trim()
-    .notEmpty()
-    .withMessage('Full name is required'),
-  body('aadharNumber')
-    .trim()
-    .matches(/^[0-9]{12}$/)
-    .withMessage('Aadhar number must be exactly 12 digits'),
-  body('dob')
-    .notEmpty()
-    .withMessage('Date of birth is required')
-    .isISO8601()
-    .withMessage('Date of birth must be in YYYY-MM-DD format'),
-  body('pincode')
-    .trim()
-    .matches(/^[0-9]{6}$/)
-    .withMessage('Pincode must be exactly 6 digits'),
-  body('imei1')
-    .trim()
-    .matches(/^[0-9]{15}$/)
-    .withMessage('IMEI 1 must be exactly 15 digits'),
-  body('imei2')
-    .optional()
-    .trim()
-    .matches(/^[0-9]{15}$/)
-    .withMessage('IMEI 2 must be exactly 15 digits')
-];
-
-/**
- * Step 1 Controller: Basic customer details
- */
-const addProductStep1 = async (req, res) => {
+const sendCustomerOTP = async (req, res) => {
   try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      const errorDetails = {};
-      errors.array().forEach(err => {
-        errorDetails[err.path] = err.msg;
-      });
-
-      return res.status(400).json({
-        success: false,
-        message: 'Validation failed',
-        error: 'VALIDATION_ERROR',
-        details: errorDetails
-      });
-    }
-
-    const { fullName, aadharNumber, dob, pincode, imei1, imei2 } = req.body;
-
-    // Check duplicate IMEI1
-    const existingProduct1 = await Product.findOne({ imei1 });
-    if (existingProduct1) {
-      return res.status(400).json({
-        success: false,
-        message: 'IMEI 1 already exists in the system',
-        error: 'DUPLICATE_IMEI1'
-      });
-    }
-
-    // Check duplicate IMEI2 if provided
-    if (imei2) {
-      const existingProduct2 = await Product.findOne({
-        $or: [{ imei1: imei2 }, { imei2: imei2 }]
-      });
-      if (existingProduct2) {
-        return res.status(400).json({
-          success: false,
-          message: 'IMEI 2 already exists in the system',
-          error: 'DUPLICATE_IMEI2'
-        });
-      }
-    }
-
-    // Check duplicate Aadhar
-    const existingCustomer = await Customer.findOne({ aadharNumber });
-    if (existingCustomer) {
-      return res.status(400).json({
-        success: false,
-        message: 'Customer with this Aadhar number already exists',
-        error: 'DUPLICATE_AADHAR'
-      });
-    }
-
-    // Return success - data will be stored temporarily in frontend
-    return res.status(200).json({
-      success: true,
-      message: 'Step 1 validated successfully. Proceed to mobile verification.',
-      data: {
-        fullName,
-        aadharNumber,
-        dob,
-        pincode,
-        imei1,
-        imei2
-      }
-    });
-  } catch (error) {
-    console.error('Step 1 error:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Failed to validate customer details',
-      error: 'SERVER_ERROR'
-    });
-  }
-};
-
-/**
- * Step 2: Send OTP to mobile number
- */
-const addProductStep2SendOTP = [
-  body('mobileNumber')
-    .trim()
-    .matches(/^[0-9]{10}$/)
-    .withMessage('Mobile number must be exactly 10 digits')
-];
-
-const sendMobileOTP = async (req, res) => {
-  try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({
-        success: false,
-        message: 'Validation failed',
-        error: 'VALIDATION_ERROR',
-        details: { mobileNumber: errors.array()[0].msg }
-      });
-    }
-
     const { mobileNumber } = req.body;
+
+    if (!mobileNumber || !/^[0-9]{10}$/.test(mobileNumber)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Mobile number must be exactly 10 digits',
+        error: 'VALIDATION_ERROR'
+      });
+    }
 
     // Send OTP
     await sendOTP(mobileNumber);
@@ -160,52 +39,43 @@ const sendMobileOTP = async (req, res) => {
 };
 
 /**
- * Step 2: Verify mobile OTP
+ * Verify customer mobile OTP (required before proceeding to next form step)
  */
-const addProductStep2VerifyOTP = [
-  body('mobileNumber')
-    .trim()
-    .matches(/^[0-9]{10}$/)
-    .withMessage('Mobile number must be exactly 10 digits'),
-  body('otp')
-    .trim()
-    .matches(/^[0-9]{6}$/)
-    .withMessage('OTP must be exactly 6 digits')
-];
-
-const verifyMobileOTP = async (req, res) => {
+const verifyCustomerOTP = async (req, res) => {
   try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      const errorDetails = {};
-      errors.array().forEach(err => {
-        errorDetails[err.path] = err.msg;
-      });
+    const { mobileNumber, otp } = req.body;
 
+    if (!mobileNumber || !/^[0-9]{10}$/.test(mobileNumber)) {
       return res.status(400).json({
         success: false,
-        message: 'Validation failed',
-        error: 'VALIDATION_ERROR',
-        details: errorDetails
+        message: 'Mobile number must be exactly 10 digits',
+        error: 'VALIDATION_ERROR'
       });
     }
 
-    const { mobileNumber, otp } = req.body;
-
-    // Verify OTP
-    const isValid = await verifyOTP(mobileNumber, otp);
-
-    if (!isValid) {
+    if (!otp || !/^[0-9]{6}$/.test(otp)) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid or expired OTP',
+        message: 'OTP must be exactly 6 digits',
+        error: 'VALIDATION_ERROR'
+      });
+    }
+
+    // Verify OTP with Twilio
+    const otpVerification = await verifyOTP(mobileNumber, otp);
+
+    if (!otpVerification.success) {
+      return res.status(400).json({
+        success: false,
+        message: otpVerification.message || 'Invalid or expired OTP',
         error: 'INVALID_OTP'
       });
     }
 
+    // OTP verified successfully
     return res.status(200).json({
       success: true,
-      message: 'Mobile number verified successfully. Proceed to address details.',
+      message: 'Mobile number verified successfully. You can proceed to next step.',
       data: {
         mobileNumber,
         verified: true
@@ -222,77 +92,12 @@ const verifyMobileOTP = async (req, res) => {
 };
 
 /**
- * Step 3: Address details validation
+ * Create customer with all details, IMEI, and document uploads
+ * Note: Mobile number should already be verified via verify-otp endpoint
  */
-const validateStep3 = [
-  body('fatherName')
-    .trim()
-    .notEmpty()
-    .withMessage('Father name is required'),
-  body('village')
-    .trim()
-    .notEmpty()
-    .withMessage('Village is required'),
-  body('nearbyLocation')
-    .trim()
-    .notEmpty()
-    .withMessage('Nearby location is required'),
-  body('post')
-    .trim()
-    .notEmpty()
-    .withMessage('Post is required'),
-  body('district')
-    .trim()
-    .notEmpty()
-    .withMessage('District is required')
-];
-
-const addProductStep3 = async (req, res) => {
+const createCustomer = async (req, res) => {
   try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      const errorDetails = {};
-      errors.array().forEach(err => {
-        errorDetails[err.path] = err.msg;
-      });
-
-      return res.status(400).json({
-        success: false,
-        message: 'Validation failed',
-        error: 'VALIDATION_ERROR',
-        details: errorDetails
-      });
-    }
-
-    const { fatherName, village, nearbyLocation, post, district } = req.body;
-
-    return res.status(200).json({
-      success: true,
-      message: 'Address details validated. Proceed to document upload.',
-      data: {
-        fatherName,
-        village,
-        nearbyLocation,
-        post,
-        district
-      }
-    });
-  } catch (error) {
-    console.error('Step 3 error:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Failed to validate address details',
-      error: 'SERVER_ERROR'
-    });
-  }
-};
-
-/**
- * Step 4: Final submission with document uploads
- */
-const addProductFinal = async (req, res) => {
-  try {
-    // Check if files are uploaded
+    // Validate files
     if (!req.files || Object.keys(req.files).length === 0) {
       return res.status(400).json({
         success: false,
@@ -303,7 +108,6 @@ const addProductFinal = async (req, res) => {
 
     const { customerPhoto, aadharFront, aadharBack, signature } = req.files;
 
-    // Validate required files
     if (!customerPhoto || !aadharFront || !aadharBack || !signature) {
       return res.status(400).json({
         success: false,
@@ -315,40 +119,69 @@ const addProductFinal = async (req, res) => {
       });
     }
 
-    // Extract data from individual form fields (only what was collected in steps 1-3)
+    // Extract all data from form fields
     const {
-      // Step 1
       fullName, aadharNumber, dob, pincode, imei1, imei2,
-      // Step 2
       mobileNumber,
-      // Step 3
       fatherName, village, nearbyLocation, post, district
     } = req.body;
 
-    // Validate required fields from the 4-step flow
-    if (!fullName || !aadharNumber || !dob || !pincode || !imei1) {
+    // Validate required fields
+    const validationErrors = {};
+    
+    if (!fullName || !fullName.trim()) validationErrors.fullName = 'Full name is required';
+    if (!aadharNumber || !/^[0-9]{12}$/.test(aadharNumber)) validationErrors.aadharNumber = 'Aadhar number must be exactly 12 digits';
+    if (!dob) validationErrors.dob = 'Date of birth is required';
+    if (!pincode || !/^[0-9]{6}$/.test(pincode)) validationErrors.pincode = 'Pincode must be exactly 6 digits';
+    if (!imei1 || !/^[0-9]{15}$/.test(imei1)) validationErrors.imei1 = 'IMEI 1 must be exactly 15 digits';
+    if (imei2 && !/^[0-9]{15}$/.test(imei2)) validationErrors.imei2 = 'IMEI 2 must be exactly 15 digits';
+    if (!mobileNumber || !/^[0-9]{10}$/.test(mobileNumber)) validationErrors.mobileNumber = 'Mobile number must be exactly 10 digits';
+    if (!fatherName || !fatherName.trim()) validationErrors.fatherName = 'Father name is required';
+    if (!village || !village.trim()) validationErrors.village = 'Village is required';
+    if (!nearbyLocation || !nearbyLocation.trim()) validationErrors.nearbyLocation = 'Nearby location is required';
+    if (!post || !post.trim()) validationErrors.post = 'Post is required';
+    if (!district || !district.trim()) validationErrors.district = 'District is required';
+
+    if (Object.keys(validationErrors).length > 0) {
       return res.status(400).json({
         success: false,
-        message: 'Missing required customer fields',
+        message: 'Validation failed',
         error: 'VALIDATION_ERROR',
-        details: 'fullName, aadharNumber, dob, pincode, and imei1 are required'
+        details: validationErrors
       });
     }
 
-    if (!mobileNumber) {
+    // Check duplicate IMEI1
+    const existingCustomer1 = await Customer.findOne({ imei1 });
+    if (existingCustomer1) {
       return res.status(400).json({
         success: false,
-        message: 'Mobile number is required',
-        error: 'VALIDATION_ERROR'
+        message: 'IMEI 1 already exists in the system',
+        error: 'DUPLICATE_IMEI1'
       });
     }
 
-    if (!fatherName || !village || !nearbyLocation || !post || !district) {
+    // Check duplicate IMEI2 if provided
+    if (imei2) {
+      const existingCustomer2 = await Customer.findOne({
+        $or: [{ imei1: imei2 }, { imei2: imei2 }]
+      });
+      if (existingCustomer2) {
+        return res.status(400).json({
+          success: false,
+          message: 'IMEI 2 already exists in the system',
+          error: 'DUPLICATE_IMEI2'
+        });
+      }
+    }
+
+    // Check duplicate Aadhar
+    const existingAadhar = await Customer.findOne({ aadharNumber });
+    if (existingAadhar) {
       return res.status(400).json({
         success: false,
-        message: 'Missing required address fields',
-        error: 'VALIDATION_ERROR',
-        details: 'fatherName, village, nearbyLocation, post, and district are required'
+        message: 'Customer with this Aadhar number already exists',
+        error: 'DUPLICATE_AADHAR'
       });
     }
 
@@ -402,18 +235,18 @@ const addProductFinal = async (req, res) => {
           dob: customer.dob,
           fatherName: customer.fatherName,
           address: customer.address,
-          imei1,
-          imei2: imei2 || null
+          imei1: customer.imei1,
+          imei2: customer.imei2 || null
         },
         documents: customer.documents,
         createdAt: customer.createdAt
       }
     });
   } catch (error) {
-    console.error('Final submission error:', error);
+    console.error('Create customer error:', error);
     return res.status(500).json({
       success: false,
-      message: 'Failed to add product',
+      message: 'Failed to create customer',
       error: 'SERVER_ERROR'
     });
   }
@@ -495,14 +328,8 @@ const getCustomers = async (req, res) => {
 };
 
 module.exports = {
-  addProductStep1,
-  validateStep1,
-  sendMobileOTP,
-  addProductStep2SendOTP,
-  verifyMobileOTP,
-  addProductStep2VerifyOTP,
-  addProductStep3,
-  validateStep3,
-  addProductFinal,
+  sendCustomerOTP,
+  verifyCustomerOTP,
+  createCustomer,
   getCustomers
 };

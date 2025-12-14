@@ -506,111 +506,21 @@ Authorization: Bearer <retailer_jwt_token>
 
 ---
 
-### 3. Customer Registration Flow (4 Steps)
+### 3. Customer Registration (4-Step Form, 3 APIs)
 
-This is a **multi-step customer registration process** with device IMEI tracking. The frontend must collect data across 4 steps and submit together at the end.
+This is a **4-step form flow** with 3 API calls. The frontend collects data across 4 steps, validates the mobile number in step 2, and submits everything in the final step.
 
 #### Flow Overview:
-1. **Step 1**: Collect basic customer details + IMEI numbers → Validate server-side
-2. **Step 2**: Send OTP to customer's mobile → Verify OTP
-3. **Step 3**: Collect address details → Validate server-side
-4. **Step 4**: Upload 4 documents → Create customer record in database
+- **Step 1 (Frontend)**: Collect basic details (fullName, aadharNumber, dob, pincode, imei1, imei2)
+- **Step 2 (API 1 & 2)**: Send OTP → Customer enters OTP → Verify OTP → Proceed if verified
+- **Step 3 (Frontend)**: Collect address details (fatherName, village, nearbyLocation, post, district)
+- **Step 4 (API 3)**: Upload 4 documents + Submit all data → Customer created
 
 ---
 
-#### 3.1 Step 1: Validate Basic Details
+#### 3.1 Step 2a: Send OTP to Customer Mobile
 
-**Endpoint:** `POST /api/retailer/products/step1`  
-**Authentication:** Required (Retailer only)  
-**Purpose:** Validate customer basic details and check for duplicate IMEI/Aadhar
-
-**Request Headers:**
-```
-Authorization: Bearer <retailer_jwt_token>
-Content-Type: application/json
-```
-
-**Request Body:**
-```json
-{
-  "fullName": "Customer Full Name",
-  "aadharNumber": "123456789012",
-  "dob": "1995-05-15",
-  "pincode": "400001",
-  "imei1": "123456789012345",
-  "imei2": "987654321098765"
-}
-```
-
-**Field Details:**
-- `fullName`: Customer's full name (required)
-- `aadharNumber`: Exactly 12 digits (required)
-- `dob`: Date of birth in YYYY-MM-DD format (required)
-- `pincode`: Exactly 6 digits (required)
-- `imei1`: First IMEI, exactly 15 digits (required)
-- `imei2`: Second IMEI, exactly 15 digits (optional)
-
-**What This API Does:**
-1. Validates all field formats
-2. Checks if IMEI1 already exists in the system
-3. Checks if IMEI2 already exists (if provided)
-4. Checks if Aadhar number already exists
-5. Returns validated data if all checks pass
-
-**Success Response (200):**
-```json
-{
-  "success": true,
-  "message": "Step 1 validated successfully. Proceed to mobile verification.",
-  "data": {
-    "fullName": "Customer Full Name",
-    "aadharNumber": "123456789012",
-    "dob": "1995-05-15",
-    "pincode": "400001",
-    "imei1": "123456789012345",
-    "imei2": "987654321098765"
-  }
-}
-```
-
-**Error Responses:**
-
-**400 - Duplicate IMEI1:**
-```json
-{
-  "success": false,
-  "message": "IMEI 1 already exists in the system",
-  "error": "DUPLICATE_IMEI1"
-}
-```
-
-**400 - Duplicate IMEI2:**
-```json
-{
-  "success": false,
-  "message": "IMEI 2 already exists in the system",
-  "error": "DUPLICATE_IMEI2"
-}
-```
-
-**400 - Duplicate Aadhar:**
-```json
-{
-  "success": false,
-  "message": "Customer with this Aadhar number already exists",
-  "error": "DUPLICATE_AADHAR"
-}
-```
-
-**Frontend Action:**
-- If successful, store the data temporarily and proceed to Step 2
-- If error, show error message to user
-
----
-
-#### 3.2 Step 2a: Send OTP to Customer Mobile
-
-**Endpoint:** `POST /api/retailer/products/step2/send-otp`  
+**Endpoint:** `POST /api/retailer/customers/send-otp`  
 **Authentication:** Required (Retailer only)  
 **Rate Limit:** 3 requests per 5 minutes per mobile number  
 **Purpose:** Send OTP to customer's mobile number for verification
@@ -664,9 +574,9 @@ Content-Type: application/json
 
 #### 3.2 Step 2b: Verify Customer Mobile OTP
 
-**Endpoint:** `POST /api/retailer/products/step2/verify-otp`  
+**Endpoint:** `POST /api/retailer/customers/verify-otp`  
 **Authentication:** Required (Retailer only)  
-**Purpose:** Verify the OTP sent to customer's mobile
+**Purpose:** Verify OTP and mark mobile as verified (MUST succeed before proceeding to Step 3)
 
 **Request Headers:**
 ```
@@ -687,15 +597,16 @@ Content-Type: application/json
 - `otp`: Exactly 6 digits (required)
 
 **What This API Does:**
-1. Validates OTP format
+1. Validates mobile number and OTP format
 2. Verifies OTP with Twilio Verify service
-3. Returns success if OTP matches
+3. Returns success if OTP is valid and not expired
+4. Frontend enables "Next" button to proceed to Step 3
 
 **Success Response (200):**
 ```json
 {
   "success": true,
-  "message": "Mobile number verified successfully. Proceed to address details.",
+  "message": "Mobile number verified successfully. You can proceed to next step.",
   "data": {
     "mobileNumber": "9876543210",
     "verified": true
@@ -703,9 +614,7 @@ Content-Type: application/json
 }
 ```
 
-**Error Responses:**
-
-**400 - Invalid OTP:**
+**Error Response (400 - Invalid OTP):**
 ```json
 {
   "success": false,
@@ -715,158 +624,14 @@ Content-Type: application/json
 ```
 
 **Frontend Action:**
-- If successful, store mobile number and proceed to Step 3
-- If error, allow retry (max 3 attempts)
+- ✅ If success: Enable "Next" button, proceed to Step 3 (address details)
+- ❌ If error: Show error message, allow retry (don't proceed to next step)
 
 ---
 
-#### 3.3 Step 3: Validate Address Details
+#### 3.3 Step 4: Create Customer with All Data
 
-**Endpoint:** `POST /api/retailer/products/step3`  
-**Authentication:** Required (Retailer only)  
-**Purpose:** Validate customer address details
-
-**Request Headers:**
-```
-Authorization: Bearer <retailer_jwt_token>
-Content-Type: application/json
-```
-
-**Request Body:**
-```json
-{
-  "fatherName": "Father's Full Name",
-  "village": "Village Name",
-  "nearbyLocation": "Nearby Landmark",
-  "post": "Post Office Name",
-  "district": "District Name"
-}
-```
-
-**Field Details:**
-- `fatherName`: Father's name (required)
-- `village`: Village name (required)
-- `nearbyLocation`: Nearby landmark/location (required)
-- `post`: Post office name (required)
-- `district`: District name (required)
-
-**What This API Does:**
-1. Validates all address fields are present
-2. Returns validated data
-
-**Success Response (200):**
-```json
-{
-  "success": true,
-  "message": "Address details validated. Proceed to document upload.",
-  "data": {
-    "fatherName": "Father's Full Name",
-    "village": "Village Name",
-    "nearbyLocation": "Nearby Landmark",
-    "post": "Post Office Name",
-    "district": "District Name"
-  }
-}
-```
-
-**Frontend Action:**
-- If successful, store address data and proceed to Step 4 (document upload)
-
----
-
-#### 3.4 Step 4: Final Submission with Documents
-
-**Endpoint:** `POST /api/retailer/products/submit`  
-**Authentication:** Required (Retailer only)  
-**Content-Type:** `multipart/form-data`  
-**Purpose:** Upload documents and create customer record with IMEI tracking
-
-**Request Headers:**
-```
-Authorization: Bearer <retailer_jwt_token>
-Content-Type: multipart/form-data
-```
-
-**Request Body (Form Data):**
-
-**Text Fields (16 fields):**
-```
-fullName: "Customer Full Name"
-aadharNumber: "123456789012"
-dob: "1995-05-15"
-pincode: "400001"
-imei1: "123456789012345"
-imei2: "987654321098765"
-mobileNumber: "9876543210"
-fatherName: "Father's Full Name"
-village: "Village Name"
-nearbyLocation: "Nearby Landmark"
-post: "Post Office Name"
-district: "District Name"
-```
-
-**File Fields (4 files):**
-```
-customerPhoto: <image_file>    // Customer's photo
-aadharFront: <image_file>      // Aadhar front side
-aadharBack: <image_file>       // Aadhar back side
-signature: <image_file>        // Customer's signature
-```
-
-**File Requirements:**
-- Format: JPG, JPEG, PNG only
-- Max size: 5MB per file
-- All 4 files are required
-
-**What This API Does:**
-1. Validates all 16 text fields from steps 1-3
-2. Validates all 4 image files are present
-3. Uploads images to Cloudinary (4 parallel uploads)
-4. Creates customer record in database with:
-   - All customer details
-   - IMEI1 and IMEI2 (associated with customer)
-   - Document URLs from Cloudinary
-   - Retailer ID (from JWT token)
-5. Returns complete customer data
-
-**Success Response (201):**
-```json
-{
-  "success": true,
-  "message": "Customer registered successfully with device information",
-  "data": {
-    "customerId": "6750abcd1234567890123456",
-    "customer": {
-      "fullName": "Customer Full Name",
-      "mobileNumber": "9876543210",
-      "aadharNumber": "123456789012",
-      "dob": "1995-05-15T00:00:00.000Z",
-      "fatherName": "Father's Full Name",
-      "address": {
-        "village": "Village Name",
-        "nearbyLocation": "Nearby Landmark",
-        "post": "Post Office Name",
-        "district": "District Name",
-        "pincode": "400001"
-      },
-      "imei1": "123456789012345",
-      "imei2": "987654321098765"
-    },
-    "documents": {
-      "customerPhoto": "https://res.cloudinary.com/.../customer_photo.jpg",
-      "aadharFrontPhoto": "https://res.cloudinary.com/.../aadhar_front.jpg",
-      "aadharBackPhoto": "https://res.cloudinary.com/.../aadhar_back.jpg",
-      "signaturePhoto": "https://res.cloudinary.com/.../signature.jpg"
-    },
-    "createdAt": "2025-12-14T10:30:00.000Z"
-  }
-}
-```
-
-**Error Responses:**
-
-**400 - No Files:**
-```json
+**Endpoint:** `POST /api/retailer/customers
 {
   "success": false,
   "message": "No files uploaded",
@@ -890,25 +655,26 @@ signature: <image_file>        // Customer's signature
 ```json
 {
   "success": false,
-  "message": "Missing required customer fields",
-  "error": "VALIDATION_ERROR",
-  "details": "fullName, aadharNumber, dob, pincode, and imei1 are required"
-}
+  "message": Create customer with all details, IMEI, OTP verification, and document uploads in a single API call
+
+**Request Headers:**
+```
+Authorization: Bearer <retailer_jwt_token>
+Content-Type: multipart/form-data
 ```
 
-**Frontend Implementation Guide:**
+**Request Body (Form Data):**
 
-```javascript
-// Step 4: Create FormData with all collected data
-const formData = new FormData();
-
-// Add all text fields from steps 1-3
-formData.append('fullName', step1Data.fullName);
-formData.append('aadharNumber', step1Data.aadharNumber);
-formData.append('dob', step1Data.dob);
-formData.append('pincode', step1Data.pincode);
-formData.append('imei1', step1Data.imei1);
-formData.append('imei2', step1Data.imei2);
+**Text Fields (17 fields):**
+```
+fullName: "Customer Full Name"
+aadharNumber: "123456789012"
+dob: "1995-05-15"
+pincode: "400001"
+imei1: "123456789012345"
+imei2: "987654321098765"
+mobileNumber: "9876543210"
+otp: "123456step1Data.imei2);
 formData.append('mobileNumber', step2Data.mobileNumber);
 formData.append('fatherName', step3Data.fatherName);
 formData.append('village', step3Data.village);
@@ -929,15 +695,18 @@ const response = await fetch('http://your-server/api/retailer/products/submit', 
     'Authorization': `Bearer ${retailerToken}`
     // DO NOT set Content-Type - browser will set it automatically with boundary
   },
-  body: formData
-});
-```
-
----
-
-### 4. Get All Customers
-
-**Endpoint:** `GET /api/retailer/customers`  
+  body: formData7 text fields (including OTP)
+2. Verifies OTP with Twilio
+3. Checks for duplicate IMEI1, IMEI2, and Aadhar
+4. Validates all 4 image files are present
+5. Uploads images to Cloudinary (4 parallel uploads)
+6. Creates customer record in database with:
+   - All customer details
+   - IMEI1 and IMEI2 (associated with customer)
+   - Document URLs from Cloudinary
+   - Retailer ID (from JWT token)
+   - Mobile verified status (true)
+7*Endpoint:** `GET /api/retailer/customers`  
 **Authentication:** Required (Retailer only)  
 **Purpose:** Get paginated list of all customers registered by the retailer
 
@@ -1003,41 +772,102 @@ GET /api/retailer/customers?page=1&limit=20&search=john
 ```
 
 **Usage:**
-- Display customer list in the app
-- Implement search to find customers by name/mobile/IMEI
-- Use pagination for large datasets
-- Click on customer to view full details with documents
+- Error Responses:**
 
-**Frontend Implementation:**
-
-```javascript
-const fetchCustomers = async (page = 1, search = '') => {
-  const response = await fetch(
-    `${API_BASE}/api/retailer/customers?page=${page}&limit=20&search=${search}`,
-    {
-      headers: {
-        'Authorization': `Bearer ${retailerToken}`
-      }
-    }
-  );
-  
-  const data = await response.json();
-  
-  if (data.success) {
-    setCustomers(data.data.customers);
-    setPagination(data.data.pagination);
+**400 - Validation Error:**
+```json
+{
+  "success": false,
+  "message": "Validation failed",
+  "error": "VALIDATION_ERROR",
+  "details": {
+    "fullName": "Full name is required",
+    "imei1": "IMEI 1 must be exactly 15 digits",
+    "otp": "OTP must be exactly 6 digits"
   }
-};
-
-// Load more on scroll
-if (pagination.hasNextPage) {
-  fetchCustomers(pagination.currentPage + 1);
 }
 ```
 
----
+**400 - Invalid OTP:**
+```json
+{
+  "success": false,
+  "message": "Invalid or expired OTP",
+  "error": "INVALID_OTP"
+}
+```
 
-## Data Models
+**400 - Duplicate IMEI/Aadhar:**
+```json
+{
+  "success": false,
+  "message": "IMEI 1 already exists in the system",
+  "error": "DUPLICATE_IMEI1"
+}
+```
+
+**Frontend Implementation Guide:**
+
+```javascript
+// Step 1: Send OTP first
+const sendOTP = async () => {
+  const response = await fetch('http://your-server/api/retailer/customers/send-otp', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${retailerToken}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      mobileNumber: customerData.mobileNumber
+    })
+  });
+};
+
+// Step 2: After customer enters OTP, create customer with all data
+const createCustomer = async (otp) => {
+  const formData = new FormData();
+
+  // Add all text fields
+  formData.append('fullName', customerData.fullName);
+  formData.append('aadharNumber', customerData.aadharNumber);
+  formData.append('dob', customerData.dob);
+  formData.append('pincode', customerData.pincode);
+  formData.append('imei1', customerData.imei1);
+  formData.append('imei2', customerData.imei2);
+  formData.append('mobileNumber', customerData.mobileNumber);
+  formData.append('otp', otp); // Customer's OTP input
+  formData.append('fatherName', customerData.fatherName);
+  formData.append('village', customerData.village);
+  formData.append('nearbyLocation', customerData.nearbyLocation);
+  formData.append('post', customerData.post);
+  formData.append('district', customerData.district);
+
+  // Add image files
+  formData.append('customerPhoto', customerPhotoFile);
+  formData.append('aadharFront', aadharFrontFile);
+  formData.append('aadharBack', aadharBackFile);
+  formData.append('signature', signatureFile);
+
+  // Send request
+  const response = await fetch('http://your-server/api/retailer/customers', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${retailerToken}`
+      // DO NOT set Content-Type - browser will set it automatically with boundary
+    },
+    body: formData
+  });
+
+  const data = await response.json();
+  
+  if (data.success) {
+    // Customer created successfully
+    console.log('Customer ID:', data.data.customerId);
+  } else {
+    // Handle error
+    alert(data.message);
+  }
+} Data Models
 
 ### Customer Model
 ```javascript
@@ -1331,11 +1161,9 @@ const compressImage = async (uri) => {
   );
   return manipResult.uri;
 };
-```
-
----
-
-## Environment Configuration
+```END_OTP: '/api/retailer/customers/send-otp',
+    CUSTOMER_CREATE: '/api/retailer/customers',
+    CUSTOMER_LIST: '/api/retailer/customers
 
 ### Required Environment Variables
 
@@ -1391,52 +1219,33 @@ export const API_CONFIG = {
     
     // Retailer
     RETAILER_SEND_OTP: '/api/retailer/auth/send-otp',
-    RETAILER_VERIFY_OTP: '/api/retailer/auth/verify-otp',
-    GET_PERMISSIONS: '/api/retailer/permissions',
-    
-    // Customer Registration
-    CUSTOMER_STEP1: '/api/retailer/products/step1',
-    CUSTOMER_STEP2_SEND: '/api/retailer/products/step2/send-otp',
-    CUSTOMER_STEP2_VERIFY: '/api/retailer/products/step2/verify-otp',
-    CUSTOMER_STEP3: '/api/retailer/products/step3',
-    CUSTOMER_SUBMIT: '/api/retailer/products/submit'
-  },
-  TIMEOUT: 30000, // 30 seconds
-  OTP_EXPIRY: 300, // 5 minutes
-  OTP_LENGTH: 6
-};
-```
-
----
-
-## Complete Flow Examples
-
-### Admin Flow
-
-```
-1. Admin enters mobile number
+1. Retailer collects all customer data in the app:
+   - fullName, aadharNumber, dob, pincode
+   - imei1, imei2 (device IMEI numbers)
+   - fatherName, village, nearbyLocation, post, district
+   - 4 document photos (customer, aadhar front/back, signature)
    ↓
-2. POST /api/admin/auth/send-otp
+2. Retailer enters customer's mobile number
    ↓
-3. Admin receives SMS with OTP
+3. POST /api/retailer/customers/send-otp
    ↓
-4. Admin enters OTP
+4. Customer receives SMS with 6-digit OTP
    ↓
-5. POST /api/admin/auth/verify-otp
+5. Customer tells OTP to retailer
    ↓
-6. Store JWT token
+6. Retailer enters OTP in the app
    ↓
-7. Admin creates retailer
+7. POST /api/retailer/customers (with all data + OTP + 4 files)
    ↓
-8. POST /api/admin/retailers (with token)
+8. Backend verifies OTP with Twilio
    ↓
-9. Success - retailer created
-```
-
-### Retailer Flow
-
-```
-1. Retailer enters mobile number
+9. Backend checks duplicate IMEI/Aadhar
+   ↓
+10. Backend uploads 4 images to Cloudinary
+    ↓
+11. Backend creates customer record with IMEI
+    ↓
+12. Success - customer registered with device
    ↓
 2. POST /api/retailer/auth/send-otp
    ↓
@@ -1496,14 +1305,13 @@ STEP 4: Document Upload
 14. Create FormData with ALL data from steps 1-4
     ↓
 15. POST /api/retailer/products/submit
-    ↓
-16. Backend uploads to Cloudinary
-    ↓
-17. Backend creates customer record
-    ↓
-18. Success - customer registered with IMEI tracking
-```
-
+    ↓end OTP: POST `{{base_url}}/api/retailer/customers/send-otp`
+     - Body (JSON): `{ "mobileNumber": "9876543210" }`
+   - Create Customer: POST `{{base_url}}/api/retailer/customers`
+     - Use form-data (not JSON)
+     - Add all 17 text fields (including otp)
+     - Add 4 image files
+   - List Customers: GET `{{base_url}}/api/retailer/customers?page=1&limit=20`
 ---
 
 ## Testing Guide

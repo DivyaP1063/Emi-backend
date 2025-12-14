@@ -41,67 +41,41 @@ router.get(
   retailerBusinessController.getPermissions
 );
 
-// ========== Multi-Step Product Addition Flow ==========
+// ========== Customer Registration (3 APIs) ==========
 
 /**
- * @route   POST /api/retailer/products/step1
- * @desc    Step 1: Validate customer basic details (name, aadhar, DOB, pincode, IMEI)
+ * @route   POST /api/retailer/customers/send-otp
+ * @desc    Step 2: Send OTP to customer mobile number
  * @access  Protected (Retailer only)
  */
 router.post(
-  '/products/step1',
-  authenticateRetailer,
-  retailerProductController.validateStep1,
-  retailerProductController.addProductStep1
-);
-
-/**
- * @route   POST /api/retailer/products/step2/send-otp
- * @desc    Step 2a: Send OTP to customer mobile number
- * @access  Protected (Retailer only)
- */
-router.post(
-  '/products/step2/send-otp',
+  '/customers/send-otp',
   authenticateRetailer,
   otpRateLimiter,
-  retailerProductController.addProductStep2SendOTP,
-  retailerProductController.sendMobileOTP
+  retailerProductController.sendCustomerOTP
 );
 
 /**
- * @route   POST /api/retailer/products/step2/verify-otp
- * @desc    Step 2b: Verify customer mobile OTP
+ * @route   POST /api/retailer/customers/verify-otp
+ * @desc    Step 2: Verify customer mobile OTP (marks as verified, must pass to proceed)
  * @access  Protected (Retailer only)
  */
 router.post(
-  '/products/step2/verify-otp',
+  '/customers/verify-otp',
   authenticateRetailer,
-  retailerProductController.addProductStep2VerifyOTP,
-  retailerProductController.verifyMobileOTP
+  retailerProductController.verifyCustomerOTP
 );
 
 /**
- * @route   POST /api/retailer/products/step3
- * @desc    Step 3: Validate address details (father name, village, post, district)
+ * @route   POST /api/retailer/customers
+ * @desc    Step 4 (Final): Create customer with all data from steps 1-4 (basic details, verified mobile, address, documents)
  * @access  Protected (Retailer only)
  */
 router.post(
-  '/products/step3',
-  authenticateRetailer,
-  retailerProductController.validateStep3,
-  retailerProductController.addProductStep3
-);
-
-/**
- * @route   POST /api/retailer/products/submit
- * @desc    Step 4: Final submission with document uploads
- * @access  Protected (Retailer only)
- */
-router.post(
-  '/products/submit',
+  '/customers',
   authenticateRetailer,
   uploadDocuments,
-  retailerProductController.addProductFinal
+  retailerProductController.createCustomer
 );
 
 /**
