@@ -169,6 +169,10 @@ const customerSchema = new mongoose.Schema({
       min: 0
     }
   },
+  isLocked: {
+    type: Boolean,
+    default: false
+  },
   retailerId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Retailer',
