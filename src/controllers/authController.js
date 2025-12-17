@@ -64,7 +64,7 @@ const sendOtpController = async (req, res) => {
 
     // Send OTP via SMS
     const smsSent = await sendOTP(mobileNumber, otp);
-    
+
     if (!smsSent && process.env.SMS_ENABLED === 'true') {
       return res.status(500).json({
         success: false,
@@ -251,10 +251,170 @@ const getAllCustomers = async (req, res) => {
   }
 };
 
+/**
+ * Update EMI Payment Status (Admin only)
+ */
+const updateEmiPaymentStatus = async (req, res) => {
+  try {
+    const { customerId, monthNumber } = req.params;
+    const { paid, paidDate } = req.body;
+
+    // Validate required fields
+    if (typeof paid !== 'boolean') {
+      return res.status(400).json({
+        success: false,
+        message: 'Paid status is required and must be a boolean',
+        error: 'VALIDATION_ERROR'
+      });
+    }
+
+    // Validate customerId format
+    if (!customerId.match(/^[0-9a-fA-F]{24}$/)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid customer ID format',
+        error: 'VALIDATION_ERROR'
+      });
+    }
+
+    // Get customer
+    const Customer = require('../models/Customer');
+    const customer = await Customer.findById(customerId);
+
+    if (!customer) {
+      return res.status(404).json({
+        success: false,
+        message: 'Customer not found',
+        error: 'CUSTOMER_NOT_FOUND'
+      });
+    }
+
+    // Validate month number
+    const month = parseInt(monthNumber);
+    if (isNaN(month) || month < 1 || month > customer.emiDetails.numberOfMonths) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid month number. Must be between 1 and ${customer.emiDetails.numberOfMonths}`,
+        error: 'INVALID_MONTH_NUMBER'
+      });
+    }
+
+    // Find the EMI month
+    const emiMonth = customer.emiDetails.emiMonths.find(m => m.month === month);
+
+    if (!emiMonth) {
+      return res.status(404).json({
+        success: false,
+        message: `EMI month ${month} not found`,
+        error: 'EMI_MONTH_NOT_FOUND'
+      });
+    }
+
+    // Update payment status
+    emiMonth.paid = paid;
+
+    if (paid) {
+      // If marking as paid, set paidDate (use provided date or current date)
+      emiMonth.paidDate = paidDate ? new Date(paidDate) : new Date();
+    } else {
+      // If marking as pending, remove paidDate
+      emiMonth.paidDate = undefined;
+    }
+
+    // Save customer
+    await customer.save();
+
+    return res.status(200).json({
+      success: true,
+      message: `EMI month ${month} marked as ${paid ? 'paid' : 'pending'}`,
+      data: {
+        customerId: customer._id.toString(),
+        customerName: customer.fullName,
+        monthNumber: month,
+        paid: emiMonth.paid,
+        paidDate: emiMonth.paidDate,
+        amount: emiMonth.amount,
+        emiDetails: customer.emiDetails
+      }
+    });
+  } catch (error) {
+    console.error('Update EMI payment status error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to update EMI payment status',
+      error: 'SERVER_ERROR'
+    });
+  }
+};
+
+/**
+ * Toggle Customer Lock Status (Admin only)
+ */
+const toggleCustomerLock = async (req, res) => {
+  try {
+    const { customerId } = req.params;
+    const { isLocked } = req.body;
+
+    // Validate required fields
+    if (typeof isLocked !== 'boolean') {
+      return res.status(400).json({
+        success: false,
+        message: 'isLocked status is required and must be a boolean',
+        error: 'VALIDATION_ERROR'
+      });
+    }
+
+    // Validate customerId format
+    if (!customerId.match(/^[0-9a-fA-F]{24}$/)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid customer ID format',
+        error: 'VALIDATION_ERROR'
+      });
+    }
+
+    // Get customer
+    const Customer = require('../models/Customer');
+    const customer = await Customer.findById(customerId);
+
+    if (!customer) {
+      return res.status(404).json({
+        success: false,
+        message: 'Customer not found',
+        error: 'CUSTOMER_NOT_FOUND'
+      });
+    }
+
+    // Update lock status
+    customer.isLocked = isLocked;
+    await customer.save();
+
+    return res.status(200).json({
+      success: true,
+      message: `Customer ${isLocked ? 'locked' : 'unlocked'} successfully`,
+      data: {
+        customerId: customer._id.toString(),
+        customerName: customer.fullName,
+        isLocked: customer.isLocked,
+        updatedAt: customer.updatedAt
+      }
+    });
+  } catch (error) {
+    console.error('Toggle customer lock error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to update customer lock status',
+      error: 'SERVER_ERROR'
+    });
+  }
+};
+
 module.exports = {
   sendOtpController,
   verifyOtpController,
   sendOtpValidation,
   verifyOtpValidation,
-  getAllCustomers
+  getAllCustomers,
+  updateEmiPaymentStatus,
+  toggleCustomerLock
 };
