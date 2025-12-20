@@ -383,6 +383,7 @@ const getCustomers = async (req, res) => {
           fatherName: c.fatherName,
           address: c.address,
           mobileVerified: c.mobileVerified,
+          isLocked: c.isLocked,
           createdAt: c.createdAt
         })),
         pagination: {
