@@ -214,6 +214,7 @@ const getAllCustomers = async (req, res) => {
       address: customer.address,
       documents: customer.documents,
       emiDetails: customer.emiDetails,
+      isLocked: customer.isLocked,
       retailer: customer.retailerId ? {
         id: customer.retailerId._id?.toString(),
         name: customer.retailerId.basicInfo?.fullName,
