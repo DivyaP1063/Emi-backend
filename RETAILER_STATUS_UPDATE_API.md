@@ -456,3 +456,343 @@ Authorization: Bearer <admin_token>
 - Monitor which devices are associated with locked accounts
 - Generate reports of locked customers and their devices
 - Bulk IMEI blocking for security purposes
+
+---
+
+## Get Pending EMI Customers API (New Feature)
+
+### Overview
+This feature provides two APIs - one for admins and one for retailers - to fetch customers who have pending (overdue) EMI payments. The APIs automatically filter customers based on EMI due dates that have passed.
+
+---
+
+### Admin API - Get All Pending EMI Customers
+
+**Endpoint:** `GET /api/admin/customers/pending-emi`  
+**Authentication:** Required (Admin JWT token)  
+**Purpose:** Retrieve all customers with overdue EMI payments across all retailers
+
+#### Request
+
+**Headers:**
+```
+Authorization: Bearer <admin_jwt_token>
+```
+
+**Query Parameters:**
+- `page` (optional, default: 1) - Page number for pagination
+- `limit` (optional, default: 20) - Number of items per page
+- `search` (optional) - Search by customer name, mobile, aadhar, or IMEI
+
+**Example:**
+```
+GET /api/admin/customers/pending-emi?page=1&limit=10&search=Sagar
+```
+
+#### Response
+
+**Success (200):**
+```json
+{
+  "success": true,
+  "message": "Pending EMI customers fetched successfully",
+  "data": {
+    "customers": [
+      {
+        "id": "6750abcd1234567890123456",
+        "fullName": "Sagar Kumar",
+        "mobileNumber": "9876543210",
+        "aadharNumber": "123456789012",
+        "dob": "1995-05-15T00:00:00.000Z",
+        "imei1": "123456789012345",
+        "imei2": "987654321098765",
+        "fatherName": "Rajesh Kumar",
+        "address": {
+          "village": "Patna",
+          "nearbyLocation": "Near Railway Station",
+          "post": "Patna City",
+          "district": "Patna",
+          "pincode": "800001"
+        },
+        "isLocked": false,
+        "emiDetails": {
+          "branch": "Patna Main",
+          "phoneType": "NEW",
+          "model": "iPhone 14",
+          "productName": "Apple iPhone 14 128GB",
+          "emiPerMonth": 5000,
+          "numberOfMonths": 6
+        },
+        "pendingEmis": [
+          {
+            "month": 1,
+            "dueDate": "2024-10-01T00:00:00.000Z",
+            "paid": false,
+            "amount": 5000
+          },
+          {
+            "month": 2,
+            "dueDate": "2024-11-01T00:00:00.000Z",
+            "paid": false,
+            "amount": 5000
+          }
+        ],
+        "retailer": {
+          "id": "6750xyz1234567890123456",
+          "fullName": "Amit Sharma",
+          "shopName": "Sharma Mobile Store",
+          "mobileNumber": "9876543210",
+          "email": "amit@example.com"
+        },
+        "createdAt": "2024-09-01T10:00:00.000Z"
+      }
+    ],
+    "pagination": {
+      "currentPage": 1,
+      "totalPages": 5,
+      "totalItems": 45,
+      "itemsPerPage": 10,
+      "hasNextPage": true,
+      "hasPrevPage": false
+    }
+  }
+}
+```
+
+**Response Fields:**
+- `customers` - Array of customers with pending EMIs
+  - `pendingEmis` - Array of EMI months that are overdue (past due date and unpaid)
+  - `retailer` - Information about the retailer who registered this customer
+- `pagination` - Pagination metadata
+
+**Error Responses:**
+- `401` - Unauthorized (missing or invalid admin token)
+- `500` - Server error
+
+#### Testing in Postman
+
+**Method:** `GET`  
+**URL:** `http://localhost:5000/api/admin/customers/pending-emi?page=1&limit=10`
+
+**Headers:**
+```
+Authorization: Bearer <admin_token>
+```
+
+**No Body Required**
+
+#### Implementation Details
+
+**Controller:** `src/controllers/authController.js` (lines 480-660)  
+**Function:** `getPendingEmiCustomersAdmin`  
+**Route:** `src/routes/index.js` (line 24-25)
+
+**Logic:**
+- Uses MongoDB aggregation pipeline
+- Filters EMI months where `paid: false` AND `dueDate < currentDate`
+- Includes retailer information via `$lookup`
+- Supports pagination and search
+
+---
+
+### Retailer API - Get Pending EMI Customers
+
+**Endpoint:** `GET /api/retailer/customers/pending-emi`  
+**Authentication:** Required (Retailer JWT token)  
+**Purpose:** Retrieve only the retailer's customers with overdue EMI payments
+
+#### Request
+
+**Headers:**
+```
+Authorization: Bearer <retailer_jwt_token>
+```
+
+**Query Parameters:**
+- `page` (optional, default: 1) - Page number for pagination
+- `limit` (optional, default: 20) - Number of items per page
+- `search` (optional) - Search by customer name, mobile, aadhar, or IMEI
+
+**Example:**
+```
+GET /api/retailer/customers/pending-emi?page=1&limit=10
+```
+
+#### Response
+
+**Success (200):**
+```json
+{
+  "success": true,
+  "message": "Pending EMI customers fetched successfully",
+  "data": {
+    "customers": [
+      {
+        "id": "6750abcd1234567890123456",
+        "fullName": "Sagar Kumar",
+        "mobileNumber": "9876543210",
+        "aadharNumber": "123456789012",
+        "dob": "1995-05-15T00:00:00.000Z",
+        "imei1": "123456789012345",
+        "imei2": "987654321098765",
+        "fatherName": "Rajesh Kumar",
+        "address": {
+          "village": "Patna",
+          "nearbyLocation": "Near Railway Station",
+          "post": "Patna City",
+          "district": "Patna",
+          "pincode": "800001"
+        },
+        "isLocked": false,
+        "emiDetails": {
+          "branch": "Patna Main",
+          "phoneType": "NEW",
+          "model": "iPhone 14",
+          "productName": "Apple iPhone 14 128GB",
+          "emiPerMonth": 5000,
+          "numberOfMonths": 6
+        },
+        "pendingEmis": [
+          {
+            "month": 1,
+            "dueDate": "2024-10-01T00:00:00.000Z",
+            "paid": false,
+            "amount": 5000
+          },
+          {
+            "month": 2,
+            "dueDate": "2024-11-01T00:00:00.000Z",
+            "paid": false,
+            "amount": 5000
+          }
+        ],
+        "createdAt": "2024-09-01T10:00:00.000Z"
+      }
+    ],
+    "pagination": {
+      "currentPage": 1,
+      "totalPages": 2,
+      "totalItems": 15,
+      "itemsPerPage": 10,
+      "hasNextPage": true,
+      "hasPrevPage": false
+    }
+  }
+}
+```
+
+**Key Differences from Admin API:**
+- Only shows customers belonging to the authenticated retailer
+- Does NOT include `retailer` field (retailer already knows it's their customer)
+
+**Error Responses:**
+- `401` - Unauthorized (missing or invalid retailer token)
+- `500` - Server error
+
+#### Testing in Postman
+
+**Method:** `GET`  
+**URL:** `http://localhost:5000/api/retailer/customers/pending-emi?page=1&limit=10`
+
+**Headers:**
+```
+Authorization: Bearer <retailer_token>
+```
+
+**No Body Required**
+
+#### Implementation Details
+
+**Controller:** `src/controllers/retailerProductController.js` (lines 410-560)  
+**Function:** `getPendingEmiCustomers`  
+**Route:** `src/routes/retailerApiRoutes.js` (lines 97-101)
+
+**Logic:**
+- Filters by `retailerId` automatically (from JWT token)
+- Uses MongoDB aggregation pipeline
+- Filters EMI months where `paid: false` AND `dueDate < currentDate`
+- Supports pagination and search
+
+---
+
+### EMI Due Date Calculation
+
+When a customer is created, EMI due dates are automatically calculated:
+
+**Logic:**
+```javascript
+const currentDate = new Date();
+for (let i = 1; i <= numberOfMonths; i++) {
+  const dueDate = new Date(currentDate);
+  dueDate.setMonth(dueDate.getMonth() + i);
+  // First EMI due in 1 month, second in 2 months, etc.
+}
+```
+
+**Example:**
+- Customer created: December 20, 2024
+- EMI 1 due date: January 20, 2025
+- EMI 2 due date: February 20, 2025
+- EMI 3 due date: March 20, 2025
+
+---
+
+### Customer Model Updates
+
+**File:** `src/models/Customer.js`
+
+**Added `dueDate` field to `emiMonths` schema:**
+```javascript
+emiMonths: [{
+  month: { type: Number, required: true },
+  dueDate: { type: Date, required: true },  // NEW FIELD
+  paid: { type: Boolean, default: false },
+  paidDate: { type: Date },
+  amount: { type: Number, required: true }
+}]
+```
+
+---
+
+### Use Cases
+
+**Admin:**
+- Monitor all overdue EMI payments across the platform
+- Identify customers who need follow-up
+- Generate reports of pending payments
+- Track payment trends by retailer
+
+**Retailer:**
+- View their own customers with overdue payments
+- Follow up with customers for payment collection
+- Prioritize collection efforts
+- Monitor their portfolio health
+
+---
+
+## API Summary
+
+| API | Endpoint | Access | Shows |
+|-----|----------|--------|-------|
+| **Admin Pending EMI** | `GET /api/admin/customers/pending-emi` | Admin only | All customers with pending EMIs + retailer info |
+| **Retailer Pending EMI** | `GET /api/retailer/customers/pending-emi` | Retailer only | Only their customers with pending EMIs |
+
+Both APIs support:
+- Pagination: `?page=1&limit=10`
+- Search: `?search=customer_name`
+- Filtering by overdue EMIs automatically
+
+---
+
+## Implementation Status
+
+✅ Customer model updated with `dueDate` field  
+✅ EMI due date calculation implemented in customer creation  
+✅ Admin pending EMI API created and tested  
+✅ Retailer pending EMI API created and tested  
+✅ Pagination and search functionality working  
+✅ Access control properly enforced  
+✅ MongoDB aggregation pipelines optimized  
+✅ Documentation completed  
+
+**Status:** Production-ready and fully tested

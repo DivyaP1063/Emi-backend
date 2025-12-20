@@ -3,7 +3,7 @@ const router = express.Router();
 const authRoutes = require('./authRoutes');
 const retailerRoutes = require('./retailerRoutes');
 const { authenticate } = require('../middleware/auth');
-const { getAllCustomers, updateEmiPaymentStatus, toggleCustomerLock, getLockedCustomersImei } = require('../controllers/authController');
+const { getAllCustomers, updateEmiPaymentStatus, toggleCustomerLock, getLockedCustomersImei, getPendingEmiCustomersAdmin } = require('../controllers/authController');
 const { getLateFine, updateLateFine, updateLateFineValidation } = require('../controllers/lateFineController');
 const { updateRetailerStatus, updateRetailerStatusValidation } = require('../controllers/retailerController');
 
@@ -20,6 +20,9 @@ router.get('/customers', authenticate, getAllCustomers);
 
 // Get locked customers IMEI (Admin only)
 router.get('/customers/locked/imei', authenticate, getLockedCustomersImei);
+
+// Get customers with pending EMI (Admin only)
+router.get('/customers/pending-emi', authenticate, getPendingEmiCustomersAdmin);
 
 // EMI Payment Status Update (Admin only)
 router.put('/customers/:customerId/emi/:monthNumber', authenticate, updateEmiPaymentStatus);
