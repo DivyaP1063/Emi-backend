@@ -1,4 +1,5 @@
 const OTP = require('../models/OTP');
+const axios = require('axios');
 
 /**
  * Generate 6-digit OTP
@@ -29,80 +30,48 @@ const saveOTP = async (mobileNumber, otp) => {
 };
 
 /**
- * Verify OTP (Uses Twilio Verify if enabled, otherwise database)
+ * Verify OTP using database
  */
 const verifyOTP = async (mobileNumber, otp) => {
   try {
-    const smsEnabled = process.env.SMS_ENABLED === 'true';
-    const provider = process.env.SMS_PROVIDER || 'TWILIO_VERIFY';
+    // Database verification
+    const otpRecord = await OTP.findOne({ 
+      mobileNumber, 
+      verified: false 
+    });
 
-    if (smsEnabled && provider === 'TWILIO_VERIFY') {
-      // Verify with Twilio Verify Service
-      const twilio = require('twilio');
-      
-      const client = twilio(
-        process.env.TWILIO_ACCOUNT_SID,
-        process.env.TWILIO_AUTH_TOKEN
-      );
-
-      const verificationCheck = await client.verify.v2
-        .services(process.env.TWILIO_VERIFY_SERVICE_SID)
-        .verificationChecks
-        .create({
-          to: `+91${mobileNumber}`,
-          code: otp
-        });
-
-      console.log('📥 Twilio Verify Check:', {
-        status: verificationCheck.status,
-        valid: verificationCheck.valid
-      });
-
-      if (verificationCheck.status === 'approved') {
-        return { success: true, message: 'OTP verified successfully' };
-      } else {
-        return { success: false, message: 'Invalid or expired OTP' };
-      }
-    } else {
-      // Fallback to database verification
-      const otpRecord = await OTP.findOne({ 
-        mobileNumber, 
-        verified: false 
-      });
-
-      if (!otpRecord) {
-        return { success: false, message: 'OTP not found or already used' };
-      }
-
-      // Check if OTP is expired
-      if (new Date() > otpRecord.expiresAt) {
-        await OTP.deleteOne({ _id: otpRecord._id });
-        return { success: false, message: 'OTP has expired' };
-      }
-
-      // Check maximum attempts
-      const maxAttempts = parseInt(process.env.OTP_MAX_ATTEMPTS) || 3;
-      if (otpRecord.attempts >= maxAttempts) {
-        await OTP.deleteOne({ _id: otpRecord._id });
-        return { success: false, message: 'Maximum OTP attempts exceeded' };
-      }
-
-      // Check if OTP matches
-      if (otpRecord.otp !== otp) {
-        otpRecord.attempts += 1;
-        await otpRecord.save();
-        return { 
-          success: false, 
-          message: 'Invalid OTP',
-          attemptsLeft: maxAttempts - otpRecord.attempts
-        };
-      }
-
-      // Mark OTP as verified and delete
-      await OTP.deleteOne({ _id: otpRecord._id });
-      
-      return { success: true, message: 'OTP verified successfully' };
+    if (!otpRecord) {
+      return { success: false, message: 'OTP not found or already used' };
     }
+
+    // Check if OTP is expired
+    if (new Date() > otpRecord.expiresAt) {
+      await OTP.deleteOne({ _id: otpRecord._id });
+      return { success: false, message: 'OTP has expired' };
+    }
+
+    // Check maximum attempts
+    const maxAttempts = parseInt(process.env.OTP_MAX_ATTEMPTS) || 3;
+    if (otpRecord.attempts >= maxAttempts) {
+      await OTP.deleteOne({ _id: otpRecord._id });
+      return { success: false, message: 'Maximum OTP attempts exceeded' };
+    }
+
+    // Check if OTP matches
+    if (otpRecord.otp !== otp) {
+      otpRecord.attempts += 1;
+      await otpRecord.save();
+      return { 
+        success: false, 
+        message: 'Invalid OTP',
+        attemptsLeft: maxAttempts - otpRecord.attempts
+      };
+    }
+
+    // Mark OTP as verified and delete
+    await OTP.deleteOne({ _id: otpRecord._id });
+    
+    return { success: true, message: 'OTP verified successfully' };
   } catch (error) {
     console.error('❌ OTP verification error:', error.message);
     return { success: false, message: 'Failed to verify OTP' };
@@ -110,7 +79,7 @@ const verifyOTP = async (mobileNumber, otp) => {
 };
 
 /**
- * Send OTP via Twilio Verify (Twilio generates and manages OTP)
+ * Send OTP via BulkSMS HTTP API
  */
 const sendOTP = async (mobileNumber, otp) => {
   try {
@@ -123,48 +92,52 @@ const sendOTP = async (mobileNumber, otp) => {
       return true;
     }
 
-    const provider = process.env.SMS_PROVIDER || 'TWILIO_VERIFY';
+    console.log(`📤 Sending OTP to ${mobileNumber} via BulkSMS...`);
 
-    console.log(`📤 Sending OTP to +91${mobileNumber} via ${provider}...`);
+    // BulkSMS HTTP API configuration
+    const bulkSmsUser = process.env.BULKSMS_USER || 'kistkart';
+    const bulkSmsKey = process.env.BULKSMS_KEY || '9ded48cbeaXX';
+    const senderId = process.env.BULKSMS_SENDER_ID || 'OTPSSS';
+    const entityId = process.env.BULKSMS_ENTITY_ID || '1201159543060917386';
+    const tempId = process.env.BULKSMS_TEMPLATE_ID || '1207161729866691748';
 
-    if (provider === 'TWILIO_VERIFY') {
-      // Twilio Verify - Twilio generates OTP automatically
-      const twilio = require('twilio');
-      
-      const client = twilio(
-        process.env.TWILIO_ACCOUNT_SID,
-        process.env.TWILIO_AUTH_TOKEN
-      );
+    // Construct the message
+    const message = `Dear Customer, Your OTP is ${otp} for kistkart, Please do not share this OTP. Regards`;
 
-      const verification = await client.verify.v2
-        .services(process.env.TWILIO_VERIFY_SERVICE_SID)
-        .verifications
-        .create({
-          to: `+91${mobileNumber}`,
-          channel: 'sms'
-        });
+    // Build the API URL with all parameters
+    const apiUrl = 'http://sms.bulkssms.com/submitsms.jsp';
+    const params = {
+      user: bulkSmsUser,
+      key: bulkSmsKey,
+      mobile: mobileNumber,
+      message: message,
+      senderid: senderId,
+      accusage: '1',
+      entityid: entityId,
+      tempid: tempId
+    };
 
-      console.log('📥 Twilio Verify Response:', {
-        sid: verification.sid,
-        status: verification.status,
-        to: verification.to
-      });
+    // Make HTTP GET request to BulkSMS API
+    const response = await axios.get(apiUrl, { params });
 
-      if (verification.status === 'pending') {
-        console.log(`✅ OTP sent successfully to +91${mobileNumber}!`);
-        console.log(`📱 Check your phone for SMS from Twilio!`);
-        console.log(`⚠️ Use the 6-digit code from SMS to verify`);
-        return true;
-      } else {
-        console.error('❌ Twilio Verify Error:', verification);
-        return false;
-      }
-    } else {
-      console.log(`📱 [TEST MODE] OTP for ${mobileNumber}: ${otp}`);
+    console.log('📥 BulkSMS Response:', {
+      status: response.status,
+      data: response.data
+    });
+
+    if (response.status === 200) {
+      console.log(`✅ OTP sent successfully to ${mobileNumber}!`);
+      console.log(`📱 Check your phone for SMS!`);
       return true;
+    } else {
+      console.error('❌ BulkSMS Error:', response.data);
+      return false;
     }
   } catch (error) {
     console.error('❌ SMS sending error:', error.message);
+    if (error.response) {
+      console.error('❌ Response data:', error.response.data);
+    }
     return false;
   }
 };

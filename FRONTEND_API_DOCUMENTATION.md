@@ -74,6 +74,8 @@ Base Path: `/api/admin`
 3. Verify OTP - Admin authentication (Step 2)
 4. Retailer Management - Create, list, update, delete retailers
 5. **Get All Customers** - View all customers across all retailers with complete EMI details
+6. **Late Fine Management** - Get and update late fine settings
+7. **EMI Payment Status Update** - Mark customer EMI months as paid or pending (See [EMI_API_DOCUMENTATION.md](file:///c:/flutter_extra_project/lock_system_backend/Emi-backend/EMI_API_DOCUMENTATION.md))
 
 ---
 
@@ -511,6 +513,163 @@ GET /api/admin/customers?page=1&limit=20&search=rajesh
 - Monitor EMI payment status across all customers
 - Track which retailer registered each customer
 - Access complete customer data including documents and EMI details
+
+---
+
+### 6. Late Fine Management
+
+Late fine is a global setting that admins can configure. This setting determines the penalty amount charged to customers for late EMI payments.
+
+#### 6.1 Get Late Fine
+
+**Endpoint:** `GET /api/admin/late-fine`  
+**Authentication:** None (Public endpoint)  
+**Purpose:** Get the current late fine amount
+
+**Request Headers:**
+```
+None required
+```
+
+**Success Response (200):**
+```json
+{
+  "success": true,
+  "message": "Late fine fetched successfully",
+  "data": {
+    "amount": 200
+  }
+}
+```
+
+**Response Fields:**
+- `amount`: Current late fine amount in rupees (Number)
+
+**Default Value:**
+- If no late fine has been set, the default value is `0`
+
+**Usage:**
+- Display current late fine to admin dashboard
+- Show late fine information to retailers
+- Calculate total amount due for late payments
+- No authentication required - can be accessed by admin and retailer apps
+
+**Example Request:**
+```bash
+curl -X GET http://localhost:5000/api/admin/late-fine
+```
+
+---
+
+#### 6.2 Update Late Fine
+
+**Endpoint:** `PUT /api/admin/late-fine`  
+**Authentication:** Required (Admin only)  
+**Purpose:** Update the late fine amount (admin can set to any value like 200 Rs, 150 Rs, etc.)
+
+**Request Headers:**
+```
+Authorization: Bearer <admin_jwt_token>
+Content-Type: application/json
+```
+
+**Request Body:**
+```json
+{
+  "amount": 200
+}
+```
+
+**Field Details:**
+- `amount`: Late fine amount in rupees (required, must be a number >= 0)
+
+**Validation Rules:**
+- `amount`: Required, must be numeric, minimum value is 0
+
+**Success Response (200):**
+```json
+{
+  "success": true,
+  "message": "Late fine updated successfully",
+  "data": {
+    "amount": 200,
+    "updatedBy": "6750abcd1234567890123456",
+    "updatedAt": "2025-12-17T12:40:17.000Z"
+  }
+}
+```
+
+**Response Fields:**
+- `amount`: Updated late fine amount (Number)
+- `updatedBy`: Admin ID who made the update (String)
+- `updatedAt`: Timestamp of the update (ISO 8601 date string)
+
+**Error Responses:**
+
+**400 - Validation Error:**
+```json
+{
+  "success": false,
+  "message": "Validation failed",
+  "error": "VALIDATION_ERROR",
+  "details": [
+    {
+      "path": "amount",
+      "msg": "Amount must be a positive number or zero"
+    }
+  ]
+}
+```
+
+**401 - Unauthorized:**
+```json
+{
+  "success": false,
+  "message": "Authorization token not found",
+  "error": "INVALID_TOKEN"
+}
+```
+
+**Usage:**
+- Admin can set late fine to any amount (e.g., 200 Rs, 150 Rs, 50 Rs)
+- Setting amount to 0 effectively disables late fine
+- Only admin users can update this setting
+- The setting is global and applies to all customers
+- Track which admin made the last update
+
+**Example Request:**
+```bash
+# First, login as admin to get token
+curl -X POST http://localhost:5000/api/admin/auth/send-otp \
+  -H "Content-Type: application/json" \
+  -d '{"mobileNumber": "1234567890"}'
+
+curl -X POST http://localhost:5000/api/admin/auth/verify-otp \
+  -H "Content-Type: application/json" \
+  -d '{"mobileNumber": "1234567890", "otp": "123456"}'
+
+# Then update late fine
+curl -X PUT http://localhost:5000/api/admin/late-fine \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_ADMIN_TOKEN" \
+  -d '{"amount": 200}'
+```
+
+**Common Use Cases:**
+1. **Set late fine to 200 Rs:**
+   ```json
+   { "amount": 200 }
+   ```
+
+2. **Set late fine to 150 Rs:**
+   ```json
+   { "amount": 150 }
+   ```
+
+3. **Disable late fine:**
+   ```json
+   { "amount": 0 }
+   ```
 
 ---
 

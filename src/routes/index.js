@@ -3,7 +3,8 @@ const router = express.Router();
 const authRoutes = require('./authRoutes');
 const retailerRoutes = require('./retailerRoutes');
 const { authenticate } = require('../middleware/auth');
-const { getAllCustomers } = require('../controllers/authController');
+const { getAllCustomers, updateEmiPaymentStatus, toggleCustomerLock } = require('../controllers/authController');
+const { getLateFine, updateLateFine, updateLateFineValidation } = require('../controllers/lateFineController');
 
 // Mount routes
 router.use('/auth', authRoutes);
@@ -11,6 +12,16 @@ router.use('/retailers', retailerRoutes);
 
 // Customer routes (Admin only)
 router.get('/customers', authenticate, getAllCustomers);
+
+// EMI Payment Status Update (Admin only)
+router.put('/customers/:customerId/emi/:monthNumber', authenticate, updateEmiPaymentStatus);
+
+// Customer Lock/Unlock (Admin only)
+router.put('/customers/:customerId/lock', authenticate, toggleCustomerLock);
+
+// Late Fine routes
+router.get('/late-fine', getLateFine); // Public - no auth required
+router.put('/late-fine', authenticate, updateLateFineValidation, updateLateFine); // Admin only
 
 // Health check endpoint
 router.get('/health', (req, res) => {
