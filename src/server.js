@@ -6,6 +6,7 @@ const connectDB = require('./config/database');
 const { apiRateLimiter } = require('./middleware/rateLimiter');
 const adminRoutes = require('./routes');
 const retailerApiRoutes = require('./routes/retailerApiRoutes');
+const accountantApiRoutes = require('./routes/accountantApiRoutes');
 
 // Initialize Express app
 const app = express();
@@ -28,6 +29,9 @@ app.use(apiRateLimiter);
 // API Routes
 app.use('/api/admin', adminRoutes);
 app.use('/api/retailer', retailerApiRoutes);
+app.use('/api/accountant', accountantApiRoutes);
+
+console.log('✅ Accountant routes mounted at /api/accountant');
 
 // Root endpoint
 app.get('/', (req, res) => {

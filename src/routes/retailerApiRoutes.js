@@ -111,4 +111,15 @@ router.get(
   retailerProductController.getEmiStatisticsRetailer
 );
 
+/**
+ * @route   GET /api/retailer/customers/count
+ * @desc    Get customer count statistics for retailer's customers
+ * @access  Protected (Retailer only)
+ */
+router.get(
+  '/customers/count',
+  authenticateRetailer,
+  retailerProductController.getCustomerCountRetailer
+);
+
 module.exports = router;

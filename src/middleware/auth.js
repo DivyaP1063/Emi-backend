@@ -138,7 +138,85 @@ const authenticateRetailer = async (req, res, next) => {
   }
 };
 
+/**
+ * Middleware to verify JWT token and authenticate accountant
+ */
+const authenticateAccountant = async (req, res, next) => {
+  try {
+    // Get token from header
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authorization token not found',
+        error: 'INVALID_TOKEN'
+      });
+    }
+
+    const token = authHeader.substring(7); // Remove 'Bearer ' prefix
+
+    // Verify token
+    const decoded = verifyToken(token);
+
+    if (!decoded) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid or expired token',
+        error: 'INVALID_TOKEN'
+      });
+    }
+
+    // Check if token is for accountant
+    if (decoded.role !== 'accountant') {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied: Accountant role required',
+        error: 'FORBIDDEN'
+      });
+    }
+
+    // Check if accountant exists and is active
+    const Accountant = require('../models/Accountant');
+    const accountant = await Accountant.findById(decoded.id);
+
+    if (!accountant) {
+      return res.status(401).json({
+        success: false,
+        message: 'Accountant not found',
+        error: 'UNAUTHORIZED_ACCESS'
+      });
+    }
+
+    if (!accountant.isActive) {
+      return res.status(403).json({
+        success: false,
+        message: 'Accountant account is inactive',
+        error: 'ACCOUNT_INACTIVE'
+      });
+    }
+
+    // Attach accountant to request object
+    req.accountant = {
+      id: accountant._id.toString(),
+      fullName: accountant.fullName,
+      mobileNumber: accountant.mobileNumber,
+      aadharNumber: accountant.aadharNumber
+    };
+
+    next();
+  } catch (error) {
+    console.error('Accountant authentication error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Authentication failed',
+      error: 'SERVER_ERROR'
+    });
+  }
+};
+
 module.exports = {
   authenticate,
-  authenticateRetailer
+  authenticateRetailer,
+  authenticateAccountant
 };

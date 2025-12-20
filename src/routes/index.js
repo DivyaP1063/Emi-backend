@@ -2,8 +2,9 @@ const express = require('express');
 const router = express.Router();
 const authRoutes = require('./authRoutes');
 const retailerRoutes = require('./retailerRoutes');
+const accountantRoutes = require('./accountantRoutes');
 const { authenticate } = require('../middleware/auth');
-const { getAllCustomers, updateEmiPaymentStatus, toggleCustomerLock, getLockedCustomersImei, getPendingEmiCustomersAdmin, getEmiStatisticsAdmin } = require('../controllers/authController');
+const { getAllCustomers, updateEmiPaymentStatus, toggleCustomerLock, getLockedCustomersImei, getPendingEmiCustomersAdmin, getEmiStatisticsAdmin, getCustomerCountAdmin } = require('../controllers/authController');
 const { getLateFine, updateLateFine, updateLateFineValidation } = require('../controllers/lateFineController');
 const { updateRetailerStatus, updateRetailerStatusValidation } = require('../controllers/retailerController');
 
@@ -11,9 +12,12 @@ const { updateRetailerStatus, updateRetailerStatusValidation } = require('../con
 router.use('/auth', authRoutes);
 
 // Retailer Status Update (Admin only) - Must be before retailerRoutes mount
-router.put('/retailers/:retailerId/status', authenticate, updateRetailerStatusValidation, updateRetailerStatus);
+router.use('/retailers/:retailerId/status', authenticate, updateRetailerStatusValidation, updateRetailerStatus);
 
 router.use('/retailers', retailerRoutes);
+
+// Accountant routes (Admin management only - for creating/managing accountants)
+router.use('/accountants', accountantRoutes);
 
 // Customer routes (Admin only)
 router.get('/customers', authenticate, getAllCustomers);
@@ -26,6 +30,9 @@ router.get('/customers/pending-emi', authenticate, getPendingEmiCustomersAdmin);
 
 // Get EMI statistics (Admin only)
 router.get('/emi/statistics', authenticate, getEmiStatisticsAdmin);
+
+// Get customer count statistics (Admin only)
+router.get('/customers/count', authenticate, getCustomerCountAdmin);
 
 // EMI Payment Status Update (Admin only)
 router.put('/customers/:customerId/emi/:monthNumber', authenticate, updateEmiPaymentStatus);
