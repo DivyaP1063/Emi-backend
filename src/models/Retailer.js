@@ -10,14 +10,12 @@ const retailerSchema = new mongoose.Schema({
   email: {
     type: String,
     required: true,
-    unique: true,
     lowercase: true,
     trim: true
   },
   mobileNumber: {
     type: String,
     required: true,
-    unique: true,
     match: /^[0-9]{10}$/
   },
   shopName: {
@@ -25,7 +23,7 @@ const retailerSchema = new mongoose.Schema({
     required: true,
     trim: true
   },
-  
+
   // Address
   address: {
     country: {
@@ -45,7 +43,7 @@ const retailerSchema = new mongoose.Schema({
       required: true
     }
   },
-  
+
   // Permissions
   permissions: {
     canPayEmiDownPayment: {
@@ -90,7 +88,7 @@ const retailerSchema = new mongoose.Schema({
       default: false
     }
   },
-  
+
   // Status
   status: {
     type: String,
@@ -102,16 +100,16 @@ const retailerSchema = new mongoose.Schema({
 });
 
 // Create indexes for faster queries
-retailerSchema.index({ mobileNumber: 1 });
-retailerSchema.index({ email: 1 });
+retailerSchema.index({ mobileNumber: 1 }, { unique: true });
+retailerSchema.index({ email: 1 }, { unique: true });
 retailerSchema.index({ status: 1 });
 retailerSchema.index({ 'address.city': 1 });
 retailerSchema.index({ 'address.state': 1 });
 
 // Text index for search functionality
-retailerSchema.index({ 
-  fullName: 'text', 
-  email: 'text', 
+retailerSchema.index({
+  fullName: 'text',
+  email: 'text',
   mobileNumber: 'text',
   shopName: 'text'
 });

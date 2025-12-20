@@ -29,8 +29,7 @@ const emiInstallmentSchema = new mongoose.Schema({
 const transactionSchema = new mongoose.Schema({
   transactionId: {
     type: String,
-    required: true,
-    unique: true
+    required: true
   },
   retailerId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -84,7 +83,7 @@ const transactionSchema = new mongoose.Schema({
 });
 
 // Create indexes
-transactionSchema.index({ transactionId: 1 });
+transactionSchema.index({ transactionId: 1 }, { unique: true });
 transactionSchema.index({ retailerId: 1 });
 transactionSchema.index({ customerId: 1 });
 transactionSchema.index({ status: 1 });
