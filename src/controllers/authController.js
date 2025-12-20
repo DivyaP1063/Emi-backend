@@ -409,6 +409,74 @@ const toggleCustomerLock = async (req, res) => {
   }
 };
 
+/**
+ * Get IMEI numbers of all locked customers (Admin only)
+ */
+const getLockedCustomersImei = async (req, res) => {
+  try {
+    const Customer = require('../models/Customer');
+
+    // Find all locked customers
+    const lockedCustomers = await Customer.find({ isLocked: true })
+      .select('fullName mobileNumber imei1 imei2 retailerId createdAt')
+      .populate('retailerId', 'fullName shopName mobileNumber')
+      .sort({ createdAt: -1 })
+      .lean();
+
+    // Format response with IMEI details
+    const imeiList = lockedCustomers.map(customer => {
+      const imeis = [customer.imei1];
+      if (customer.imei2) {
+        imeis.push(customer.imei2);
+      }
+
+      return {
+        customerId: customer._id.toString(),
+        customerName: customer.fullName,
+        mobileNumber: customer.mobileNumber,
+        imei1: customer.imei1,
+        imei2: customer.imei2 || null,
+        totalImeis: imeis.length,
+        imeis: imeis,
+        retailer: customer.retailerId ? {
+          id: customer.retailerId._id?.toString(),
+          name: customer.retailerId.fullName,
+          shopName: customer.retailerId.shopName,
+          mobile: customer.retailerId.mobileNumber
+        } : null,
+        lockedSince: customer.createdAt
+      };
+    });
+
+    // Collect all IMEIs in a flat array
+    const allImeis = lockedCustomers.reduce((acc, customer) => {
+      acc.push(customer.imei1);
+      if (customer.imei2) {
+        acc.push(customer.imei2);
+      }
+      return acc;
+    }, []);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Locked customers IMEI fetched successfully',
+      data: {
+        totalLockedCustomers: lockedCustomers.length,
+        totalImeis: allImeis.length,
+        allImeis: allImeis,
+        customers: imeiList
+      }
+    });
+  } catch (error) {
+    console.error('Get locked customers IMEI error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch locked customers IMEI',
+      error: 'SERVER_ERROR'
+    });
+  }
+};
+
 module.exports = {
   sendOtpController,
   verifyOtpController,
@@ -416,5 +484,6 @@ module.exports = {
   verifyOtpValidation,
   getAllCustomers,
   updateEmiPaymentStatus,
-  toggleCustomerLock
+  toggleCustomerLock,
+  getLockedCustomersImei
 };

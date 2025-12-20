@@ -229,3 +229,230 @@ This means when an admin changes a retailer's status to `INACTIVE` or `SUSPENDED
 ✅ Integration with existing authentication confirmed  
 
 The feature is **production-ready** and can be deployed immediately.
+
+---
+
+## Customer Lock/Unlock API (Existing Feature)
+
+### Overview
+This API was already implemented in the system. It allows admins to lock or unlock customer accounts.
+
+### API Endpoint
+
+**Endpoint:** `PUT /api/admin/customers/:customerId/lock`  
+**Authentication:** Required (Admin JWT token)  
+**Purpose:** Lock or unlock a customer account
+
+#### Request
+
+**Headers:**
+```
+Authorization: Bearer <admin_jwt_token>
+Content-Type: application/json
+```
+
+**URL Parameters:**
+- `customerId` - MongoDB ObjectId of the customer
+
+**Body:**
+```json
+{
+  "isLocked": true
+}
+```
+
+**Field:**
+- `isLocked` (boolean, required)
+  - `true` - Lock the customer account
+  - `false` - Unlock the customer account
+
+#### Response
+
+**Success (200):**
+```json
+{
+  "success": true,
+  "message": "Customer locked successfully",
+  "data": {
+    "customerId": "6750abcd1234567890123456",
+    "customerName": "Rajesh Kumar",
+    "isLocked": true,
+    "updatedAt": "2025-12-20T10:00:00.000Z"
+  }
+}
+```
+
+**Error Responses:**
+- `400` - Validation error (isLocked must be boolean or invalid customer ID)
+- `401` - Unauthorized (missing or invalid admin token)
+- `404` - Customer not found
+- `500` - Server error
+
+### Testing in Postman
+
+**1. Get Admin Token**
+```
+POST /api/admin/auth/send-otp
+POST /api/admin/auth/verify-otp
+```
+
+**2. Get Customer ID**
+```
+GET /api/admin/customers
+```
+
+**3. Lock Customer**
+```
+PUT /api/admin/customers/{customerId}/lock
+
+Body:
+{
+  "isLocked": true
+}
+```
+
+**4. Unlock Customer**
+```
+PUT /api/admin/customers/{customerId}/lock
+
+Body:
+{
+  "isLocked": false
+}
+```
+
+### Implementation Details
+
+**Controller:** `src/controllers/authController.js` (lines 350-410)  
+**Function:** `toggleCustomerLock`  
+**Route:** `src/routes/index.js` (line 21)
+
+### Use Cases
+- Lock customers who violate terms
+- Prevent access for overdue payments
+- Temporarily disable problematic accounts
+- Quick account management without deletion
+
+---
+
+## Get Locked Customers IMEI API (New Feature)
+
+### Overview
+This API allows admins to fetch IMEI numbers of all customers who are currently locked. It returns both required (imei1) and optional (imei2) IMEI numbers.
+
+### API Endpoint
+
+**Endpoint:** `GET /api/admin/customers/locked/imei`  
+**Authentication:** Required (Admin JWT token)  
+**Purpose:** Retrieve IMEI numbers of all locked customers
+
+#### Request
+
+**Headers:**
+```
+Authorization: Bearer <admin_jwt_token>
+```
+
+**No Body Required** - This is a GET request
+
+#### Response
+
+**Success (200):**
+```json
+{
+  "success": true,
+  "message": "Locked customers IMEI fetched successfully",
+  "data": {
+    "totalLockedCustomers": 5,
+    "totalImeis": 8,
+    "allImeis": [
+      "123456789012345",
+      "987654321098765",
+      "111222333444555",
+      "666777888999000",
+      "123123123123123",
+      "456456456456456",
+      "789789789789789",
+      "321321321321321"
+    ],
+    "customers": [
+      {
+        "customerId": "6750abcd1234567890123456",
+        "customerName": "Rajesh Kumar",
+        "mobileNumber": "9876543210",
+        "imei1": "123456789012345",
+        "imei2": "987654321098765",
+        "totalImeis": 2,
+        "imeis": ["123456789012345", "987654321098765"],
+        "retailer": {
+          "id": "6750xyz1234567890123456",
+          "name": "Amit Sharma",
+          "shopName": "Sharma Mobile Store",
+          "mobile": "9876543210"
+        },
+        "lockedSince": "2025-12-20T10:00:00.000Z"
+      },
+      {
+        "customerId": "6750def1234567890123456",
+        "customerName": "Priya Singh",
+        "mobileNumber": "9123456789",
+        "imei1": "111222333444555",
+        "imei2": null,
+        "totalImeis": 1,
+        "imeis": ["111222333444555"],
+        "retailer": {
+          "id": "6750xyz1234567890123456",
+          "name": "Amit Sharma",
+          "shopName": "Sharma Mobile Store",
+          "mobile": "9876543210"
+        },
+        "lockedSince": "2025-12-19T15:30:00.000Z"
+      }
+    ]
+  }
+}
+```
+
+**Response Fields:**
+- `totalLockedCustomers` - Total number of locked customers
+- `totalImeis` - Total count of all IMEI numbers (imei1 + imei2)
+- `allImeis` - Flat array of all IMEI numbers for easy access
+- `customers` - Detailed array of each locked customer with:
+  - `customerId` - Customer's unique ID
+  - `customerName` - Full name
+  - `mobileNumber` - Contact number
+  - `imei1` - Primary IMEI (always present)
+  - `imei2` - Secondary IMEI (null if not provided)
+  - `totalImeis` - Count of IMEIs for this customer (1 or 2)
+  - `imeis` - Array of this customer's IMEIs
+  - `retailer` - Retailer who registered this customer
+  - `lockedSince` - When the customer was created
+
+**Error Responses:**
+- `401` - Unauthorized (missing or invalid admin token)
+- `500` - Server error
+
+### Testing in Postman
+
+**Method:** `GET`  
+**URL:** `http://localhost:5000/api/admin/customers/locked/imei`
+
+**Headers:**
+```
+Authorization: Bearer <admin_token>
+```
+
+**No Body Required**
+
+### Implementation Details
+
+**Controller:** `src/controllers/authController.js` (lines 412-477)  
+**Function:** `getLockedCustomersImei`  
+**Route:** `src/routes/index.js` (line 21)
+
+### Use Cases
+- Get list of all IMEI numbers to block on network
+- Export locked customer IMEIs for device tracking
+- Monitor which devices are associated with locked accounts
+- Generate reports of locked customers and their devices
+- Bulk IMEI blocking for security purposes
