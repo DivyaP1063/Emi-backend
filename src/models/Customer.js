@@ -27,14 +27,12 @@ const customerSchema = new mongoose.Schema({
   imei1: {
     type: String,
     required: true,
-    match: /^[0-9]{15}$/,
-    unique: true
+    match: /^[0-9]{15}$/
   },
   imei2: {
     type: String,
     match: /^[0-9]{15}$/,
-    sparse: true,
-    unique: true
+    sparse: true
   },
   fatherName: {
     type: String,
@@ -185,8 +183,8 @@ const customerSchema = new mongoose.Schema({
 // Create indexes
 customerSchema.index({ mobileNumber: 1, retailerId: 1 });
 customerSchema.index({ aadharNumber: 1 });
-customerSchema.index({ imei1: 1 });
-customerSchema.index({ imei2: 1 });
+customerSchema.index({ imei1: 1 }, { unique: true });
+customerSchema.index({ imei2: 1 }, { unique: true, sparse: true });
 
 const Customer = mongoose.model('Customer', customerSchema);
 
