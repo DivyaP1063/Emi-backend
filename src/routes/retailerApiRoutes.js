@@ -89,4 +89,15 @@ router.get(
   retailerProductController.getCustomers
 );
 
+/**
+ * @route   GET /api/retailer/customers/pending-emi
+ * @desc    Get customers with pending EMI payments (retailer's customers only)
+ * @access  Protected (Retailer only)
+ */
+router.get(
+  '/customers/pending-emi',
+  authenticateRetailer,
+  retailerProductController.getPendingEmiCustomers
+);
+
 module.exports = router;

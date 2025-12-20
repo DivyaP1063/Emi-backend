@@ -1,4 +1,5 @@
 const { body, validationResult } = require('express-validator');
+const mongoose = require('mongoose');
 const Retailer = require('../models/Retailer');
 const Customer = require('../models/Customer');
 const Product = require('../models/Product');
@@ -125,13 +126,13 @@ const createCustomer = async (req, res) => {
       mobileNumber,
       fatherName, village, nearbyLocation, post, district,
       // EMI Details (Step 5)
-      branch, phoneType, model, productName, sellPrice, landingPrice, 
+      branch, phoneType, model, productName, sellPrice, landingPrice,
       downPayment, downPaymentPending, numberOfMonths
     } = req.body;
 
     // Validate required fields
     const validationErrors = {};
-    
+
     if (!fullName || !fullName.trim()) validationErrors.fullName = 'Full name is required';
     if (!aadharNumber || !/^[0-9]{12}$/.test(aadharNumber)) validationErrors.aadharNumber = 'Aadhar number must be exactly 12 digits';
     if (!dob) validationErrors.dob = 'Date of birth is required';
@@ -144,7 +145,7 @@ const createCustomer = async (req, res) => {
     if (!nearbyLocation || !nearbyLocation.trim()) validationErrors.nearbyLocation = 'Nearby location is required';
     if (!post || !post.trim()) validationErrors.post = 'Post is required';
     if (!district || !district.trim()) validationErrors.district = 'District is required';
-    
+
     // EMI Details validation
     if (!branch || !branch.trim()) validationErrors.branch = 'Branch is required';
     if (!phoneType || !['NEW', 'OLD'].includes(phoneType.toUpperCase())) validationErrors.phoneType = 'Phone type must be NEW or OLD';
@@ -164,7 +165,7 @@ const createCustomer = async (req, res) => {
         details: validationErrors
       });
     }
-    
+
     // Calculate EMI details with 3% interest rate
     const sellPriceNum = Number(sellPrice);
     const landingPriceNum = Number(landingPrice);
@@ -172,12 +173,12 @@ const createCustomer = async (req, res) => {
     const downPaymentPendingNum = Number(downPaymentPending);
     const numberOfMonthsNum = Number(numberOfMonths);
     const emiRate = 3; // 3% interest rate
-    
+
     const balanceAmount = landingPriceNum - downPaymentNum;
     const interestAmount = (balanceAmount * emiRate) / 100;
     const totalEmiAmount = balanceAmount + interestAmount;
     const emiPerMonth = totalEmiAmount / numberOfMonthsNum;
-    
+
     // Validate balance amount is positive
     if (balanceAmount < 0) {
       return res.status(400).json({
@@ -186,7 +187,7 @@ const createCustomer = async (req, res) => {
         error: 'INVALID_EMI_DETAILS'
       });
     }
-    
+
     // Validate down payment pending doesn't exceed down payment
     if (downPaymentPendingNum > downPaymentNum) {
       return res.status(400).json({
@@ -195,12 +196,19 @@ const createCustomer = async (req, res) => {
         error: 'INVALID_DOWN_PAYMENT_PENDING'
       });
     }
-    
-    // Create EMI months array with interest (all unpaid by default)
+
+    // Create EMI months array with interest and due dates (all unpaid by default)
     const emiMonths = [];
+    const currentDate = new Date();
+
     for (let i = 1; i <= numberOfMonthsNum; i++) {
+      // Calculate due date: first EMI is due 1 month from now, then each subsequent month
+      const dueDate = new Date(currentDate);
+      dueDate.setMonth(dueDate.getMonth() + i);
+
       emiMonths.push({
         month: i,
+        dueDate,
         paid: false,
         amount: Math.round(emiPerMonth * 100) / 100 // Round to 2 decimal places
       });
@@ -397,9 +405,164 @@ const getCustomers = async (req, res) => {
   }
 };
 
+/**
+ * Get customers with pending EMI payments (retailer's customers only)
+ */
+const getPendingEmiCustomers = async (req, res) => {
+  try {
+    const retailerId = req.retailer.id;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const search = req.query.search || '';
+
+    const skip = (page - 1) * limit;
+
+    // Build base query for retailer's customers
+    let matchQuery = { retailerId: new mongoose.Types.ObjectId(retailerId) };
+
+    // Add search filter if provided
+    if (search) {
+      matchQuery.$or = [
+        { fullName: { $regex: search, $options: 'i' } },
+        { mobileNumber: { $regex: search, $options: 'i' } },
+        { aadharNumber: { $regex: search, $options: 'i' } },
+        { imei1: { $regex: search, $options: 'i' } },
+        { imei2: { $regex: search, $options: 'i' } }
+      ];
+    }
+
+    const currentDate = new Date();
+
+    // Aggregate to find customers with pending EMIs
+    const customers = await Customer.aggregate([
+      { $match: matchQuery },
+      {
+        $addFields: {
+          pendingEmis: {
+            $filter: {
+              input: '$emiDetails.emiMonths',
+              as: 'emi',
+              cond: {
+                $and: [
+                  { $eq: ['$$emi.paid', false] },
+                  { $lt: ['$$emi.dueDate', currentDate] }
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        $match: {
+          'pendingEmis.0': { $exists: true } // Only customers with at least one pending EMI
+        }
+      },
+      { $sort: { createdAt: -1 } },
+      { $skip: skip },
+      { $limit: limit },
+      {
+        $project: {
+          fullName: 1,
+          mobileNumber: 1,
+          aadharNumber: 1,
+          dob: 1,
+          imei1: 1,
+          imei2: 1,
+          fatherName: 1,
+          address: 1,
+          isLocked: 1,
+          'emiDetails.branch': 1,
+          'emiDetails.phoneType': 1,
+          'emiDetails.model': 1,
+          'emiDetails.productName': 1,
+          'emiDetails.emiPerMonth': 1,
+          'emiDetails.numberOfMonths': 1,
+          pendingEmis: 1,
+          createdAt: 1
+        }
+      }
+    ]);
+
+    // Get total count
+    const totalCountResult = await Customer.aggregate([
+      { $match: matchQuery },
+      {
+        $addFields: {
+          pendingEmis: {
+            $filter: {
+              input: '$emiDetails.emiMonths',
+              as: 'emi',
+              cond: {
+                $and: [
+                  { $eq: ['$$emi.paid', false] },
+                  { $lt: ['$$emi.dueDate', currentDate] }
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        $match: {
+          'pendingEmis.0': { $exists: true }
+        }
+      },
+      { $count: 'total' }
+    ]);
+
+    const totalItems = totalCountResult.length > 0 ? totalCountResult[0].total : 0;
+    const totalPages = Math.ceil(totalItems / limit);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Pending EMI customers fetched successfully',
+      data: {
+        customers: customers.map(c => ({
+          id: c._id.toString(),
+          fullName: c.fullName,
+          mobileNumber: c.mobileNumber,
+          aadharNumber: c.aadharNumber,
+          dob: c.dob,
+          imei1: c.imei1,
+          imei2: c.imei2,
+          fatherName: c.fatherName,
+          address: c.address,
+          isLocked: c.isLocked,
+          emiDetails: {
+            branch: c.emiDetails.branch,
+            phoneType: c.emiDetails.phoneType,
+            model: c.emiDetails.model,
+            productName: c.emiDetails.productName,
+            emiPerMonth: c.emiDetails.emiPerMonth,
+            numberOfMonths: c.emiDetails.numberOfMonths
+          },
+          pendingEmis: c.pendingEmis,
+          createdAt: c.createdAt
+        })),
+        pagination: {
+          currentPage: page,
+          totalPages,
+          totalItems,
+          itemsPerPage: limit,
+          hasNextPage: page < totalPages,
+          hasPrevPage: page > 1
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Get pending EMI customers error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch pending EMI customers',
+      error: 'SERVER_ERROR'
+    });
+  }
+};
+
 module.exports = {
   sendCustomerOTP,
   verifyCustomerOTP,
   createCustomer,
-  getCustomers
+  getCustomers,
+  getPendingEmiCustomers
 };
