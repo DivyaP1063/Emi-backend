@@ -398,6 +398,131 @@ GET /api/admin/retailers?page=1&limit=20&search=john&status=ACTIVE
 
 ---
 
+#### 3.3 Update Retailer Status
+
+**Endpoint:** `PUT /api/admin/retailers/:retailerId/status`  
+**Authentication:** Required (Admin only)  
+**Purpose:** Update the status of a retailer (ACTIVE, INACTIVE, or SUSPENDED)
+
+**Request Headers:**
+```
+Authorization: Bearer <admin_jwt_token>
+Content-Type: application/json
+```
+
+**URL Parameters:**
+- `retailerId` (required): MongoDB ObjectId of the retailer
+
+**Request Body:**
+```json
+{
+  "status": "INACTIVE"
+}
+```
+
+**Field Descriptions:**
+- `status`: New status for the retailer (required)
+  - Must be one of: `ACTIVE`, `INACTIVE`, `SUSPENDED`
+
+**Example Request:**
+```bash
+curl -X PUT http://localhost:5000/api/admin/retailers/6750abcd1234567890123456/status \
+  -H "Authorization: Bearer <admin_jwt_token>" \
+  -H "Content-Type: application/json" \
+  -d '{"status": "INACTIVE"}'
+```
+
+**Success Response (200):**
+```json
+{
+  "success": true,
+  "message": "Retailer status updated from ACTIVE to INACTIVE",
+  "data": {
+    "retailerId": "6750abcd1234567890123456",
+    "fullName": "John Doe",
+    "shopName": "John's Electronics",
+    "email": "john@example.com",
+    "mobileNumber": "9876543210",
+    "previousStatus": "ACTIVE",
+    "currentStatus": "INACTIVE",
+    "updatedAt": "2025-12-20T10:00:00.000Z"
+  }
+}
+```
+
+**Success Response (200) - Status Already Same:**
+```json
+{
+  "success": true,
+  "message": "Retailer status is already INACTIVE",
+  "data": {
+    "retailerId": "6750abcd1234567890123456",
+    "fullName": "John Doe",
+    "shopName": "John's Electronics",
+    "status": "INACTIVE",
+    "updatedAt": "2025-12-20T10:00:00.000Z"
+  }
+}
+```
+
+**Error Responses:**
+
+**400 - Validation Error:**
+```json
+{
+  "success": false,
+  "message": "Validation failed",
+  "error": "VALIDATION_ERROR",
+  "details": [
+    {
+      "path": "status",
+      "msg": "Status must be one of: ACTIVE, INACTIVE, SUSPENDED"
+    }
+  ]
+}
+```
+
+**400 - Invalid Retailer ID:**
+```json
+{
+  "success": false,
+  "message": "Invalid retailer ID format",
+  "error": "VALIDATION_ERROR"
+}
+```
+
+**401 - Unauthorized:**
+```json
+{
+  "success": false,
+  "message": "Authorization token not found",
+  "error": "INVALID_TOKEN"
+}
+```
+
+**404 - Retailer Not Found:**
+```json
+{
+  "success": false,
+  "message": "Retailer not found",
+  "error": "RETAILER_NOT_FOUND"
+}
+```
+
+**Status Descriptions:**
+- `ACTIVE`: Retailer can login and perform all operations
+- `INACTIVE`: Retailer account is temporarily disabled, cannot login
+- `SUSPENDED`: Retailer account is suspended due to violations, cannot login
+
+**Usage:**
+- Deactivate retailer accounts temporarily
+- Suspend retailers for policy violations
+- Reactivate previously inactive/suspended retailers
+- When a retailer's status is not ACTIVE, they cannot login to their account
+
+---
+
+
 ### 5. Get All Customers (Admin Only)
 
 **Endpoint:** `GET /api/admin/customers`  
