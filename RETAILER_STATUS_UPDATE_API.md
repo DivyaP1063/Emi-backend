@@ -1620,34 +1620,41 @@ The pending EMI APIs now include customer documents in the response.
 
 ---
 
-## Get All Customers API
+## API Response Updates - December 20, 2025
 
-### Admin - Get All Customers
+### Updated Customer API Responses
 
-**Endpoint:** `GET /api/admin/customers`  
-**Authentication:** Required (Admin JWT token)  
-**Purpose:** Get all customers across all retailers with pagination and search
+All customer-related APIs have been updated to return complete customer details matching the Customer model structure.
 
-#### Request
+#### Changes Applied:
 
-**Headers:**
-```
-Authorization: Bearer <admin_jwt_token>
-```
+**1. Get All Customers APIs**
+- `GET /api/admin/customers`
+- `GET /api/retailer/customers`
+- `GET /api/accountant/customers`
 
-**Query Parameters:**
-- `page` (optional, default: 1) - Page number
-- `limit` (optional, default: 20) - Items per page
-- `search` (optional) - Search by name, mobile, aadhar, or IMEI
+**Now includes:**
+- âœ… Complete `documents` object (customerPhoto, aadharFrontPhoto, aadharBackPhoto, signaturePhoto)
+- âœ… Complete `emiDetails` object (all EMI information including emiMonths array)
+- âœ… `mobileVerified` field
+- âœ… `updatedAt` timestamp
 
-**Example:**
-```
-GET /api/admin/customers?page=1&limit=10&search=Sagar
-```
+**2. Pending EMI Customers APIs**
+- `GET /api/admin/customers/pending-emi`
+- `GET /api/retailer/customers/pending-emi`
+- `GET /api/accountant/customers/pending-emi`
 
-#### Response
+**Now includes:**
+- âœ… Complete `documents` object
+- âœ… `mobileVerified` field
+- âœ… `updatedAt` timestamp
 
-**Success (200):**
+---
+
+### Updated Response Structure
+
+#### Get All Customers Response
+
 ```json
 {
   "success": true,
@@ -1658,24 +1665,65 @@ GET /api/admin/customers?page=1&limit=10&search=Sagar
         "id": "6750xyz1234567890123456",
         "fullName": "Sagar Kumar",
         "mobileNumber": "9123456789",
+        "mobileVerified": true,
         "aadharNumber": "987654321098",
         "dob": "1995-05-15T00:00:00.000Z",
         "imei1": "123456789012345",
         "imei2": "987654321098765",
-        "documents": {
-          "customerPhoto": "uploads/customers/photo.jpg",
-          "aadharFront": "uploads/customers/aadhar_front.jpg",
-          "aadharBack": "uploads/customers/aadhar_back.jpg",
-          "signature": "uploads/customers/signature.jpg"
+        "fatherName": "Rajesh Kumar",
+        "address": {
+          "village": "Patna",
+          "nearbyLocation": "Gandhi Maidan",
+          "post": "Patna GPO",
+          "district": "Patna",
+          "pincode": "800001"
         },
-        "emiDetails": {...},
+        "documents": {
+          "customerPhoto": "uploads/customers/photo_123.jpg",
+          "aadharFrontPhoto": "uploads/customers/aadhar_front_123.jpg",
+          "aadharBackPhoto": "uploads/customers/aadhar_back_123.jpg",
+          "signaturePhoto": "uploads/customers/signature_123.jpg"
+        },
+        "emiDetails": {
+          "branch": "Patna Main",
+          "phoneType": "NEW",
+          "model": "iPhone 14",
+          "productName": "Apple iPhone 14 128GB",
+          "sellPrice": 60000,
+          "landingPrice": 55000,
+          "downPayment": 10000,
+          "downPaymentPending": 0,
+          "balanceAmount": 45000,
+          "interestRate": 3,
+          "interestAmount": 1350,
+          "totalEmiAmount": 46350,
+          "emiPerMonth": 7725,
+          "numberOfMonths": 6,
+          "emiMonths": [
+            {
+              "month": 1,
+              "dueDate": "2024-10-01T00:00:00.000Z",
+              "amount": 7725,
+              "paid": true,
+              "paidDate": "2024-10-05T00:00:00.000Z"
+            },
+            {
+              "month": 2,
+              "dueDate": "2024-11-01T00:00:00.000Z",
+              "amount": 7725,
+              "paid": false
+            }
+          ]
+        },
         "isLocked": false,
         "retailer": {
           "id": "...",
           "name": "Amit Sharma",
-          "shopName": "Sharma Mobile Store"
+          "shopName": "Sharma Mobile Store",
+          "mobile": "9876543210"
         },
-        "createdAt": "2024-09-01T10:00:00.000Z"
+        "createdAt": "2024-09-01T10:00:00.000Z",
+        "updatedAt": "2024-11-05T14:30:00.000Z"
       }
     ],
     "pagination": {
@@ -1690,34 +1738,102 @@ GET /api/admin/customers?page=1&limit=10&search=Sagar
 }
 ```
 
+#### Pending EMI Customers Response
+
+```json
+{
+  "success": true,
+  "message": "Pending EMI customers fetched successfully",
+  "data": {
+    "customers": [
+      {
+        "id": "6750xyz1234567890123456",
+        "fullName": "Sagar Kumar",
+        "mobileNumber": "9123456789",
+        "mobileVerified": true,
+        "aadharNumber": "987654321098",
+        "dob": "1995-05-15T00:00:00.000Z",
+        "imei1": "123456789012345",
+        "imei2": "987654321098765",
+        "fatherName": "Rajesh Kumar",
+        "address": {
+          "village": "Patna",
+          "nearbyLocation": "Gandhi Maidan",
+          "post": "Patna GPO",
+          "district": "Patna",
+          "pincode": "800001"
+        },
+        "documents": {
+          "customerPhoto": "uploads/customers/photo_123.jpg",
+          "aadharFrontPhoto": "uploads/customers/aadhar_front_123.jpg",
+          "aadharBackPhoto": "uploads/customers/aadhar_back_123.jpg",
+          "signaturePhoto": "uploads/customers/signature_123.jpg"
+        },
+        "isLocked": false,
+        "emiDetails": {
+          "branch": "Patna Main",
+          "phoneType": "NEW",
+          "model": "iPhone 14",
+          "productName": "Apple iPhone 14 128GB",
+          "emiPerMonth": 7725,
+          "numberOfMonths": 6
+        },
+        "pendingEmis": [
+          {
+            "month": 2,
+            "dueDate": "2024-11-01T00:00:00.000Z",
+            "paid": false,
+            "amount": 7725
+          },
+          {
+            "month": 3,
+            "dueDate": "2024-12-01T00:00:00.000Z",
+            "paid": false,
+            "amount": 7725
+          }
+        ],
+        "retailer": {
+          "id": "...",
+          "name": "Amit Sharma",
+          "shopName": "Sharma Mobile Store",
+          "mobile": "9876543210"
+        },
+        "createdAt": "2024-09-01T10:00:00.000Z",
+        "updatedAt": "2024-11-05T14:30:00.000Z"
+      }
+    ],
+    "pagination": {
+      "currentPage": 1,
+      "totalPages": 3,
+      "totalItems": 25,
+      "itemsPerPage": 10,
+      "hasNextPage": true,
+      "hasPrevPage": false
+    }
+  }
+}
+```
+
 ---
 
-### Retailer - Get My Customers
+### Summary of Changes
 
-**Endpoint:** `GET /api/retailer/customers`  
-**Authentication:** Required (Retailer JWT token)  
-**Purpose:** Get all customers created by the authenticated retailer
+| API Endpoint | Previous Response | Updated Response |
+|--------------|-------------------|------------------|
+| `GET /api/admin/customers` | Already complete | No changes needed |
+| `GET /api/retailer/customers` | Missing documents, emiDetails | âœ… Now includes all fields |
+| `GET /api/accountant/customers` | Already complete | No changes needed |
+| `GET /api/admin/customers/pending-emi` | Already includes documents | No changes needed |
+| `GET /api/retailer/customers/pending-emi` | Missing documents, mobileVerified | âœ… Now includes all fields |
+| `GET /api/accountant/customers/pending-emi` | Already includes documents | No changes needed |
 
-#### Request
+---
 
-**Headers:**
-```
-Authorization: Bearer <retailer_jwt_token>
-```
+### Benefits
 
-**Query Parameters:**
-- `page` (optional, default: 1) - Page number
-- `limit` (optional, default: 20) - Items per page
-- `search` (optional) - Search by name, mobile, aadhar, or IMEI
-
-**Example:**
-```
-GET /api/retailer/customers?page=1&limit=10&search=Kumar
-```
-
-#### Response
-
-**Success (200):**
-Same format as admin endpoint, but only returns customers created by this retailer.
+1. **Consistency**: All customer APIs now return the same complete structure
+2. **Frontend Ready**: Frontend can access all customer data without additional API calls
+3. **Complete Information**: Documents, EMI details, and verification status available in all responses
+4. **Better UX**: Display customer photos, documents, and complete EMI information directly
 
 ---

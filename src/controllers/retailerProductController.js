@@ -368,7 +368,6 @@ const getCustomers = async (req, res) => {
 
     // Get customers
     const customers = await Customer.find(query)
-      .select('-documents') // Exclude document URLs for list view
       .skip(skip)
       .limit(limit)
       .sort({ createdAt: -1 });
@@ -383,15 +382,18 @@ const getCustomers = async (req, res) => {
           id: c._id.toString(),
           fullName: c.fullName,
           mobileNumber: c.mobileNumber,
+          mobileVerified: c.mobileVerified,
           aadharNumber: c.aadharNumber,
           dob: c.dob,
           imei1: c.imei1,
           imei2: c.imei2,
           fatherName: c.fatherName,
           address: c.address,
-          mobileVerified: c.mobileVerified,
+          documents: c.documents,
+          emiDetails: c.emiDetails,
           isLocked: c.isLocked,
-          createdAt: c.createdAt
+          createdAt: c.createdAt,
+          updatedAt: c.updatedAt
         })),
         pagination: {
           currentPage: page,
@@ -472,12 +474,14 @@ const getPendingEmiCustomers = async (req, res) => {
         $project: {
           fullName: 1,
           mobileNumber: 1,
+          mobileVerified: 1,
           aadharNumber: 1,
           dob: 1,
           imei1: 1,
           imei2: 1,
           fatherName: 1,
           address: 1,
+          documents: 1,
           isLocked: 1,
           'emiDetails.branch': 1,
           'emiDetails.phoneType': 1,
@@ -486,7 +490,8 @@ const getPendingEmiCustomers = async (req, res) => {
           'emiDetails.emiPerMonth': 1,
           'emiDetails.numberOfMonths': 1,
           pendingEmis: 1,
-          createdAt: 1
+          createdAt: 1,
+          updatedAt: 1
         }
       }
     ]);
@@ -529,12 +534,14 @@ const getPendingEmiCustomers = async (req, res) => {
           id: c._id.toString(),
           fullName: c.fullName,
           mobileNumber: c.mobileNumber,
+          mobileVerified: c.mobileVerified,
           aadharNumber: c.aadharNumber,
           dob: c.dob,
           imei1: c.imei1,
           imei2: c.imei2,
           fatherName: c.fatherName,
           address: c.address,
+          documents: c.documents,
           isLocked: c.isLocked,
           emiDetails: {
             branch: c.emiDetails.branch,
@@ -545,7 +552,8 @@ const getPendingEmiCustomers = async (req, res) => {
             numberOfMonths: c.emiDetails.numberOfMonths
           },
           pendingEmis: c.pendingEmis,
-          createdAt: c.createdAt
+          createdAt: c.createdAt,
+          updatedAt: c.updatedAt
         })),
         pagination: {
           currentPage: page,
