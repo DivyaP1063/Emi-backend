@@ -1052,6 +1052,164 @@ const statistics = await Customer.aggregate([
 
 ---
 
+---
+
+## Customer Count Statistics API (New Feature)
+
+### Overview
+This feature provides APIs for both admins and retailers to fetch customer count statistics, including total customers and locked customers (displayed as "locked devices" in the frontend).
+
+---
+
+### Admin API - Get Customer Count
+
+**Endpoint:** `GET /api/admin/customers/count`  
+**Authentication:** Required (Admin JWT token)  
+**Purpose:** Retrieve customer count statistics for ALL customers across all retailers
+
+#### Request
+
+**Headers:**
+```
+Authorization: Bearer <admin_jwt_token>
+```
+
+**No Query Parameters or Body Required**
+
+#### Response
+
+**Success (200):**
+```json
+{
+  "success": true,
+  "message": "Customer count fetched successfully",
+  "data": {
+    "totalCustomers": 150,
+    "lockedCustomers": 12,
+    "activeCustomers": 138
+  }
+}
+```
+
+**Response Fields:**
+- `totalCustomers` - Total number of customers across all retailers
+- `lockedCustomers` - Number of customers with locked devices (isLocked: true)
+- `activeCustomers` - Number of customers with active/unlocked devices (totalCustomers - lockedCustomers)
+
+**Error Responses:**
+- `401` - Unauthorized (missing or invalid admin token)
+- `500` - Server error
+
+#### Testing in Postman
+
+**Method:** `GET`  
+**URL:** `http://localhost:5000/api/admin/customers/count`
+
+**Headers:**
+```
+Authorization: Bearer <admin_token>
+```
+
+**No Body Required**
+
+#### Implementation Details
+
+**Controller:** `src/controllers/authController.js` (lines 762-792)  
+**Function:** `getCustomerCountAdmin`  
+**Route:** `src/routes/index.js` (line 30-31)
+
+**Logic:**
+- Counts total customers using `Customer.countDocuments({})`
+- Counts locked customers using `Customer.countDocuments({ isLocked: true })`
+- Calculates active customers (total - locked)
+
+---
+
+### Retailer API - Get Customer Count
+
+**Endpoint:** `GET /api/retailer/customers/count`  
+**Authentication:** Required (Retailer JWT token)  
+**Purpose:** Retrieve customer count statistics for only the retailer's customers
+
+#### Request
+
+**Headers:**
+```
+Authorization: Bearer <retailer_jwt_token>
+```
+
+**No Query Parameters or Body Required**
+
+#### Response
+
+**Success (200):**
+```json
+{
+  "success": true,
+  "message": "Customer count fetched successfully",
+  "data": {
+    "totalCustomers": 25,
+    "lockedCustomers": 3,
+    "activeCustomers": 22
+  }
+}
+```
+
+**Response Fields:**
+- `totalCustomers` - Total number of customers registered by this retailer
+- `lockedCustomers` - Number of customers with locked devices for this retailer (isLocked: true)
+- `activeCustomers` - Number of customers with active/unlocked devices (totalCustomers - lockedCustomers)
+
+**Key Differences from Admin API:**
+- Only shows statistics for customers belonging to the authenticated retailer
+- Counts are calculated only from the retailer's customer base
+
+**Error Responses:**
+- `401` - Unauthorized (missing or invalid retailer token)
+- `500` - Server error
+
+#### Testing in Postman
+
+**Method:** `GET`  
+**URL:** `http://localhost:5000/api/retailer/customers/count`
+
+**Headers:**
+```
+Authorization: Bearer <retailer_token>
+```
+
+**No Body Required**
+
+#### Implementation Details
+
+**Controller:** `src/controllers/retailerProductController.js` (lines 670-705)  
+**Function:** `getCustomerCountRetailer`  
+**Route:** `src/routes/retailerApiRoutes.js` (lines 117-125)
+
+**Logic:**
+- Filters by `retailerId` (from JWT token)
+- Counts total customers for this retailer
+- Counts locked customers for this retailer
+- Calculates active customers
+
+---
+
+### Use Cases
+
+**Admin Dashboard:**
+- Display total customer count across the platform
+- Show number of locked devices for monitoring
+- Track active vs locked customer ratio
+- Generate platform-wide statistics
+
+**Retailer Dashboard:**
+- Display their total customer count
+- Show number of their locked devices
+- Monitor their active customer base
+- Track customer status at a glance
+
+---
+
 ## Complete API Summary
 
 | Feature | Admin Endpoint | Retailer Endpoint | Access |
@@ -1061,6 +1219,7 @@ const statistics = await Customer.aggregate([
 | **Get Locked Customers IMEI** | `GET /api/admin/customers/locked/imei` | N/A | Admin only |
 | **Get Pending EMI Customers** | `GET /api/admin/customers/pending-emi` | `GET /api/retailer/customers/pending-emi` | Both |
 | **Get EMI Statistics** | `GET /api/admin/emi/statistics` | `GET /api/retailer/emi/statistics` | Both |
+| **Get Customer Count** | `GET /api/admin/customers/count` | `GET /api/retailer/customers/count` | Both |
 
 ---
 
@@ -1072,9 +1231,493 @@ const statistics = await Customer.aggregate([
 ✅ EMI due date tracking (1-month intervals)  
 ✅ Pending EMI customers API (admin + retailer)  
 ✅ EMI statistics dashboard API (admin + retailer)  
+✅ Customer count statistics API (admin + retailer)  
 ✅ Proper access control for all endpoints  
 ✅ Comprehensive error handling  
 ✅ MongoDB aggregation optimization  
 ✅ Complete documentation  
 
 **All features are production-ready and fully tested.**
+ 
+---
+
+## NEW APIS - December 20 2025
+
+# NEW APIS ADDED - December 20, 2025
+
+This document contains all the new APIs added to the existing system.
+
+---
+
+## 1. Accountant Management APIs
+
+### Overview
+New module to allow admins to create accountants who can manage customer EMI payments across all retailers.
+
+### Admin APIs - Create & Manage Accountants
+
+#### 1.1 Send OTP for Accountant Creation
+```
+POST /api/admin/accountants/send-otp
+Authorization: Bearer <admin_token>
+Content-Type: application/json
+
+{
+  "mobileNumber": "9876543210"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "OTP sent successfully to +919876543210"
+}
+```
+
+---
+
+#### 1.2 Verify OTP
+```
+POST /api/admin/accountants/verify-otp
+Authorization: Bearer <admin_token>
+Content-Type: application/json
+
+{
+  "mobileNumber": "9876543210",
+  "otp": "123456"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Mobile number verified successfully. You can proceed to create accountant.",
+  "data": {
+    "mobileNumber": "9876543210",
+    "verified": true
+  }
+}
+```
+
+---
+
+#### 1.3 Create Accountant
+```
+POST /api/admin/accountants
+Authorization: Bearer <admin_token>
+Content-Type: application/json
+
+{
+  "fullName": "Ramesh Kumar",
+  "aadharNumber": "123456789012",
+  "mobileNumber": "9876543210"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Accountant created successfully",
+  "data": {
+    "accountantId": "6750abcd1234567890123456",
+    "fullName": "Ramesh Kumar",
+    "aadharNumber": "123456789012",
+    "mobileNumber": "9876543210",
+    "mobileVerified": true,
+    "isActive": true,
+    "createdAt": "2025-12-20T14:38:30.000Z"
+  }
+}
+```
+
+---
+
+#### 1.4 Get All Accountants
+```
+GET /api/admin/accountants?page=1&limit=20&search=name
+Authorization: Bearer <admin_token>
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Accountants fetched successfully",
+  "data": {
+    "accountants": [...],
+    "pagination": {...}
+  }
+}
+```
+
+---
+
+#### 1.5 Update Accountant Status
+```
+PUT /api/admin/accountants/:accountantId/status
+Authorization: Bearer <admin_token>
+Content-Type: application/json
+
+{
+  "isActive": false
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Accountant deactivated successfully",
+  "data": {
+    "accountantId": "6750abcd1234567890123456",
+    "fullName": "Ramesh Kumar",
+    "previousStatus": true,
+    "currentStatus": false,
+    "updatedAt": "2025-12-20T14:45:00.000Z"
+  }
+}
+```
+
+---
+
+### Accountant APIs - Login & Operations
+
+#### 2.1 Accountant Login - Send OTP
+```
+POST /api/accountant/auth/send-otp
+Content-Type: application/json
+
+{
+  "mobileNumber": "9876543210"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "OTP sent successfully",
+  "data": {
+    "otpSent": true,
+    "expiresIn": 300
+  }
+}
+```
+
+---
+
+#### 2.2 Accountant Login - Verify OTP
+```
+POST /api/accountant/auth/verify-otp
+Content-Type: application/json
+
+{
+  "mobileNumber": "9876543210",
+  "otp": "123456"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Login successful",
+  "data": {
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "accountant": {
+      "id": "6750abcd1234567890123456",
+      "fullName": "Ramesh Kumar",
+      "mobileNumber": "9876543210",
+      "aadharNumber": "123456789012"
+    }
+  }
+}
+```
+
+---
+
+#### 2.3 Get All Customers (Accountant)
+```
+GET /api/accountant/customers?page=1&limit=20&search=name
+Authorization: Bearer <accountant_token>
+```
+
+**Response:** Same format as admin's get all customers API
+
+---
+
+#### 2.4 Get Pending EMI Customers (Accountant)
+```
+GET /api/accountant/customers/pending-emi?page=1&limit=20
+Authorization: Bearer <accountant_token>
+```
+
+**Response:** Same format as admin's pending EMI API
+
+---
+
+#### 2.5 Update EMI Payment Status (Accountant)
+```
+PUT /api/accountant/customers/:customerId/emi/:monthNumber
+Authorization: Bearer <accountant_token>
+Content-Type: application/json
+
+{
+  "paid": true,
+  "paidDate": "2025-12-20T10:00:00.000Z"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "EMI month 1 marked as paid",
+  "data": {
+    "customerId": "6750xyz1234567890123456",
+    "customerName": "Sagar Kumar",
+    "monthNumber": 1,
+    "paid": true,
+    "paidDate": "2025-12-20T10:00:00.000Z",
+    "amount": 5000
+  }
+}
+```
+
+---
+
+## 2. Late Fine Management APIs
+
+### 2.1 Get Late Fine (Public)
+```
+GET /api/admin/late-fine
+```
+
+**No authentication required**
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Late fine fetched successfully",
+  "data": {
+    "amount": 100
+  }
+}
+```
+
+---
+
+### 2.2 Update Late Fine (Admin Only)
+```
+PUT /api/admin/late-fine
+Authorization: Bearer <admin_token>
+Content-Type: application/json
+
+{
+  "amount": 150
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Late fine updated successfully",
+  "data": {
+    "amount": 150,
+    "updatedBy": "admin_id",
+    "updatedAt": "2025-12-20T15:07:21.000Z"
+  }
+}
+```
+
+---
+
+## 3. Updated APIs - Pending EMI with Documents
+
+### Changes
+The pending EMI APIs now include customer documents in the response.
+
+### Affected Endpoints:
+- `GET /api/admin/customers/pending-emi`
+- `GET /api/retailer/customers/pending-emi`
+- `GET /api/accountant/customers/pending-emi`
+
+### Updated Response Format:
+```json
+{
+  "success": true,
+  "message": "Pending EMI customers fetched successfully",
+  "data": {
+    "customers": [
+      {
+        "id": "6750xyz1234567890123456",
+        "fullName": "Sagar Kumar",
+        "mobileNumber": "9123456789",
+        "aadharNumber": "987654321098",
+        "documents": {
+          "customerPhoto": "uploads/customers/photo_123.jpg",
+          "aadharFront": "uploads/customers/aadhar_front_123.jpg",
+          "aadharBack": "uploads/customers/aadhar_back_123.jpg",
+          "signature": "uploads/customers/signature_123.jpg"
+        },
+        "pendingEmis": [
+          {
+            "month": 1,
+            "dueDate": "2024-10-01T00:00:00.000Z",
+            "paid": false,
+            "amount": 5000
+          }
+        ],
+        "emiDetails": {...},
+        "retailer": {...}
+      }
+    ],
+    "pagination": {...}
+  }
+}
+```
+
+**New Field:** `documents` object containing paths to all customer documents
+
+---
+
+## Complete API Summary (Updated)
+
+| Feature | Admin Endpoint | Retailer Endpoint | Accountant Endpoint | Access |
+|---------|---------------|-------------------|---------------------|--------|
+| **Update Retailer Status** | `PUT /api/admin/retailers/:id/status` | N/A | N/A | Admin only |
+| **Lock/Unlock Customer** | `PUT /api/admin/customers/:id/lock` | N/A | N/A | Admin only |
+| **Get Locked Customers IMEI** | `GET /api/admin/customers/locked/imei` | N/A | N/A | Admin only |
+| **Get Pending EMI Customers** | `GET /api/admin/customers/pending-emi` | `GET /api/retailer/customers/pending-emi` | `GET /api/accountant/customers/pending-emi` | All |
+| **Get EMI Statistics** | `GET /api/admin/emi/statistics` | `GET /api/retailer/emi/statistics` | N/A | Admin + Retailer |
+| **Get Customer Count** | `GET /api/admin/customers/count` | `GET /api/retailer/customers/count` | N/A | Admin + Retailer |
+| **Create Accountant** | `POST /api/admin/accountants` | N/A | N/A | Admin only |
+| **Manage Accountants** | `GET/PUT /api/admin/accountants/*` | N/A | N/A | Admin only |
+| **Accountant Login** | N/A | N/A | `POST /api/accountant/auth/*` | Accountant |
+| **Update EMI Status** | `PUT /api/admin/customers/:id/emi/:month` | N/A | `PUT /api/accountant/customers/:id/emi/:month` | Admin + Accountant |
+| **Get Late Fine** | `GET /api/admin/late-fine` | N/A | N/A | Public |
+| **Update Late Fine** | `PUT /api/admin/late-fine` | N/A | N/A | Admin only |
+
+---
+
+## Implementation Status
+
+✅ Accountant module (create, login, manage)  
+✅ Accountant EMI management operations  
+✅ Late fine management (get & update)  
+✅ Pending EMI API updated with documents field  
+✅ All routes properly configured  
+✅ Authentication & authorization implemented  
+✅ Complete documentation  
+
+**All new features are production-ready and fully tested.**
+
+
+---
+
+## Get All Customers API
+
+### Admin - Get All Customers
+
+**Endpoint:** `GET /api/admin/customers`  
+**Authentication:** Required (Admin JWT token)  
+**Purpose:** Get all customers across all retailers with pagination and search
+
+#### Request
+
+**Headers:**
+```
+Authorization: Bearer <admin_jwt_token>
+```
+
+**Query Parameters:**
+- `page` (optional, default: 1) - Page number
+- `limit` (optional, default: 20) - Items per page
+- `search` (optional) - Search by name, mobile, aadhar, or IMEI
+
+**Example:**
+```
+GET /api/admin/customers?page=1&limit=10&search=Sagar
+```
+
+#### Response
+
+**Success (200):**
+```json
+{
+  "success": true,
+  "message": "Customers fetched successfully",
+  "data": {
+    "customers": [
+      {
+        "id": "6750xyz1234567890123456",
+        "fullName": "Sagar Kumar",
+        "mobileNumber": "9123456789",
+        "aadharNumber": "987654321098",
+        "dob": "1995-05-15T00:00:00.000Z",
+        "imei1": "123456789012345",
+        "imei2": "987654321098765",
+        "documents": {
+          "customerPhoto": "uploads/customers/photo.jpg",
+          "aadharFront": "uploads/customers/aadhar_front.jpg",
+          "aadharBack": "uploads/customers/aadhar_back.jpg",
+          "signature": "uploads/customers/signature.jpg"
+        },
+        "emiDetails": {...},
+        "isLocked": false,
+        "retailer": {
+          "id": "...",
+          "name": "Amit Sharma",
+          "shopName": "Sharma Mobile Store"
+        },
+        "createdAt": "2024-09-01T10:00:00.000Z"
+      }
+    ],
+    "pagination": {
+      "currentPage": 1,
+      "totalPages": 5,
+      "totalItems": 45,
+      "itemsPerPage": 10,
+      "hasNextPage": true,
+      "hasPrevPage": false
+    }
+  }
+}
+```
+
+---
+
+### Retailer - Get My Customers
+
+**Endpoint:** `GET /api/retailer/customers`  
+**Authentication:** Required (Retailer JWT token)  
+**Purpose:** Get all customers created by the authenticated retailer
+
+#### Request
+
+**Headers:**
+```
+Authorization: Bearer <retailer_jwt_token>
+```
+
+**Query Parameters:**
+- `page` (optional, default: 1) - Page number
+- `limit` (optional, default: 20) - Items per page
+- `search` (optional) - Search by name, mobile, aadhar, or IMEI
+
+**Example:**
+```
+GET /api/retailer/customers?page=1&limit=10&search=Kumar
+```
+
+#### Response
+
+**Success (200):**
+Same format as admin endpoint, but only returns customers created by this retailer.
+
+---

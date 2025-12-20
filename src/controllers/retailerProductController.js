@@ -22,8 +22,15 @@ const sendCustomerOTP = async (req, res) => {
       });
     }
 
-    // Send OTP
-    await sendOTP(mobileNumber);
+    // Generate OTP
+    const { generateOTP, saveOTP } = require('../utils/otpService');
+    const otp = generateOTP();
+
+    // Save OTP to database
+    await saveOTP(mobileNumber, otp);
+
+    // Send OTP via SMS
+    await sendOTP(mobileNumber, otp);
 
     return res.status(200).json({
       success: true,
@@ -667,11 +674,49 @@ const getEmiStatisticsRetailer = async (req, res) => {
   }
 };
 
+/**
+ * Get customer count statistics for retailer's customers only
+ */
+const getCustomerCountRetailer = async (req, res) => {
+  try {
+    const retailerId = req.retailer.id;
+
+    // Get total customers count for this retailer
+    const totalCustomers = await Customer.countDocuments({
+      retailerId: new mongoose.Types.ObjectId(retailerId)
+    });
+
+    // Get locked customers count for this retailer
+    const lockedCustomers = await Customer.countDocuments({
+      retailerId: new mongoose.Types.ObjectId(retailerId),
+      isLocked: true
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Customer count fetched successfully',
+      data: {
+        totalCustomers,
+        lockedCustomers,
+        activeCustomers: totalCustomers - lockedCustomers
+      }
+    });
+  } catch (error) {
+    console.error('Get customer count (retailer) error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch customer count',
+      error: 'SERVER_ERROR'
+    });
+  }
+};
+
 module.exports = {
   sendCustomerOTP,
   verifyCustomerOTP,
   createCustomer,
   getCustomers,
   getPendingEmiCustomers,
-  getEmiStatisticsRetailer
+  getEmiStatisticsRetailer,
+  getCustomerCountRetailer
 };

@@ -553,6 +553,7 @@ const getPendingEmiCustomersAdmin = async (req, res) => {
           imei2: 1,
           fatherName: 1,
           address: 1,
+          documents: 1,
           isLocked: 1,
           'emiDetails.branch': 1,
           'emiDetails.phoneType': 1,
@@ -617,6 +618,7 @@ const getPendingEmiCustomersAdmin = async (req, res) => {
           imei2: c.imei2,
           fatherName: c.fatherName,
           address: c.address,
+          documents: c.documents,
           isLocked: c.isLocked,
           emiDetails: {
             branch: c.emiDetails.branch,
@@ -759,6 +761,39 @@ const getEmiStatisticsAdmin = async (req, res) => {
 };
 
 
+/**
+ * Get customer count statistics (Admin only)
+ */
+const getCustomerCountAdmin = async (req, res) => {
+  try {
+    const Customer = require('../models/Customer');
+
+    // Get total customers count
+    const totalCustomers = await Customer.countDocuments({});
+
+    // Get locked customers count
+    const lockedCustomers = await Customer.countDocuments({ isLocked: true });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Customer count fetched successfully',
+      data: {
+        totalCustomers,
+        lockedCustomers,
+        activeCustomers: totalCustomers - lockedCustomers
+      }
+    });
+  } catch (error) {
+    console.error('Get customer count (admin) error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch customer count',
+      error: 'SERVER_ERROR'
+    });
+  }
+};
+
+
 module.exports = {
   sendOtpController,
   verifyOtpController,
@@ -769,6 +804,7 @@ module.exports = {
   toggleCustomerLock,
   getLockedCustomersImei,
   getPendingEmiCustomersAdmin,
-  getEmiStatisticsAdmin
+  getEmiStatisticsAdmin,
+  getCustomerCountAdmin
 };
 
