@@ -10,6 +10,9 @@ const retailerApiRoutes = require('./routes/retailerApiRoutes');
 // Initialize Express app
 const app = express();
 
+// Trust proxy for accurate IP addresses (required for Render deployment)
+app.set('trust proxy', 1);
+
 // Connect to MongoDB
 connectDB();
 
