@@ -655,6 +655,108 @@ const getPendingEmiCustomersAdmin = async (req, res) => {
   }
 };
 
+/**
+ * Get EMI Statistics for all customers (Admin only)
+ */
+const getEmiStatisticsAdmin = async (req, res) => {
+  try {
+    const Customer = require('../models/Customer');
+
+    // Get total customers count
+    const totalCustomers = await Customer.countDocuments({});
+
+    if (totalCustomers === 0) {
+      return res.status(200).json({
+        success: true,
+        message: 'No customers found',
+        data: {
+          totalEmiAmount: 0,
+          totalPaidAmount: 0,
+          totalPendingAmount: 0,
+          totalCustomers: 0,
+          customersWithPending: 0,
+          customersFullyPaid: 0,
+          paymentPercentage: 0
+        }
+      });
+    }
+
+    // Aggregate EMI statistics
+    const statistics = await Customer.aggregate([
+      // Unwind EMI months to calculate paid/pending per EMI
+      { $unwind: '$emiDetails.emiMonths' },
+
+      // Group and calculate totals
+      {
+        $group: {
+          _id: null,
+          totalPaid: {
+            $sum: {
+              $cond: [
+                { $eq: ['$emiDetails.emiMonths.paid', true] },
+                '$emiDetails.emiMonths.amount',
+                0
+              ]
+            }
+          },
+          totalPending: {
+            $sum: {
+              $cond: [
+                { $eq: ['$emiDetails.emiMonths.paid', false] },
+                '$emiDetails.emiMonths.amount',
+                0
+              ]
+            }
+          }
+        }
+      }
+    ]);
+
+    // Get customers with all EMIs paid
+    const customersFullyPaid = await Customer.countDocuments({
+      'emiDetails.emiMonths': {
+        $not: {
+          $elemMatch: { paid: false }
+        }
+      }
+    });
+
+    // Get customers with at least one pending EMI
+    const customersWithPending = await Customer.countDocuments({
+      'emiDetails.emiMonths': {
+        $elemMatch: { paid: false }
+      }
+    });
+
+    const stats = statistics[0] || { totalPaid: 0, totalPending: 0 };
+    const totalEmiAmount = stats.totalPaid + stats.totalPending;
+    const paymentPercentage = totalEmiAmount > 0
+      ? Math.round((stats.totalPaid / totalEmiAmount) * 100 * 100) / 100
+      : 0;
+
+    return res.status(200).json({
+      success: true,
+      message: 'EMI statistics fetched successfully',
+      data: {
+        totalEmiAmount: Math.round(totalEmiAmount * 100) / 100,
+        totalPaidAmount: Math.round(stats.totalPaid * 100) / 100,
+        totalPendingAmount: Math.round(stats.totalPending * 100) / 100,
+        totalCustomers,
+        customersWithPending,
+        customersFullyPaid,
+        paymentPercentage
+      }
+    });
+  } catch (error) {
+    console.error('Get EMI statistics (admin) error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch EMI statistics',
+      error: 'SERVER_ERROR'
+    });
+  }
+};
+
 
 module.exports = {
   sendOtpController,
@@ -665,6 +767,7 @@ module.exports = {
   updateEmiPaymentStatus,
   toggleCustomerLock,
   getLockedCustomersImei,
-  getPendingEmiCustomersAdmin
+  getPendingEmiCustomersAdmin,
+  getEmiStatisticsAdmin
 };
 

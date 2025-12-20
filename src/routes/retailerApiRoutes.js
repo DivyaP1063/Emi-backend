@@ -100,4 +100,15 @@ router.get(
   retailerProductController.getPendingEmiCustomers
 );
 
+/**
+ * @route   GET /api/retailer/emi/statistics
+ * @desc    Get EMI statistics for retailer's customers
+ * @access  Protected (Retailer only)
+ */
+router.get(
+  '/emi/statistics',
+  authenticateRetailer,
+  retailerProductController.getEmiStatisticsRetailer
+);
+
 module.exports = router;

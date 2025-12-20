@@ -796,3 +796,285 @@ Both APIs support:
 ✅ Documentation completed  
 
 **Status:** Production-ready and fully tested
+
+---
+
+## EMI Statistics Dashboard API (New Feature)
+
+### Overview
+This feature provides dashboard/statistics APIs for both admins and retailers to view comprehensive EMI payment metrics including total EMI amounts, paid amounts, pending amounts, and customer counts.
+
+---
+
+### Admin API - Get EMI Statistics
+
+**Endpoint:** `GET /api/admin/emi/statistics`  
+**Authentication:** Required (Admin JWT token)  
+**Purpose:** Retrieve EMI statistics for ALL customers across all retailers
+
+#### Request
+
+**Headers:**
+```
+Authorization: Bearer <admin_jwt_token>
+```
+
+**No Query Parameters or Body Required**
+
+#### Response
+
+**Success (200):**
+```json
+{
+  "success": true,
+  "message": "EMI statistics fetched successfully",
+  "data": {
+    "totalEmiAmount": 500000.00,
+    "totalPaidAmount": 300000.00,
+    "totalPendingAmount": 200000.00,
+    "totalCustomers": 50,
+    "customersWithPending": 30,
+    "customersFullyPaid": 20,
+    "paymentPercentage": 60.00
+  }
+}
+```
+
+**Response Fields:**
+- `totalEmiAmount` - Sum of all EMI amounts (paid + pending) across all customers
+- `totalPaidAmount` - Sum of all paid EMI amounts
+- `totalPendingAmount` - Sum of all unpaid EMI amounts
+- `totalCustomers` - Total number of customers in the system
+- `customersWithPending` - Number of customers with at least one unpaid EMI
+- `customersFullyPaid` - Number of customers with all EMIs paid
+- `paymentPercentage` - Percentage of EMIs paid (totalPaid / totalEmi × 100)
+
+**Error Responses:**
+- `401` - Unauthorized (missing or invalid admin token)
+- `500` - Server error
+
+#### Testing in Postman
+
+**Method:** `GET`  
+**URL:** `http://localhost:5000/api/admin/emi/statistics`
+
+**Headers:**
+```
+Authorization: Bearer <admin_token>
+```
+
+**No Body Required**
+
+#### Implementation Details
+
+**Controller:** `src/controllers/authController.js` (lines 658-760)  
+**Function:** `getEmiStatisticsAdmin`  
+**Route:** `src/routes/index.js` (line 27-28)
+
+**Logic:**
+- Counts total customers
+- Uses MongoDB aggregation to sum paid/pending EMI amounts
+- Counts customers with pending EMIs vs fully paid
+- Calculates payment percentage
+- Handles edge cases (no customers, division by zero)
+
+---
+
+### Retailer API - Get EMI Statistics
+
+**Endpoint:** `GET /api/retailer/emi/statistics`  
+**Authentication:** Required (Retailer JWT token)  
+**Purpose:** Retrieve EMI statistics for only the retailer's customers
+
+#### Request
+
+**Headers:**
+```
+Authorization: Bearer <retailer_jwt_token>
+```
+
+**No Query Parameters or Body Required**
+
+#### Response
+
+**Success (200):**
+```json
+{
+  "success": true,
+  "message": "EMI statistics fetched successfully",
+  "data": {
+    "totalEmiAmount": 100000.00,
+    "totalPaidAmount": 60000.00,
+    "totalPendingAmount": 40000.00,
+    "totalCustomers": 10,
+    "customersWithPending": 6,
+    "customersFullyPaid": 4,
+    "paymentPercentage": 60.00
+  }
+}
+```
+
+**Response Fields:**
+- Same as admin API, but filtered to only the retailer's customers
+- Does NOT include customers from other retailers
+
+**Key Differences from Admin API:**
+- Only shows statistics for customers belonging to the authenticated retailer
+- Totals are calculated only from the retailer's customer base
+
+**Error Responses:**
+- `401` - Unauthorized (missing or invalid retailer token)
+- `500` - Server error
+
+#### Testing in Postman
+
+**Method:** `GET`  
+**URL:** `http://localhost:5000/api/retailer/emi/statistics`
+
+**Headers:**
+```
+Authorization: Bearer <retailer_token>
+```
+
+**No Body Required**
+
+#### Implementation Details
+
+**Controller:** `src/controllers/retailerProductController.js` (lines 562-670)  
+**Function:** `getEmiStatisticsRetailer`  
+**Route:** `src/routes/retailerApiRoutes.js` (lines 108-112)
+
+**Logic:**
+- Filters by `retailerId` (from JWT token)
+- Counts total customers for this retailer
+- Uses MongoDB aggregation to sum paid/pending EMI amounts
+- Counts retailer's customers with pending EMIs vs fully paid
+- Calculates payment percentage
+
+---
+
+### MongoDB Aggregation Pipeline
+
+Both APIs use efficient MongoDB aggregation:
+
+```javascript
+const statistics = await Customer.aggregate([
+  // Filter (retailer filters by retailerId, admin has no filter)
+  { $match: matchQuery },
+  
+  // Unwind EMI months to calculate individual payments
+  { $unwind: '$emiDetails.emiMonths' },
+  
+  // Group and calculate totals
+  {
+    $group: {
+      _id: null,
+      totalPaid: {
+        $sum: {
+          $cond: [
+            { $eq: ['$emiDetails.emiMonths.paid', true] },
+            '$emiDetails.emiMonths.amount',
+            0
+          ]
+        }
+      },
+      totalPending: {
+        $sum: {
+          $cond: [
+            { $eq: ['$emiDetails.emiMonths.paid', false] },
+            '$emiDetails.emiMonths.amount',
+            0
+          ]
+        }
+      }
+    }
+  }
+]);
+```
+
+---
+
+### Use Cases
+
+**Admin Dashboard:**
+- Monitor overall platform EMI collection performance
+- Track payment trends across all retailers
+- Identify collection efficiency
+- Generate financial reports
+- Compare retailer performance
+
+**Retailer Dashboard:**
+- Monitor their portfolio health
+- Track their collection efficiency
+- View payment status at a glance
+- Plan collection strategies
+- Measure business performance
+
+---
+
+### Example Scenarios
+
+#### Scenario 1: Fresh Customer (All Unpaid)
+```json
+{
+  "totalEmiAmount": 30000,
+  "totalPaidAmount": 0,
+  "totalPendingAmount": 30000,
+  "customersWithPending": 1,
+  "customersFullyPaid": 0,
+  "paymentPercentage": 0
+}
+```
+
+#### Scenario 2: Partially Paid
+```json
+{
+  "totalEmiAmount": 30000,
+  "totalPaidAmount": 10000,
+  "totalPendingAmount": 20000,
+  "customersWithPending": 1,
+  "customersFullyPaid": 0,
+  "paymentPercentage": 33.33
+}
+```
+
+#### Scenario 3: Fully Paid Customer
+```json
+{
+  "totalEmiAmount": 30000,
+  "totalPaidAmount": 30000,
+  "totalPendingAmount": 0,
+  "customersWithPending": 0,
+  "customersFullyPaid": 1,
+  "paymentPercentage": 100
+}
+```
+
+---
+
+## Complete API Summary
+
+| Feature | Admin Endpoint | Retailer Endpoint | Access |
+|---------|---------------|-------------------|--------|
+| **Update Retailer Status** | `PUT /api/admin/retailers/:id/status` | N/A | Admin only |
+| **Lock/Unlock Customer** | `PUT /api/admin/customers/:id/lock` | N/A | Admin only |
+| **Get Locked Customers IMEI** | `GET /api/admin/customers/locked/imei` | N/A | Admin only |
+| **Get Pending EMI Customers** | `GET /api/admin/customers/pending-emi` | `GET /api/retailer/customers/pending-emi` | Both |
+| **Get EMI Statistics** | `GET /api/admin/emi/statistics` | `GET /api/retailer/emi/statistics` | Both |
+
+---
+
+## Final Implementation Status
+
+✅ Retailer status management (ACTIVE, INACTIVE, SUSPENDED)  
+✅ Customer lock/unlock functionality  
+✅ Locked customers IMEI retrieval  
+✅ EMI due date tracking (1-month intervals)  
+✅ Pending EMI customers API (admin + retailer)  
+✅ EMI statistics dashboard API (admin + retailer)  
+✅ Proper access control for all endpoints  
+✅ Comprehensive error handling  
+✅ MongoDB aggregation optimization  
+✅ Complete documentation  
+
+**All features are production-ready and fully tested.**
