@@ -5,9 +5,14 @@ const retailerRoutes = require('./retailerRoutes');
 const { authenticate } = require('../middleware/auth');
 const { getAllCustomers, updateEmiPaymentStatus, toggleCustomerLock } = require('../controllers/authController');
 const { getLateFine, updateLateFine, updateLateFineValidation } = require('../controllers/lateFineController');
+const { updateRetailerStatus, updateRetailerStatusValidation } = require('../controllers/retailerController');
 
 // Mount routes
 router.use('/auth', authRoutes);
+
+// Retailer Status Update (Admin only) - Must be before retailerRoutes mount
+router.put('/retailers/:retailerId/status', authenticate, updateRetailerStatusValidation, updateRetailerStatus);
+
 router.use('/retailers', retailerRoutes);
 
 // Customer routes (Admin only)

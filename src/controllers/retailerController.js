@@ -97,8 +97,8 @@ const createRetailer = async (req, res) => {
     const { basicInfo, address, permissions } = req.body;
 
     // Check if mobile number already exists
-    const existingMobile = await Retailer.findOne({ 
-      mobileNumber: basicInfo.mobileNumber 
+    const existingMobile = await Retailer.findOne({
+      mobileNumber: basicInfo.mobileNumber
     });
 
     if (existingMobile) {
@@ -110,8 +110,8 @@ const createRetailer = async (req, res) => {
     }
 
     // Check if email already exists
-    const existingEmail = await Retailer.findOne({ 
-      email: basicInfo.email 
+    const existingEmail = await Retailer.findOne({
+      email: basicInfo.email
     });
 
     if (existingEmail) {
@@ -231,8 +231,105 @@ const getAllRetailers = async (req, res) => {
   }
 };
 
+/**
+ * Validation rules for update retailer status
+ */
+const updateRetailerStatusValidation = [
+  body('status')
+    .trim()
+    .notEmpty()
+    .withMessage('Status is required')
+    .isIn(['ACTIVE', 'INACTIVE', 'SUSPENDED'])
+    .withMessage('Status must be one of: ACTIVE, INACTIVE, SUSPENDED')
+];
+
+/**
+ * Update retailer status (Admin only)
+ */
+const updateRetailerStatus = async (req, res) => {
+  try {
+    // Check validation errors
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        error: 'VALIDATION_ERROR',
+        details: errors.array()
+      });
+    }
+
+    const { retailerId } = req.params;
+    const { status } = req.body;
+
+    // Validate retailerId format
+    if (!retailerId.match(/^[0-9a-fA-F]{24}$/)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid retailer ID format',
+        error: 'VALIDATION_ERROR'
+      });
+    }
+
+    // Find retailer
+    const retailer = await Retailer.findById(retailerId);
+
+    if (!retailer) {
+      return res.status(404).json({
+        success: false,
+        message: 'Retailer not found',
+        error: 'RETAILER_NOT_FOUND'
+      });
+    }
+
+    // Check if status is already the same
+    if (retailer.status === status) {
+      return res.status(200).json({
+        success: true,
+        message: `Retailer status is already ${status}`,
+        data: {
+          retailerId: retailer._id.toString(),
+          fullName: retailer.fullName,
+          shopName: retailer.shopName,
+          status: retailer.status,
+          updatedAt: retailer.updatedAt
+        }
+      });
+    }
+
+    // Update status
+    const previousStatus = retailer.status;
+    retailer.status = status;
+    await retailer.save();
+
+    return res.status(200).json({
+      success: true,
+      message: `Retailer status updated from ${previousStatus} to ${status}`,
+      data: {
+        retailerId: retailer._id.toString(),
+        fullName: retailer.fullName,
+        shopName: retailer.shopName,
+        email: retailer.email,
+        mobileNumber: retailer.mobileNumber,
+        previousStatus,
+        currentStatus: retailer.status,
+        updatedAt: retailer.updatedAt
+      }
+    });
+  } catch (error) {
+    console.error('Update retailer status error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to update retailer status',
+      error: 'SERVER_ERROR'
+    });
+  }
+};
+
 module.exports = {
   createRetailer,
   getAllRetailers,
-  createRetailerValidation
+  createRetailerValidation,
+  updateRetailerStatus,
+  updateRetailerStatusValidation
 };
