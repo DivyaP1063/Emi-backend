@@ -7,6 +7,8 @@ const { apiRateLimiter } = require('./middleware/rateLimiter');
 const adminRoutes = require('./routes');
 const retailerApiRoutes = require('./routes/retailerApiRoutes');
 const accountantApiRoutes = require('./routes/accountantApiRoutes');
+const customerDeviceRoutes = require('./routes/customerDeviceRoutes');
+const { initializeFirebase } = require('./services/firebaseService');
 
 // Initialize Express app
 const app = express();
@@ -16,6 +18,14 @@ app.set('trust proxy', 1);
 
 // Connect to MongoDB
 connectDB();
+
+// Initialize Firebase Admin SDK
+try {
+  initializeFirebase();
+} catch (error) {
+  console.error('⚠️  Firebase initialization failed:', error.message);
+  console.log('ℹ️  Server will continue without FCM notifications');
+}
 
 // Middleware
 app.use(helmet()); // Security headers
@@ -30,8 +40,10 @@ app.use(apiRateLimiter);
 app.use('/api/admin', adminRoutes);
 app.use('/api/retailer', retailerApiRoutes);
 app.use('/api/accountant', accountantApiRoutes);
+app.use('/api/customer/device', customerDeviceRoutes);
 
 console.log('✅ Accountant routes mounted at /api/accountant');
+console.log('✅ Customer device routes mounted at /api/customer/device');
 
 // Root endpoint
 app.get('/', (req, res) => {

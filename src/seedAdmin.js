@@ -13,21 +13,23 @@ const seedAdmin = async () => {
 
     // Create or update admin users
     const admins = [
+
+
       {
-        name: 'admin',
-        email: 'admin@resq.com',
-        mobileNumber: '7500719430'
+        name: 'admin3',
+        email: 'admin3@resq.com',
+        mobileNumber: '8429604825'
       },
       {
-        name: 'admin2',
-        email: 'admin2@resq.com',
-        mobileNumber: '9455703882'
+        name: 'admin4',
+        email: 'admin4@resq.com',
+        mobileNumber: '9304735742'
       }
     ];
 
     for (const adminData of admins) {
-      const existingAdmin = await Admin.findOne({ 
-        mobileNumber: adminData.mobileNumber 
+      const existingAdmin = await Admin.findOne({
+        mobileNumber: adminData.mobileNumber
       });
 
       if (existingAdmin) {
