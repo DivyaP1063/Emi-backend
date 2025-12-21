@@ -57,7 +57,7 @@ const updateLateFine = async (req, res) => {
         }
 
         const { amount } = req.body;
-        const adminId = req.user.id; // From authentication middleware
+        const adminId = req.admin.id; // From authentication middleware
 
         // Update late fine setting
         const lateFine = await LateFine.updateSetting(amount, adminId);
