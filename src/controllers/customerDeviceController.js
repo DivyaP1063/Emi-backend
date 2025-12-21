@@ -21,9 +21,14 @@ const updateFcmTokenValidation = [
  */
 const updateCustomerFcmToken = async (req, res) => {
     try {
+        console.log('\n📱 ===== FCM TOKEN REGISTRATION REQUEST =====');
+        console.log('Timestamp:', new Date().toISOString());
+        console.log('Request Body:', JSON.stringify(req.body, null, 2));
+
         // Check validation errors
         const errors = validationResult(req);
         if (!errors.isEmpty()) {
+            console.log('❌ Validation failed:', errors.array());
             return res.status(400).json({
                 success: false,
                 message: 'Validation failed',
@@ -34,10 +39,15 @@ const updateCustomerFcmToken = async (req, res) => {
 
         const { fcmToken, imei1 } = req.body;
 
+        console.log('FCM Token (first 20 chars):', fcmToken.substring(0, 20) + '...');
+        console.log('IMEI1:', imei1);
+        console.log('Searching for customer with IMEI:', imei1);
+
         // Find customer by IMEI1
         const customer = await Customer.findOne({ imei1 });
 
         if (!customer) {
+            console.log('❌ Customer not found with IMEI:', imei1);
             return res.status(404).json({
                 success: false,
                 message: 'Customer not found with this IMEI',
@@ -45,11 +55,19 @@ const updateCustomerFcmToken = async (req, res) => {
             });
         }
 
+        console.log('✅ Customer found:', customer.fullName);
+        console.log('Customer ID:', customer._id.toString());
+        console.log('Previous FCM Token:', customer.fcmToken ? 'Exists' : 'None');
+
         // Update FCM token
         customer.fcmToken = fcmToken;
         await customer.save();
 
-        console.log(`✅ FCM token updated for customer: ${customer.fullName} (${imei1})`);
+        console.log('✅ FCM token updated successfully');
+        console.log('Customer:', customer.fullName);
+        console.log('IMEI:', imei1);
+        console.log('Lock Status:', customer.isLocked ? 'LOCKED' : 'UNLOCKED');
+        console.log('=========================================\n');
 
         return res.status(200).json({
             success: true,
@@ -62,7 +80,8 @@ const updateCustomerFcmToken = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Update FCM token error:', error);
+        console.error('❌ Update FCM token error:', error);
+        console.error('Error stack:', error.stack);
         return res.status(500).json({
             success: false,
             message: 'Failed to update FCM token',
