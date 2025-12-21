@@ -175,6 +175,11 @@ const customerSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  fcmToken: {
+    type: String,
+    default: null,
+    trim: true
+  },
   retailerId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Retailer',

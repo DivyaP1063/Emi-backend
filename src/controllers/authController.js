@@ -353,6 +353,7 @@ const updateEmiPaymentStatus = async (req, res) => {
 
 /**
  * Toggle Customer Lock Status (Admin only)
+ * Sends FCM notification to device and updates lock status
  */
 const toggleCustomerLock = async (req, res) => {
   try {
@@ -389,7 +390,39 @@ const toggleCustomerLock = async (req, res) => {
       });
     }
 
-    // Update lock status
+    // Try to send FCM notification if token exists
+    let notificationSent = false;
+    let notificationError = null;
+
+    if (customer.fcmToken) {
+      try {
+        const { sendLockNotification } = require('../services/firebaseService');
+        const fcmResult = await sendLockNotification(customer.fcmToken, isLocked);
+
+        if (fcmResult.success) {
+          notificationSent = true;
+          console.log(`✅ Lock notification sent to customer ${customer.fullName}`);
+        } else {
+          notificationError = fcmResult.error;
+          console.warn(`⚠️  Failed to send notification: ${fcmResult.message}`);
+
+          // If token is invalid, clear it from database
+          if (fcmResult.error === 'INVALID_TOKEN') {
+            customer.fcmToken = null;
+            console.log('🗑️  Cleared invalid FCM token');
+          }
+        }
+      } catch (error) {
+        console.error('FCM notification error:', error);
+        notificationError = error.message;
+      }
+    } else {
+      console.log(`ℹ️  No FCM token for customer ${customer.fullName}, skipping notification`);
+    }
+
+    // Update lock status in database
+    // Note: In production, you might want to wait for device confirmation
+    // before updating this. For now, we update immediately.
     customer.isLocked = isLocked;
     await customer.save();
 
@@ -400,6 +433,8 @@ const toggleCustomerLock = async (req, res) => {
         customerId: customer._id.toString(),
         customerName: customer.fullName,
         isLocked: customer.isLocked,
+        notificationSent,
+        notificationError: notificationError || undefined,
         updatedAt: customer.updatedAt
       }
     });
