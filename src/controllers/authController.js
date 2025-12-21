@@ -194,7 +194,7 @@ const getAllCustomers = async (req, res) => {
 
     // Fetch customers with pagination
     const customers = await Customer.find(searchQuery)
-      .populate('retailerId', 'basicInfo.fullName basicInfo.shopName basicInfo.mobileNumber')
+      .populate('retailerId', 'fullName shopName mobileNumber email address status')
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limitNum)
@@ -217,9 +217,12 @@ const getAllCustomers = async (req, res) => {
       isLocked: customer.isLocked,
       retailer: customer.retailerId ? {
         id: customer.retailerId._id?.toString(),
-        name: customer.retailerId.basicInfo?.fullName,
-        shopName: customer.retailerId.basicInfo?.shopName,
-        mobile: customer.retailerId.basicInfo?.mobileNumber
+        fullName: customer.retailerId.fullName,
+        shopName: customer.retailerId.shopName,
+        mobileNumber: customer.retailerId.mobileNumber,
+        email: customer.retailerId.email,
+        address: customer.retailerId.address,
+        status: customer.retailerId.status
       } : null,
       createdAt: customer.createdAt,
       updatedAt: customer.updatedAt
@@ -567,7 +570,9 @@ const getPendingEmiCustomersAdmin = async (req, res) => {
             fullName: '$retailer.fullName',
             shopName: '$retailer.shopName',
             mobileNumber: '$retailer.mobileNumber',
-            email: '$retailer.email'
+            email: '$retailer.email',
+            address: '$retailer.address',
+            status: '$retailer.status'
           },
           createdAt: 1
         }
@@ -634,7 +639,9 @@ const getPendingEmiCustomersAdmin = async (req, res) => {
             fullName: c.retailer.fullName,
             shopName: c.retailer.shopName,
             mobileNumber: c.retailer.mobileNumber,
-            email: c.retailer.email
+            email: c.retailer.email,
+            address: c.retailer.address,
+            status: c.retailer.status
           } : null,
           createdAt: c.createdAt
         })),

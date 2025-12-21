@@ -471,6 +471,15 @@ const getPendingEmiCustomers = async (req, res) => {
       { $skip: skip },
       { $limit: limit },
       {
+        $lookup: {
+          from: 'retailers',
+          localField: 'retailerId',
+          foreignField: '_id',
+          as: 'retailer'
+        }
+      },
+      { $unwind: { path: '$retailer', preserveNullAndEmptyArrays: true } },
+      {
         $project: {
           fullName: 1,
           mobileNumber: 1,
@@ -490,6 +499,15 @@ const getPendingEmiCustomers = async (req, res) => {
           'emiDetails.emiPerMonth': 1,
           'emiDetails.numberOfMonths': 1,
           pendingEmis: 1,
+          retailer: {
+            id: '$retailer._id',
+            fullName: '$retailer.fullName',
+            shopName: '$retailer.shopName',
+            mobileNumber: '$retailer.mobileNumber',
+            email: '$retailer.email',
+            address: '$retailer.address',
+            status: '$retailer.status'
+          },
           createdAt: 1,
           updatedAt: 1
         }
@@ -552,6 +570,15 @@ const getPendingEmiCustomers = async (req, res) => {
             numberOfMonths: c.emiDetails.numberOfMonths
           },
           pendingEmis: c.pendingEmis,
+          retailer: c.retailer.id ? {
+            id: c.retailer.id.toString(),
+            fullName: c.retailer.fullName,
+            shopName: c.retailer.shopName,
+            mobileNumber: c.retailer.mobileNumber,
+            email: c.retailer.email,
+            address: c.retailer.address,
+            status: c.retailer.status
+          } : null,
           createdAt: c.createdAt,
           updatedAt: c.updatedAt
         })),
