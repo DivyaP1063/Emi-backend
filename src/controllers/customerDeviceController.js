@@ -112,9 +112,14 @@ const lockResponseValidation = [
  */
 const deviceLockResponse = async (req, res) => {
     try {
+        console.log('\n📲 ===== DEVICE LOCK RESPONSE RECEIVED =====');
+        console.log('Timestamp:', new Date().toISOString());
+        console.log('Request Body:', JSON.stringify(req.body, null, 2));
+
         // Check validation errors
         const errors = validationResult(req);
         if (!errors.isEmpty()) {
+            console.log('❌ Validation failed:', errors.array());
             return res.status(400).json({
                 success: false,
                 message: 'Validation failed',
@@ -125,10 +130,18 @@ const deviceLockResponse = async (req, res) => {
 
         const { imei1, lockSuccess, action, errorMessage } = req.body;
 
+        console.log('IMEI:', imei1);
+        console.log('Action:', action);
+        console.log('Success:', lockSuccess);
+        if (errorMessage) {
+            console.log('Error Message:', errorMessage);
+        }
+
         // Find customer by IMEI1
         const customer = await Customer.findOne({ imei1 });
 
         if (!customer) {
+            console.log('❌ Customer not found with IMEI:', imei1);
             return res.status(404).json({
                 success: false,
                 message: 'Customer not found with this IMEI',
@@ -136,31 +149,40 @@ const deviceLockResponse = async (req, res) => {
             });
         }
 
-        // Log the response
-        console.log(`📱 Device lock response from ${customer.fullName}:`);
-        console.log(`   Action: ${action}`);
-        console.log(`   Success: ${lockSuccess}`);
-        if (errorMessage) {
-            console.log(`   Error: ${errorMessage}`);
-        }
+        console.log('✅ Customer found:', customer.fullName);
+        console.log('Current DB Lock Status:', customer.isLocked);
 
         // If device lock/unlock was successful, confirm the status in database
         if (lockSuccess) {
             const shouldBeLocked = action === 'LOCK_DEVICE';
 
+            console.log('Device reports successful', action);
+            console.log('Should be locked:', shouldBeLocked);
+
             // Only update if the status doesn't match
             if (customer.isLocked !== shouldBeLocked) {
+                const previousStatus = customer.isLocked;
                 customer.isLocked = shouldBeLocked;
                 await customer.save();
-                console.log(`✅ Customer lock status confirmed: ${shouldBeLocked}`);
+
+                console.log('✅ DATABASE UPDATED');
+                console.log('Previous Status:', previousStatus);
+                console.log('New Status:', customer.isLocked);
+                console.log(`🔒 Customer ${customer.fullName} is now ${shouldBeLocked ? 'LOCKED' : 'UNLOCKED'}`);
+            } else {
+                console.log('ℹ️  Status already matches - no update needed');
             }
         } else {
             // Device failed to lock/unlock
-            console.warn(`⚠️  Device failed to ${action}: ${errorMessage || 'Unknown error'}`);
-
-            // You might want to notify admin or retry
-            // For now, we just log it
+            console.warn(`⚠️  DEVICE LOCK FAILED`);
+            console.warn(`Customer: ${customer.fullName}`);
+            console.warn(`Action: ${action}`);
+            console.warn(`Error: ${errorMessage || 'Unknown error'}`);
+            console.warn(`Database lock status NOT updated`);
         }
+
+        console.log('Final DB Lock Status:', customer.isLocked);
+        console.log('=========================================\n');
 
         return res.status(200).json({
             success: true,
@@ -173,7 +195,8 @@ const deviceLockResponse = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Device lock response error:', error);
+        console.error('❌ Device lock response error:', error);
+        console.error('Error stack:', error.stack);
         return res.status(500).json({
             success: false,
             message: 'Failed to process lock response',
