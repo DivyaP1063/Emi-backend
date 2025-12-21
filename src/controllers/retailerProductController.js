@@ -746,6 +746,106 @@ const getCustomerCountRetailer = async (req, res) => {
   }
 };
 
+/**
+ * Validation rules for Aadhar verification
+ */
+const verifyAadharValidation = [
+  body('aadharNumber')
+    .trim()
+    .matches(/^[0-9]{12}$/)
+    .withMessage('Aadhar number must be exactly 12 digits')
+];
+
+/**
+ * Verify Aadhar Number - Check if customer exists and has pending EMIs
+ * This searches the entire database, not just retailer's customers
+ */
+const verifyAadharNumber = async (req, res) => {
+  try {
+    // Check validation errors
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        error: 'VALIDATION_ERROR',
+        details: errors.array()
+      });
+    }
+
+    const { aadharNumber } = req.body;
+
+    // Search for customer with this Aadhar number in entire database
+    const customer = await Customer.findOne({ aadharNumber })
+      .select('fullName mobileNumber aadharNumber emiDetails.emiMonths')
+      .lean();
+
+    // Case 1: Customer not found - VERIFIED (safe to register)
+    if (!customer) {
+      return res.status(200).json({
+        success: true,
+        verified: true,
+        message: 'No customer found with this Aadhar number. Safe to register.',
+        data: {
+          aadharNumber,
+          customerExists: false,
+          hasPendingEmi: false
+        }
+      });
+    }
+
+    // Case 2: Customer found - Check EMI status
+    const currentDate = new Date();
+    const pendingEmis = customer.emiDetails.emiMonths.filter(
+      emi => !emi.paid && new Date(emi.dueDate) < currentDate
+    );
+
+    const hasPendingEmi = pendingEmis.length > 0;
+
+    if (hasPendingEmi) {
+      // Case 2a: Customer has pending EMIs - FAILED (cannot register)
+      return res.status(200).json({
+        success: true,
+        verified: false,
+        message: 'Customer with this Aadhar number exists and has pending EMI payments. Cannot register.',
+        data: {
+          aadharNumber,
+          customerExists: true,
+          hasPendingEmi: true,
+          pendingEmiCount: pendingEmis.length,
+          customerInfo: {
+            fullName: customer.fullName,
+            mobileNumber: customer.mobileNumber
+          }
+        }
+      });
+    } else {
+      // Case 2b: Customer exists but no pending EMIs - VERIFIED (safe to register)
+      return res.status(200).json({
+        success: true,
+        verified: true,
+        message: 'Customer with this Aadhar number exists but has no pending EMI payments. Safe to register.',
+        data: {
+          aadharNumber,
+          customerExists: true,
+          hasPendingEmi: false,
+          customerInfo: {
+            fullName: customer.fullName,
+            mobileNumber: customer.mobileNumber
+          }
+        }
+      });
+    }
+  } catch (error) {
+    console.error('Verify Aadhar number error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to verify Aadhar number',
+      error: 'SERVER_ERROR'
+    });
+  }
+};
+
 module.exports = {
   sendCustomerOTP,
   verifyCustomerOTP,
@@ -753,5 +853,7 @@ module.exports = {
   getCustomers,
   getPendingEmiCustomers,
   getEmiStatisticsRetailer,
-  getCustomerCountRetailer
+  getCustomerCountRetailer,
+  verifyAadharNumber,
+  verifyAadharValidation
 };

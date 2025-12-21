@@ -122,4 +122,16 @@ router.get(
   retailerProductController.getCustomerCountRetailer
 );
 
+/**
+ * @route   POST /api/retailer/verify-aadhar
+ * @desc    Verify if Aadhar number is safe to register (checks for existing customer and pending EMIs)
+ * @access  Protected (Retailer only)
+ */
+router.post(
+  '/verify-aadhar',
+  authenticateRetailer,
+  retailerProductController.verifyAadharValidation,
+  retailerProductController.verifyAadharNumber
+);
+
 module.exports = router;
