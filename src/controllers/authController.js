@@ -885,6 +885,172 @@ const getCustomerCountAdmin = async (req, res) => {
     });
   }
 };
+/**
+ * Send EMI Reminder Notification (Admin only)
+ * Send FCM notification to customer device for pending EMI payment reminder
+ */
+const sendEmiReminder = async (req, res) => {
+  try {
+    console.log('\n📢 ===== EMI REMINDER NOTIFICATION REQUEST =====');
+    console.log('Timestamp:', new Date().toISOString());
+    console.log('Request Body:', JSON.stringify(req.body, null, 2));
+
+    const { customerId, imei1, message } = req.body;
+
+    // Validate that either customerId or imei1 is provided
+    if (!customerId && !imei1) {
+      return res.status(400).json({
+        success: false,
+        message: 'Either customerId or imei1 is required',
+        error: 'VALIDATION_ERROR'
+      });
+    }
+
+    // Get customer
+    const Customer = require('../models/Customer');
+    let customer;
+
+    if (customerId) {
+      // Validate customerId format
+      if (!customerId.match(/^[0-9a-fA-F]{24}$/)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid customer ID format',
+          error: 'VALIDATION_ERROR'
+        });
+      }
+      customer = await Customer.findById(customerId);
+    } else {
+      // Find by IMEI
+      if (!imei1.match(/^[0-9]{15}$/)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid IMEI format. Must be exactly 15 digits',
+          error: 'VALIDATION_ERROR'
+        });
+      }
+      customer = await Customer.findOne({ imei1 });
+    }
+
+    if (!customer) {
+      console.log('❌ Customer not found');
+      return res.status(404).json({
+        success: false,
+        message: 'Customer not found',
+        error: 'CUSTOMER_NOT_FOUND'
+      });
+    }
+
+    console.log('✅ Customer found:', customer.fullName);
+    console.log('FCM Token:', customer.fcmToken ? 'Present' : 'Missing');
+
+    // Check if customer has FCM token
+    if (!customer.fcmToken) {
+      console.log('❌ No FCM token for customer');
+      return res.status(400).json({
+        success: false,
+        message: 'Customer device is not registered. No FCM token available.',
+        error: 'NO_FCM_TOKEN'
+      });
+    }
+
+    // Calculate pending EMI details
+    const currentDate = new Date();
+    const pendingEmis = customer.emiDetails.emiMonths.filter(
+      emi => !emi.paid && new Date(emi.dueDate) < currentDate
+    );
+
+    const totalPendingAmount = pendingEmis.reduce((sum, emi) => sum + emi.amount, 0);
+
+    // Prepare notification message
+    const notificationTitle = 'EMI Payment Reminder';
+    const notificationBody = message ||
+      `Dear ${customer.fullName}, you have ${pendingEmis.length} pending EMI payment(s) totaling ₹${totalPendingAmount}. Please pay at the earliest.`;
+
+    console.log('📤 Sending EMI reminder notification...');
+    console.log('Title:', notificationTitle);
+    console.log('Body:', notificationBody);
+    console.log('Pending EMIs:', pendingEmis.length);
+    console.log('Total Pending Amount:', totalPendingAmount);
+
+    // Send FCM notification
+    try {
+      const { sendNotification } = require('../services/firebaseService');
+      const fcmResult = await sendNotification(
+        customer.fcmToken,
+        notificationTitle,
+        notificationBody,
+        {
+          type: 'EMI_REMINDER',
+          pendingCount: pendingEmis.length.toString(),
+          totalPendingAmount: totalPendingAmount.toString(),
+          customerId: customer._id.toString()
+        }
+      );
+
+      console.log('FCM Result:', JSON.stringify(fcmResult, null, 2));
+
+      if (fcmResult.success) {
+        console.log('✅ EMI reminder notification sent successfully');
+        console.log('Message ID:', fcmResult.messageId);
+        console.log('=========================================\n');
+
+        return res.status(200).json({
+          success: true,
+          message: 'EMI reminder notification sent successfully',
+          data: {
+            customerId: customer._id.toString(),
+            customerName: customer.fullName,
+            mobileNumber: customer.mobileNumber,
+            pendingEmisCount: pendingEmis.length,
+            totalPendingAmount,
+            notificationSent: true,
+            messageId: fcmResult.messageId
+          }
+        });
+      } else {
+        console.warn('⚠️  Failed to send EMI reminder notification');
+        console.warn('Error:', fcmResult.error);
+        console.warn('Message:', fcmResult.message);
+
+        // If token is invalid, clear it from database
+        if (fcmResult.error === 'INVALID_TOKEN') {
+          customer.fcmToken = null;
+          await customer.save();
+          console.log('🗑️  Cleared invalid FCM token from database');
+        }
+
+        console.log('=========================================\n');
+
+        return res.status(400).json({
+          success: false,
+          message: 'Failed to send notification',
+          error: fcmResult.error,
+          details: fcmResult.message
+        });
+      }
+    } catch (error) {
+      console.error('❌ FCM notification exception:', error);
+      console.error('Error stack:', error.stack);
+      console.log('=========================================\n');
+
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to send notification',
+        error: 'FCM_ERROR',
+        details: error.message
+      });
+    }
+  } catch (error) {
+    console.error('❌ Send EMI reminder error:', error);
+    console.error('Error stack:', error.stack);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to send EMI reminder',
+      error: 'SERVER_ERROR'
+    });
+  }
+};
 
 
 module.exports = {
@@ -898,6 +1064,7 @@ module.exports = {
   getLockedCustomersImei,
   getPendingEmiCustomersAdmin,
   getEmiStatisticsAdmin,
-  getCustomerCountAdmin
+  getCustomerCountAdmin,
+  sendEmiReminder
 };
 

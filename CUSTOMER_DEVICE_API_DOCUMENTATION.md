@@ -539,6 +539,214 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
 
 ---
 
+## EMI Reminder Notification Payload
+
+When the admin sends an EMI reminder notification, the backend sends an FCM notification with the following structure:
+
+**Notification:**
+```json
+{
+  "title": "EMI Payment Reminder",
+  "body": "Dear John Doe, you have 2 pending EMI payment(s) totaling ₹6000. Please pay at the earliest."
+}
+```
+
+**Data Payload:**
+```json
+{
+  "type": "EMI_REMINDER",
+  "pendingCount": "2",
+  "totalPendingAmount": "6000",
+  "customerId": "507f1f77bcf86cd799439011",
+  "timestamp": "2025-12-22T15:30:00.000Z"
+}
+```
+
+**Example (Kotlin - Enhanced FCM Service):**
+```kotlin
+class MyFirebaseMessagingService : FirebaseMessagingService() {
+    
+    override fun onMessageReceived(remoteMessage: RemoteMessage) {
+        val data = remoteMessage.data
+        val notification = remoteMessage.notification
+        
+        when (data["type"]) {
+            "DEVICE_LOCK_STATUS" -> {
+                val action = data["action"]
+                handleLockAction(action)
+            }
+            "EMI_REMINDER" -> {
+                val pendingCount = data["pendingCount"]?.toIntOrNull() ?: 0
+                val totalAmount = data["totalPendingAmount"]?.toIntOrNull() ?: 0
+                
+                // Show notification to user
+                showEmiReminderNotification(
+                    title = notification?.title ?: "EMI Payment Reminder",
+                    message = notification?.body ?: "You have pending EMI payments",
+                    pendingCount = pendingCount,
+                    totalAmount = totalAmount
+                )
+                
+                Log.d("EMI_REMINDER", "Pending: $pendingCount, Amount: ₹$totalAmount")
+            }
+        }
+    }
+    
+    private fun handleLockAction(action: String?) {
+        when (action) {
+            "LOCK_DEVICE" -> {
+                val success = lockDevice()
+                sendLockResponse(
+                    imei = getDeviceImei(),
+                    success = success,
+                    action = "LOCK_DEVICE",
+                    errorMessage = if (!success) "Failed to lock device" else null
+                )
+            }
+            "UNLOCK_DEVICE" -> {
+                val success = unlockDevice()
+                sendLockResponse(
+                    imei = getDeviceImei(),
+                    success = success,
+                    action = "UNLOCK_DEVICE",
+                    errorMessage = if (!success) "Failed to unlock device" else null
+                )
+            }
+        }
+    }
+    
+    private fun showEmiReminderNotification(
+        title: String,
+        message: String,
+        pendingCount: Int,
+        totalAmount: Int
+    ) {
+        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        
+        val notification = NotificationCompat.Builder(this, CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(title)
+            .setContentText(message)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(message))
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+            .build()
+        
+        notificationManager.notify(NOTIFICATION_ID_EMI, notification)
+    }
+    
+    override fun onNewToken(token: String) {
+        // Register new FCM token with backend
+        CoroutineScope(Dispatchers.IO).launch {
+            registerFcmToken(token, getDeviceImei())
+        }
+    }
+}
+```
+
+---
+
+## Admin EMI Reminder API
+
+This section documents how the admin sends EMI payment reminders to customer devices.
+
+### Send EMI Reminder (Admin Endpoint)
+
+**Endpoint:** `POST /api/admin/customers/emi-reminder`  
+**Authentication:** Required (Admin JWT token)  
+**Purpose:** Admin sends FCM notification to customer device for pending EMI payment reminder
+
+> **Note:** This is an admin-only endpoint. The Kotlin app receives the notification via FCM.
+
+**Request Headers:**
+```
+Authorization: Bearer <admin_jwt_token>
+Content-Type: application/json
+```
+
+**Request Body:**
+```json
+{
+  "customerId": "507f1f77bcf86cd799439011",
+  "imei1": "123456789012345",
+  "message": "Please pay your pending EMI at the earliest"
+}
+```
+
+**Field Descriptions:**
+- `customerId` (optional): MongoDB ObjectId of the customer - use either this or imei1
+- `imei1` (optional): 15-digit IMEI number - use either this or customerId
+- `message` (optional): Custom reminder message. If not provided, a default message will be generated
+
+**Success Response (200 OK):**
+```json
+{
+  "success": true,
+  "message": "EMI reminder notification sent successfully",
+  "data": {
+    "customerId": "507f1f77bcf86cd799439011",
+    "customerName": "John Doe",
+    "mobileNumber": "9876543210",
+    "pendingEmisCount": 2,
+    "totalPendingAmount": 6000,
+    "notificationSent": true,
+    "messageId": "projects/your-project/messages/0:1234567890"
+  }
+}
+```
+
+**Error Responses:**
+
+- **400 Bad Request** - Missing required fields
+```json
+{
+  "success": false,
+  "message": "Either customerId or imei1 is required",
+  "error": "VALIDATION_ERROR"
+}
+```
+
+- **400 Bad Request** - No FCM token
+```json
+{
+  "success": false,
+  "message": "Customer device is not registered. No FCM token available.",
+  "error": "NO_FCM_TOKEN"
+}
+```
+
+- **404 Not Found** - Customer not found
+```json
+{
+  "success": false,
+  "message": "Customer not found",
+  "error": "CUSTOMER_NOT_FOUND"
+}
+```
+
+**What the Kotlin App Receives:**
+
+When admin sends an EMI reminder, the device receives an FCM notification (see [EMI Reminder Notification Payload](#emi-reminder-notification-payload) section above for handling details).
+
+**Example Admin Request:**
+```bash
+curl -X POST http://localhost:5000/api/admin/customers/emi-reminder \
+  -H "Authorization: Bearer <admin_token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "imei1": "123456789012345",
+    "message": "Dear customer, please pay your pending EMI"
+  }'
+```
+
+**Default Message Format:**
+If no custom message is provided, the system generates:
+```
+Dear [Customer Name], you have [X] pending EMI payment(s) totaling ₹[Amount]. Please pay at the earliest.
+```
+
+---
+
 ## Integration Flow
 
 ### 1. App Installation Flow
