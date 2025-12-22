@@ -180,6 +180,27 @@ const customerSchema = new mongoose.Schema({
     default: null,
     trim: true
   },
+  devicePin: {
+    type: String,
+    default: null,
+    trim: true,
+    match: /^[0-9]{4,6}$/
+  },
+  location: {
+    latitude: {
+      type: Number,
+      min: -90,
+      max: 90
+    },
+    longitude: {
+      type: Number,
+      min: -180,
+      max: 180
+    },
+    lastUpdated: {
+      type: Date
+    }
+  },
   retailerId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Retailer',
