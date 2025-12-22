@@ -1,6 +1,6 @@
 # Customer Device API Documentation
 
-This document describes the API endpoints used by the mobile app installed on customer devices for FCM token registration, lock/unlock notifications, and device status management.
+This document describes the API endpoints used by the mobile app installed on customer devices for device registration (IMEI, FCM token, PIN, location), lock/unlock notifications, location tracking, and device status management.
 
 ## Base URL
 
@@ -18,7 +18,7 @@ These endpoints do **NOT** require JWT authentication. They use IMEI-based ident
 
 ### 1. Register/Update FCM Token
 
-Register or update the Firebase Cloud Messaging token for a customer device.
+Register or update the Firebase Cloud Messaging token for a customer device. Also accepts optional device PIN and location for complete device registration when the app is first installed.
 
 **Endpoint:** `PUT /api/customer/device/fcm-token`
 
@@ -26,7 +26,10 @@ Register or update the Firebase Cloud Messaging token for a customer device.
 ```json
 {
   "fcmToken": "string (required) - Firebase Cloud Messaging token",
-  "imei1": "string (required) - 15-digit IMEI number"
+  "imei1": "string (required) - 15-digit IMEI number",
+  "devicePin": "string (optional) - 4-6 digit device PIN",
+  "latitude": "number (optional) - Device latitude (-90 to 90)",
+  "longitude": "number (optional) - Device longitude (-180 to 180)"
 }
 ```
 
@@ -39,10 +42,17 @@ Register or update the Firebase Cloud Messaging token for a customer device.
     "customerId": "507f1f77bcf86cd799439011",
     "customerName": "John Doe",
     "isLocked": false,
-    "updatedAt": "2025-12-21T16:45:30.000Z"
+    "location": {
+      "latitude": 28.7041,
+      "longitude": 77.1025,
+      "lastUpdated": "2025-12-22T14:45:30.000Z"
+    },
+    "updatedAt": "2025-12-22T14:45:30.000Z"
   }
 }
 ```
+
+> **Note**: The `location` field in the response is only included if location data was provided and stored.
 
 **Error Responses:**
 
@@ -54,8 +64,8 @@ Register or update the Firebase Cloud Messaging token for a customer device.
   "error": "VALIDATION_ERROR",
   "details": [
     {
-      "msg": "FCM token is required",
-      "param": "fcmToken"
+      "msg": "Device PIN must be 4-6 digits",
+      "param": "devicePin"
     }
   ]
 }
@@ -70,10 +80,43 @@ Register or update the Firebase Cloud Messaging token for a customer device.
 }
 ```
 
-**Example (Kotlin):**
+**Example (Kotlin - Complete Registration):**
 ```kotlin
-// Call this when the app is installed or FCM token is refreshed
-suspend fun registerFcmToken(fcmToken: String, imei: String) {
+// Call this when the app is first installed with all fields
+suspend fun registerDevice(
+    fcmToken: String,
+    imei: String,
+    devicePin: String,
+    latitude: Double,
+    longitude: Double
+) {
+    val request = JSONObject().apply {
+        put("fcmToken", fcmToken)
+        put("imei1", imei)
+        put("devicePin", devicePin)
+        put("latitude", latitude)
+        put("longitude", longitude)
+    }
+    
+    val response = apiClient.put(
+        url = "http://your-server.com/api/customer/device/fcm-token",
+        body = request
+    )
+    
+    if (response.success) {
+        Log.d("Registration", "Device registered successfully")
+        val isLocked = response.data.getBoolean("isLocked")
+        if (isLocked) {
+            lockDevice()
+        }
+    }
+}
+```
+
+**Example (Kotlin - FCM Token Update Only):**
+```kotlin
+// Call this when only FCM token needs to be updated
+suspend fun updateFcmToken(fcmToken: String, imei: String) {
     val request = JSONObject().apply {
         put("fcmToken", fcmToken)
         put("imei1", imei)
@@ -83,10 +126,6 @@ suspend fun registerFcmToken(fcmToken: String, imei: String) {
         url = "http://your-server.com/api/customer/device/fcm-token",
         body = request
     )
-    
-    if (response.success) {
-        Log.d("FCM", "Token registered successfully")
-    }
 }
 ```
 
@@ -244,6 +283,192 @@ suspend fun checkDeviceStatus(imei: String): DeviceStatus? {
 
 ---
 
+### 4. Get Customer Location
+
+Fetch the current location of a customer device by IMEI.
+
+**Endpoint:** `GET /api/customer/device/location/:imei1`
+
+**URL Parameters:**
+- `imei1` (required) - 15-digit IMEI number
+
+**Success Response (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Customer location fetched successfully",
+  "data": {
+    "customerId": "507f1f77bcf86cd799439011",
+    "customerName": "John Doe",
+    "mobileNumber": "9876543210",
+    "location": {
+      "latitude": 28.7041,
+      "longitude": 77.1025,
+      "lastUpdated": "2025-12-22T14:30:00.000Z"
+    }
+  }
+}
+```
+
+**Error Responses:**
+
+- **400 Bad Request** - Invalid IMEI format
+```json
+{
+  "success": false,
+  "message": "Invalid IMEI format. Must be exactly 15 digits",
+  "error": "VALIDATION_ERROR"
+}
+```
+
+- **404 Not Found** - Customer not found
+```json
+{
+  "success": false,
+  "message": "Customer not found with this IMEI",
+  "error": "CUSTOMER_NOT_FOUND"
+}
+```
+
+- **404 Not Found** - Location not available
+```json
+{
+  "success": false,
+  "message": "Location data not available for this customer",
+  "error": "LOCATION_NOT_FOUND"
+}
+```
+
+**Example (Kotlin):**
+```kotlin
+// Fetch current device location from server
+suspend fun getDeviceLocation(imei: String): Location? {
+    val response = apiClient.get(
+        url = "http://your-server.com/api/customer/device/location/$imei"
+    )
+    
+    return if (response.success) {
+        val locationData = response.data.getJSONObject("location")
+        Location(
+            latitude = locationData.getDouble("latitude"),
+            longitude = locationData.getDouble("longitude"),
+            lastUpdated = locationData.getString("lastUpdated")
+        )
+    } else {
+        null
+    }
+}
+```
+
+---
+
+### 5. Update Customer Location
+
+Update the current location of a customer device. The Kotlin app should call this endpoint every 15 minutes.
+
+**Endpoint:** `POST /api/customer/device/location`
+
+**Request Body:**
+```json
+{
+  "imei1": "string (required) - 15-digit IMEI number",
+  "latitude": "number (required) - Device latitude (-90 to 90)",
+  "longitude": "number (required) - Device longitude (-180 to 180)"
+}
+```
+
+**Success Response (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Location updated successfully",
+  "data": {
+    "customerId": "507f1f77bcf86cd799439011",
+    "customerName": "John Doe",
+    "location": {
+      "latitude": 28.7041,
+      "longitude": 77.1025,
+      "lastUpdated": "2025-12-22T14:45:30.000Z"
+    }
+  }
+}
+```
+
+**Error Responses:**
+
+- **400 Bad Request** - Validation error
+```json
+{
+  "success": false,
+  "message": "Validation failed",
+  "error": "VALIDATION_ERROR",
+  "details": [
+    {
+      "msg": "Latitude must be between -90 and 90",
+      "param": "latitude"
+    }
+  ]
+}
+```
+
+- **404 Not Found** - Customer not found
+```json
+{
+  "success": false,
+  "message": "Customer not found with this IMEI",
+  "error": "CUSTOMER_NOT_FOUND"
+}
+```
+
+**Example (Kotlin):**
+```kotlin
+// Update device location every 15 minutes
+class LocationUpdateWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
+    
+    override suspend fun doWork(): Result {
+        val location = getCurrentLocation() ?: return Result.retry()
+        
+        val request = JSONObject().apply {
+            put("imei1", getDeviceImei())
+            put("latitude", location.latitude)
+            put("longitude", location.longitude)
+        }
+        
+        return try {
+            val response = apiClient.post(
+                url = "http://your-server.com/api/customer/device/location",
+                body = request
+            )
+            
+            if (response.success) {
+                Log.d("Location", "Location updated successfully")
+                Result.success()
+            } else {
+                Result.retry()
+            }
+        } catch (e: Exception) {
+            Log.e("Location", "Failed to update location", e)
+            Result.retry()
+        }
+    }
+}
+
+// Schedule periodic location updates
+fun scheduleLocationUpdates(context: Context) {
+    val locationUpdateRequest = PeriodicWorkRequestBuilder<LocationUpdateWorker>(
+        15, TimeUnit.MINUTES
+    ).build()
+    
+    WorkManager.getInstance(context).enqueueUniquePeriodicWork(
+        "location_update",
+        ExistingPeriodicWorkPolicy.KEEP,
+        locationUpdateRequest
+    )
+}
+```
+
+---
+
 ## FCM Notification Payload
 
 When the admin locks or unlocks a customer, the backend sends an FCM notification with the following structure:
@@ -322,13 +547,19 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
 sequenceDiagram
     participant App as Mobile App
     participant FCM as Firebase
+    participant GPS as Location Service
     participant API as Backend API
 
     App->>FCM: Request FCM Token
     FCM-->>App: Return FCM Token
     App->>App: Get Device IMEI
+    App->>App: Get Device PIN from User
+    App->>GPS: Get Current Location
+    GPS-->>App: Return Coordinates
     App->>API: PUT /api/customer/device/fcm-token
-    API-->>App: Token Registered
+    Note over App,API: Send IMEI, FCM Token, PIN, Location
+    API-->>App: Device Registered + Lock Status
+    App->>App: Apply Lock Status if Locked
 ```
 
 ### 2. Device Lock Flow
@@ -346,6 +577,24 @@ sequenceDiagram
     App->>App: Lock Device
     App->>API: POST /api/customer/device/lock-response {lockSuccess: true}
     API-->>App: Response Received
+```
+
+### 3. Location Tracking Flow
+
+```mermaid
+sequenceDiagram
+    participant App as Mobile App
+    participant GPS as Location Service
+    participant API as Backend API
+    participant Worker as Background Worker
+
+    Note over Worker: Every 15 minutes
+    Worker->>GPS: Get Current Location
+    GPS-->>Worker: Return Coordinates
+    Worker->>API: POST /api/customer/device/location
+    Note over Worker,API: Send IMEI, Latitude, Longitude
+    API-->>Worker: Location Updated
+    Worker->>Worker: Schedule Next Update
 ```
 
 ---
@@ -374,7 +623,21 @@ The mobile app should handle the following scenarios:
 
 ## Testing
 
-### Test FCM Token Registration
+### Test Complete Device Registration
+
+```bash
+curl -X PUT http://localhost:5000/api/customer/device/fcm-token \
+  -H "Content-Type: application/json" \
+  -d '{
+    "fcmToken": "test-fcm-token-123456",
+    "imei1": "123456789012345",
+    "devicePin": "1234",
+    "latitude": 28.7041,
+    "longitude": 77.1025
+  }'
+```
+
+### Test FCM Token Update
 
 ```bash
 curl -X PUT http://localhost:5000/api/customer/device/fcm-token \
@@ -401,4 +664,22 @@ curl -X POST http://localhost:5000/api/customer/device/lock-response \
 
 ```bash
 curl -X GET http://localhost:5000/api/customer/device/status/123456789012345
+```
+
+### Test Get Location
+
+```bash
+curl -X GET http://localhost:5000/api/customer/device/location/123456789012345
+```
+
+### Test Update Location
+
+```bash
+curl -X POST http://localhost:5000/api/customer/device/location \
+  -H "Content-Type: application/json" \
+  -d '{
+    "imei1": "123456789012345",
+    "latitude": 28.7050,
+    "longitude": 77.1030
+  }'
 ```

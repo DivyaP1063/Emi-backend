@@ -3,6 +3,7 @@ const Customer = require('../models/Customer');
 
 /**
  * Validation rules for updating FCM token
+ * Supports optional PIN and location for complete device registration
  */
 const updateFcmTokenValidation = [
     body('fcmToken')
@@ -12,8 +13,110 @@ const updateFcmTokenValidation = [
     body('imei1')
         .trim()
         .matches(/^[0-9]{15}$/)
-        .withMessage('IMEI1 must be exactly 15 digits')
+        .withMessage('IMEI1 must be exactly 15 digits'),
+    body('devicePin')
+        .optional()
+        .trim()
+        .matches(/^[0-9]{4,6}$/)
+        .withMessage('Device PIN must be 4-6 digits'),
+    body('latitude')
+        .optional()
+        .isFloat({ min: -90, max: 90 })
+        .withMessage('Latitude must be between -90 and 90'),
+    body('longitude')
+        .optional()
+        .isFloat({ min: -180, max: 180 })
+        .withMessage('Longitude must be between -180 and 180')
 ];
+
+
+/**
+ * Register Device with Complete Information
+ * Called by Kotlin app when first installed
+ */
+const registerDevice = async (req, res) => {
+    try {
+        console.log('\n📱 ===== DEVICE REGISTRATION REQUEST =====');
+        console.log('Timestamp:', new Date().toISOString());
+        console.log('Request Body:', JSON.stringify(req.body, null, 2));
+
+        // Check validation errors
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            console.log('❌ Validation failed:', errors.array());
+            return res.status(400).json({
+                success: false,
+                message: 'Validation failed',
+                error: 'VALIDATION_ERROR',
+                details: errors.array()
+            });
+        }
+
+        const { fcmToken, imei1, devicePin, latitude, longitude } = req.body;
+
+        console.log('IMEI1:', imei1);
+        console.log('Device PIN:', devicePin);
+        console.log('Location:', { latitude, longitude });
+        console.log('Searching for customer with IMEI:', imei1);
+
+        // Find customer by IMEI1
+        const customer = await Customer.findOne({ imei1 });
+
+        if (!customer) {
+            console.log('❌ Customer not found with IMEI:', imei1);
+            return res.status(404).json({
+                success: false,
+                message: 'Customer not found with this IMEI',
+                error: 'CUSTOMER_NOT_FOUND'
+            });
+        }
+
+        console.log('✅ Customer found:', customer.fullName);
+        console.log('Customer ID:', customer._id.toString());
+
+        // Update device information
+        customer.fcmToken = fcmToken;
+        customer.devicePin = devicePin;
+        customer.location = {
+            latitude,
+            longitude,
+            lastUpdated: new Date()
+        };
+
+        await customer.save();
+
+        console.log('✅ Device registered successfully');
+        console.log('Customer:', customer.fullName);
+        console.log('IMEI:', imei1);
+        console.log('Lock Status:', customer.isLocked ? 'LOCKED' : 'UNLOCKED');
+        console.log('Location Updated:', customer.location.lastUpdated);
+        console.log('=========================================\n');
+
+        return res.status(200).json({
+            success: true,
+            message: 'Device registered successfully',
+            data: {
+                customerId: customer._id.toString(),
+                customerName: customer.fullName,
+                isLocked: customer.isLocked,
+                location: {
+                    latitude: customer.location.latitude,
+                    longitude: customer.location.longitude,
+                    lastUpdated: customer.location.lastUpdated
+                },
+                updatedAt: customer.updatedAt
+            }
+        });
+    } catch (error) {
+        console.error('❌ Device registration error:', error);
+        console.error('Error stack:', error.stack);
+        return res.status(500).json({
+            success: false,
+            message: 'Failed to register device',
+            error: 'SERVER_ERROR'
+        });
+    }
+};
 
 /**
  * Update Customer FCM Token
@@ -37,10 +140,12 @@ const updateCustomerFcmToken = async (req, res) => {
             });
         }
 
-        const { fcmToken, imei1 } = req.body;
+        const { fcmToken, imei1, devicePin, latitude, longitude } = req.body;
 
         console.log('FCM Token (first 20 chars):', fcmToken.substring(0, 20) + '...');
         console.log('IMEI1:', imei1);
+        if (devicePin) console.log('Device PIN:', devicePin);
+        if (latitude && longitude) console.log('Location:', { latitude, longitude });
         console.log('Searching for customer with IMEI:', imei1);
 
         // Find customer by IMEI1
@@ -61,6 +166,23 @@ const updateCustomerFcmToken = async (req, res) => {
 
         // Update FCM token
         customer.fcmToken = fcmToken;
+
+        // Update device PIN if provided
+        if (devicePin) {
+            customer.devicePin = devicePin;
+            console.log('Device PIN updated');
+        }
+
+        // Update location if provided
+        if (latitude !== undefined && longitude !== undefined) {
+            customer.location = {
+                latitude,
+                longitude,
+                lastUpdated: new Date()
+            };
+            console.log('Location updated');
+        }
+
         await customer.save();
 
         console.log('✅ FCM token updated successfully');
@@ -69,15 +191,26 @@ const updateCustomerFcmToken = async (req, res) => {
         console.log('Lock Status:', customer.isLocked ? 'LOCKED' : 'UNLOCKED');
         console.log('=========================================\n');
 
+        const responseData = {
+            customerId: customer._id.toString(),
+            customerName: customer.fullName,
+            isLocked: customer.isLocked,
+            updatedAt: customer.updatedAt
+        };
+
+        // Include location in response if it exists
+        if (customer.location && customer.location.latitude && customer.location.longitude) {
+            responseData.location = {
+                latitude: customer.location.latitude,
+                longitude: customer.location.longitude,
+                lastUpdated: customer.location.lastUpdated
+            };
+        }
+
         return res.status(200).json({
             success: true,
             message: 'FCM token registered successfully',
-            data: {
-                customerId: customer._id.toString(),
-                customerName: customer.fullName,
-                isLocked: customer.isLocked,
-                updatedAt: customer.updatedAt
-            }
+            data: responseData
         });
     } catch (error) {
         console.error('❌ Update FCM token error:', error);
@@ -265,10 +398,172 @@ const getCustomerStatus = async (req, res) => {
     }
 };
 
+/**
+ * Validation rules for location update
+ */
+const updateLocationValidation = [
+    body('imei1')
+        .trim()
+        .matches(/^[0-9]{15}$/)
+        .withMessage('IMEI1 must be exactly 15 digits'),
+    body('latitude')
+        .isFloat({ min: -90, max: 90 })
+        .withMessage('Latitude must be between -90 and 90'),
+    body('longitude')
+        .isFloat({ min: -180, max: 180 })
+        .withMessage('Longitude must be between -180 and 180')
+];
+
+/**
+ * Get Customer Location by IMEI
+ * Fetch current location of customer device
+ */
+const getCustomerLocation = async (req, res) => {
+    try {
+        const { imei1 } = req.params;
+
+        // Validate IMEI format
+        if (!imei1 || !imei1.match(/^[0-9]{15}$/)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid IMEI format. Must be exactly 15 digits',
+                error: 'VALIDATION_ERROR'
+            });
+        }
+
+        // Find customer by IMEI1
+        const customer = await Customer.findOne({ imei1 })
+            .select('fullName mobileNumber location')
+            .lean();
+
+        if (!customer) {
+            return res.status(404).json({
+                success: false,
+                message: 'Customer not found with this IMEI',
+                error: 'CUSTOMER_NOT_FOUND'
+            });
+        }
+
+        // Check if location data exists
+        if (!customer.location || !customer.location.latitude || !customer.location.longitude) {
+            return res.status(404).json({
+                success: false,
+                message: 'Location data not available for this customer',
+                error: 'LOCATION_NOT_FOUND'
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: 'Customer location fetched successfully',
+            data: {
+                customerId: customer._id.toString(),
+                customerName: customer.fullName,
+                mobileNumber: customer.mobileNumber,
+                location: {
+                    latitude: customer.location.latitude,
+                    longitude: customer.location.longitude,
+                    lastUpdated: customer.location.lastUpdated
+                }
+            }
+        });
+    } catch (error) {
+        console.error('Get customer location error:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Failed to fetch customer location',
+            error: 'SERVER_ERROR'
+        });
+    }
+};
+
+/**
+ * Update Customer Location
+ * Called by Kotlin app every 15 minutes to update device location
+ */
+const updateCustomerLocation = async (req, res) => {
+    try {
+        console.log('\n📍 ===== LOCATION UPDATE REQUEST =====');
+        console.log('Timestamp:', new Date().toISOString());
+        console.log('Request Body:', JSON.stringify(req.body, null, 2));
+
+        // Check validation errors
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            console.log('❌ Validation failed:', errors.array());
+            return res.status(400).json({
+                success: false,
+                message: 'Validation failed',
+                error: 'VALIDATION_ERROR',
+                details: errors.array()
+            });
+        }
+
+        const { imei1, latitude, longitude } = req.body;
+
+        console.log('IMEI1:', imei1);
+        console.log('New Location:', { latitude, longitude });
+
+        // Find customer by IMEI1
+        const customer = await Customer.findOne({ imei1 });
+
+        if (!customer) {
+            console.log('❌ Customer not found with IMEI:', imei1);
+            return res.status(404).json({
+                success: false,
+                message: 'Customer not found with this IMEI',
+                error: 'CUSTOMER_NOT_FOUND'
+            });
+        }
+
+        console.log('✅ Customer found:', customer.fullName);
+        console.log('Previous Location:', customer.location);
+
+        // Update location
+        customer.location = {
+            latitude,
+            longitude,
+            lastUpdated: new Date()
+        };
+
+        await customer.save();
+
+        console.log('✅ Location updated successfully');
+        console.log('Customer:', customer.fullName);
+        console.log('New Location:', customer.location);
+        console.log('=========================================\n');
+
+        return res.status(200).json({
+            success: true,
+            message: 'Location updated successfully',
+            data: {
+                customerId: customer._id.toString(),
+                customerName: customer.fullName,
+                location: {
+                    latitude: customer.location.latitude,
+                    longitude: customer.location.longitude,
+                    lastUpdated: customer.location.lastUpdated
+                }
+            }
+        });
+    } catch (error) {
+        console.error('❌ Update location error:', error);
+        console.error('Error stack:', error.stack);
+        return res.status(500).json({
+            success: false,
+            message: 'Failed to update location',
+            error: 'SERVER_ERROR'
+        });
+    }
+};
+
 module.exports = {
     updateCustomerFcmToken,
     updateFcmTokenValidation,
     deviceLockResponse,
     lockResponseValidation,
-    getCustomerStatus
+    getCustomerStatus,
+    getCustomerLocation,
+    updateCustomerLocation,
+    updateLocationValidation
 };
