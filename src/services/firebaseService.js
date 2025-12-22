@@ -59,34 +59,23 @@ const initializeFirebase = () => {
  */
 const sendLockNotification = async (fcmToken, isLocked) => {
     if (!firebaseInitialized) {
-        throw new Error('Firebase is not initialized');
+        throw new Error("Firebase is not initialized");
     }
 
     if (!fcmToken) {
-        throw new Error('FCM token is required');
+        throw new Error("FCM token is required");
     }
 
     const message = {
         token: fcmToken,
-        notification: {
-            title: isLocked ? 'Device Lock Alert' : 'Device Unlock Alert',
-            body: isLocked
-                ? 'Your device has been locked due to pending EMI payments.'
-                : 'Your device has been unlocked. Thank you for your payment.'
-        },
         data: {
-            action: isLocked ? 'LOCK_DEVICE' : 'UNLOCK_DEVICE',
+            type: "DEVICE_LOCK_STATUS",
+            action: isLocked ? "LOCK_DEVICE" : "UNLOCK_DEVICE",
             timestamp: new Date().toISOString(),
-            type: 'DEVICE_LOCK_STATUS'
         },
         android: {
-            priority: 'high',
-            notification: {
-                channelId: 'device_lock_channel',
-                priority: 'high',
-                sound: 'default'
-            }
-        }
+            priority: "high",
+        },
     };
 
     try {
@@ -95,25 +84,27 @@ const sendLockNotification = async (fcmToken, isLocked) => {
         return {
             success: true,
             messageId: response,
-            action: isLocked ? 'LOCK_DEVICE' : 'UNLOCK_DEVICE'
+            action: isLocked ? "LOCK_DEVICE" : "UNLOCK_DEVICE",
         };
     } catch (error) {
-        console.error('❌ FCM notification error:', error);
+        console.error("❌ FCM notification error:", error);
 
         // Handle specific error cases
-        if (error.code === 'messaging/invalid-registration-token' ||
-            error.code === 'messaging/registration-token-not-registered') {
+        if (
+            error.code === "messaging/invalid-registration-token" ||
+            error.code === "messaging/registration-token-not-registered"
+        ) {
             return {
                 success: false,
-                error: 'INVALID_TOKEN',
-                message: 'FCM token is invalid or expired'
+                error: "INVALID_TOKEN",
+                message: "FCM token is invalid or expired",
             };
         }
 
         return {
             success: false,
-            error: error.code || 'UNKNOWN_ERROR',
-            message: error.message
+            error: error.code || "UNKNOWN_ERROR",
+            message: error.message,
         };
     }
 };
