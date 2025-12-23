@@ -739,7 +739,281 @@ curl -X POST http://localhost:5000/api/admin/customers/emi-reminder \
   }'
 ```
 
-**Default Message Format:**
+---
+
+## Admin Lock/Unlock API
+
+This section documents how the admin locks or unlocks customer devices.
+
+### Lock/Unlock Customer Device (Admin Endpoint)
+
+**Endpoint:** `PUT /api/admin/customers/:customerId/lock`  
+**Authentication:** Required (Admin JWT token)  
+**Purpose:** Admin locks or unlocks a customer device by sending FCM notification
+
+> **Note:** This is an admin-only endpoint. The Kotlin app receives the lock command via FCM and responds via the `/api/customer/device/lock-response` endpoint.
+
+**Request Headers:**
+```
+Authorization: Bearer <admin_jwt_token>
+Content-Type: application/json
+```
+
+**URL Parameters:**
+- `customerId` (required) - MongoDB ObjectId of the customer
+
+**Request Body:**
+```json
+{
+  "isLocked": true
+}
+```
+
+**Field Descriptions:**
+- `isLocked` (required): `true` to lock the device, `false` to unlock
+
+**Success Response (200 OK) - With FCM Token:**
+```json
+{
+  "success": true,
+  "message": "Lock notification sent to John Doe. Waiting for device confirmation.",
+  "data": {
+    "customerId": "507f1f77bcf86cd799439011",
+    "customerName": "John Doe",
+    "currentLockStatus": false,
+    "requestedLockStatus": true,
+    "lockStatusUpdated": false,
+    "notificationSent": true,
+    "pendingDeviceConfirmation": true,
+    "updatedAt": "2025-12-24T01:14:42.000Z"
+  }
+}
+```
+
+**Error Response (400 Bad Request) - No FCM Token:**
+```json
+{
+  "success": false,
+  "message": "Cannot lock device. Customer device is not registered.",
+  "error": "NO_FCM_TOKEN",
+  "data": {
+    "customerId": "507f1f77bcf86cd799439011",
+    "customerName": "John Doe",
+    "currentLockStatus": false,
+    "hasFcmToken": false,
+    "reason": "Device must install and register the mobile app with FCM token before it can be locked/unlocked"
+  }
+}
+```
+
+**Response Fields Explained:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `currentLockStatus` | boolean | **Current** database value (actual device state NOW) |
+| `requestedLockStatus` | boolean | What the admin **requested** (lock or unlock) |
+| `lockStatusUpdated` | boolean | Was the database updated immediately? |
+| `pendingDeviceConfirmation` | boolean | Is it waiting for device to confirm? |
+| `notificationSent` | boolean | Was FCM notification sent successfully? |
+| `notificationError` | string? | Error message if notification failed |
+
+**Frontend UI Logic:**
+
+The admin panel should use this logic to update the UI:
+
+1. **If `pendingDeviceConfirmation === true`**: 
+   - Show "Locking..." or "Pending" state (NOT "Locked")
+   - Poll the customer API to check when device confirms
+   
+2. **If `lockStatusUpdated === true`**: 
+   - Use `currentLockStatus` to show locked/unlocked state
+   - No polling needed
+   
+3. **If error `NO_FCM_TOKEN`**: 
+   - Show error: "Device not registered. Cannot lock."
+   - Keep old state
+   
+4. **If `notificationError` exists**: 
+   - Show error message
+   - Keep old state (`currentLockStatus`)
+
+**Error Responses:**
+
+- **400 Bad Request** - Validation error
+```json
+{
+  "success": false,
+  "message": "isLocked status is required and must be a boolean",
+  "error": "VALIDATION_ERROR"
+}
+```
+
+- **400 Bad Request** - No FCM token (shown above)
+
+- **404 Not Found** - Customer not found
+```json
+{
+  "success": false,
+  "message": "Customer not found",
+  "error": "CUSTOMER_NOT_FOUND"
+}
+```
+
+**Example Admin Request:**
+```bash
+# Lock a customer
+curl -X PUT http://localhost:5000/api/admin/customers/507f1f77bcf86cd799439011/lock \
+  -H "Authorization: Bearer <admin_token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "isLocked": true
+  }'
+
+# Unlock a customer
+curl -X PUT http://localhost:5000/api/admin/customers/507f1f77bcf86cd799439011/lock \
+  -H "Authorization: Bearer <admin_token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "isLocked": false
+  }'
+```
+
+**What Happens Next:**
+
+1. **If device has FCM token**:
+   - Backend sends FCM notification to device
+   - Database is **NOT** updated immediately
+   - Device receives notification and attempts to lock
+   - Device calls `/api/customer/device/lock-response` with result
+   - Database is updated **only if device confirms success**
+
+2. **If device has NO FCM token**:
+   - Returns **400 error** with `NO_FCM_TOKEN`
+   - Database is **NOT** updated
+   - Admin sees error message
+
+**Admin Panel Polling Example:**
+
+When `pendingDeviceConfirmation === true`, poll for updates:
+
+```javascript
+// Poll every 2 seconds to check if device confirmed
+const pollInterval = setInterval(async () => {
+  const customer = await fetchCustomer(customerId);
+  
+  if (customer.isLocked === requestedLockStatus) {
+    // Device confirmed!
+    setLockState(customer.isLocked ? 'locked' : 'unlocked');
+    clearInterval(pollInterval);
+  }
+}, 2000);
+
+// Stop polling after 30 seconds
+setTimeout(() => {
+  clearInterval(pollInterval);
+  showError('Device did not respond in time');
+}, 30000);
+```
+
+---
+
+### Check Customer Lock Status (Admin Endpoint)
+
+**Endpoint:** `GET /api/admin/customers/:customerId/lock-status`  
+**Authentication:** Required (Admin JWT token)  
+**Purpose:** Check the current lock status of a customer from the database
+
+> **Note:** Use this endpoint to verify if the device was actually locked after sending a lock command. This is independent of the device callback.
+
+**Request Headers:**
+```
+Authorization: Bearer <admin_jwt_token>
+```
+
+**URL Parameters:**
+- `customerId` (required) - MongoDB ObjectId of the customer
+
+**Success Response (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Customer lock status fetched successfully",
+  "data": {
+    "customerId": "507f1f77bcf86cd799439011",
+    "customerName": "John Doe",
+    "mobileNumber": "9876543210",
+    "isLocked": true,
+    "hasFcmToken": true,
+    "lastUpdated": "2025-12-24T01:25:00.000Z"
+  }
+}
+```
+
+**Response Fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `isLocked` | boolean | Current lock status in database |
+| `hasFcmToken` | boolean | Whether customer has FCM token registered |
+| `lastUpdated` | string | When the customer record was last updated |
+
+**Error Responses:**
+
+- **400 Bad Request** - Invalid customer ID
+```json
+{
+  "success": false,
+  "message": "Invalid customer ID format",
+  "error": "VALIDATION_ERROR"
+}
+```
+
+- **404 Not Found** - Customer not found
+```json
+{
+  "success": false,
+  "message": "Customer not found",
+  "error": "CUSTOMER_NOT_FOUND"
+}
+```
+
+**Example Request:**
+```bash
+curl -X GET http://localhost:5000/api/admin/customers/507f1f77bcf86cd799439011/lock-status \
+  -H "Authorization: Bearer <admin_token>"
+```
+
+**Usage Pattern:**
+
+After sending a lock command, poll this endpoint to check if the device was actually locked:
+
+```javascript
+// Send lock command
+const lockResponse = await lockCustomer(customerId, true);
+
+if (lockResponse.data.pendingDeviceConfirmation) {
+  // Poll for status updates
+  const checkInterval = setInterval(async () => {
+    const status = await fetch(`/api/admin/customers/${customerId}/lock-status`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    const data = await status.json();
+    
+    if (data.data.isLocked === true) {
+      // Device was successfully locked!
+      setLockState('locked');
+      clearInterval(checkInterval);
+    }
+  }, 2000);
+  
+  // Stop checking after 30 seconds
+  setTimeout(() => clearInterval(checkInterval), 30000);
+}
+```
+
+---
+
+## Default Message Format:
 If no custom message is provided, the system generates:
 ```
 Dear [Customer Name], you have [X] pending EMI payment(s) totaling ₹[Amount]. Please pay at the earliest.

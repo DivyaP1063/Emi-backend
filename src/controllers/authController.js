@@ -444,7 +444,7 @@ const toggleCustomerLock = async (req, res) => {
     }
 
     // IMPORTANT: Only update lock status if notification was sent successfully
-    // OR if there's no FCM token (for backward compatibility)
+    // Device MUST have FCM token to be locked/unlocked
     let lockStatusUpdated = false;
 
     if (notificationSent) {
@@ -455,12 +455,26 @@ const toggleCustomerLock = async (req, res) => {
 
       // Don't update isLocked here - wait for device confirmation
       lockStatusUpdated = false;
+
     } else if (!customer.fcmToken) {
-      // No FCM token - update immediately for backward compatibility
-      console.log('⚠️  No FCM token - updating lock status immediately');
-      customer.isLocked = isLocked;
-      await customer.save();
-      lockStatusUpdated = true;
+      // No FCM token - cannot lock device
+      console.log('❌ No FCM token - CANNOT lock/unlock device');
+      console.log('Device must register FCM token first');
+      console.log('=========================================\n');
+
+      return res.status(400).json({
+        success: false,
+        message: `Cannot ${isLocked ? 'lock' : 'unlock'} device. Customer device is not registered.`,
+        error: 'NO_FCM_TOKEN',
+        data: {
+          customerId: customer._id.toString(),
+          customerName: customer.fullName,
+          currentLockStatus: customer.isLocked,
+          hasFcmToken: false,
+          reason: 'Device must install and register the mobile app with FCM token before it can be locked/unlocked'
+        }
+      });
+
     } else {
       // Notification failed - don't update lock status
       console.log('❌ Notification failed - NOT updating lock status');
@@ -477,14 +491,20 @@ const toggleCustomerLock = async (req, res) => {
       success: true,
       message: notificationSent
         ? `Lock notification sent to ${customer.fullName}. Waiting for device confirmation.`
-        : `Customer ${isLocked ? 'locked' : 'unlocked'} successfully`,
+        : `Failed to send lock notification`,
       data: {
         customerId: customer._id.toString(),
         customerName: customer.fullName,
-        isLocked: customer.isLocked,
+        currentLockStatus: customer.isLocked,  // Current DB status (what it is NOW)
+        requestedLockStatus: isLocked,         // What was requested
+        lockStatusUpdated: lockStatusUpdated,  // Was DB updated immediately?
         notificationSent,
         notificationError: notificationError || undefined,
-        pendingDeviceConfirmation: notificationSent,
+        pendingDeviceConfirmation: notificationSent,  // Is it waiting for device?
+        // UI should use this logic:
+        // - If pendingDeviceConfirmation === true: Show "Pending" or "Locking..." state
+        // - If lockStatusUpdated === true: Use currentLockStatus for UI
+        // - If notificationSent === false && notificationError: Show error
         updatedAt: customer.updatedAt
       }
     });
@@ -494,6 +514,59 @@ const toggleCustomerLock = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: 'Failed to update customer lock status',
+      error: 'SERVER_ERROR'
+    });
+  }
+};
+
+/**
+ * Get Customer Lock Status (Admin only)
+ * Check the current lock status of a customer from the database
+ */
+const getCustomerLockStatus = async (req, res) => {
+  try {
+    const { customerId } = req.params;
+
+    // Validate customerId format
+    if (!customerId.match(/^[0-9a-fA-F]{24}$/)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid customer ID format',
+        error: 'VALIDATION_ERROR'
+      });
+    }
+
+    // Get customer
+    const Customer = require('../models/Customer');
+    const customer = await Customer.findById(customerId)
+      .select('fullName mobileNumber isLocked fcmToken updatedAt')
+      .lean();
+
+    if (!customer) {
+      return res.status(404).json({
+        success: false,
+        message: 'Customer not found',
+        error: 'CUSTOMER_NOT_FOUND'
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Customer lock status fetched successfully',
+      data: {
+        customerId: customerId,
+        customerName: customer.fullName,
+        mobileNumber: customer.mobileNumber,
+        isLocked: customer.isLocked,
+        hasFcmToken: !!customer.fcmToken,
+        lastUpdated: customer.updatedAt
+      }
+    });
+  } catch (error) {
+    console.error('Get customer lock status error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch customer lock status',
       error: 'SERVER_ERROR'
     });
   }
@@ -1061,6 +1134,7 @@ module.exports = {
   getAllCustomers,
   updateEmiPaymentStatus,
   toggleCustomerLock,
+  getCustomerLockStatus,
   getLockedCustomersImei,
   getPendingEmiCustomersAdmin,
   getEmiStatisticsAdmin,
