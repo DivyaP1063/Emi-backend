@@ -4,7 +4,7 @@ const authRoutes = require('./authRoutes');
 const retailerRoutes = require('./retailerRoutes');
 const accountantRoutes = require('./accountantRoutes');
 const { authenticate } = require('../middleware/auth');
-const { getAllCustomers, updateEmiPaymentStatus, toggleCustomerLock, getLockedCustomersImei, getPendingEmiCustomersAdmin, getEmiStatisticsAdmin, getCustomerCountAdmin, sendEmiReminder } = require('../controllers/authController');
+const { getAllCustomers, updateEmiPaymentStatus, toggleCustomerLock, getCustomerLockStatus, getLockedCustomersImei, getPendingEmiCustomersAdmin, getEmiStatisticsAdmin, getCustomerCountAdmin, sendEmiReminder } = require('../controllers/authController');
 const { getLateFine, updateLateFine, updateLateFineValidation } = require('../controllers/lateFineController');
 const { updateRetailerStatus, updateRetailerStatusValidation } = require('../controllers/retailerController');
 
@@ -39,6 +39,9 @@ router.put('/customers/:customerId/emi/:monthNumber', authenticate, updateEmiPay
 
 // Customer Lock/Unlock (Admin only)
 router.put('/customers/:customerId/lock', authenticate, toggleCustomerLock);
+
+// Get Customer Lock Status (Admin only)
+router.get('/customers/:customerId/lock-status', authenticate, getCustomerLockStatus);
 
 // Send EMI Reminder Notification (Admin only)
 router.post('/customers/emi-reminder', authenticate, sendEmiReminder);
