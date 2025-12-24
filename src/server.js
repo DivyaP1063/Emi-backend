@@ -7,6 +7,7 @@ const { apiRateLimiter } = require('./middleware/rateLimiter');
 const adminRoutes = require('./routes');
 const retailerApiRoutes = require('./routes/retailerApiRoutes');
 const accountantApiRoutes = require('./routes/accountantApiRoutes');
+const recoveryHeadApiRoutes = require('./routes/recoveryHeadApiRoutes');
 const customerDeviceRoutes = require('./routes/customerDeviceRoutes');
 const { initializeFirebase } = require('./services/firebaseService');
 
@@ -40,9 +41,11 @@ app.use(apiRateLimiter);
 app.use('/api/admin', adminRoutes);
 app.use('/api/retailer', retailerApiRoutes);
 app.use('/api/accountant', accountantApiRoutes);
+app.use('/api/recovery-head', recoveryHeadApiRoutes);
 app.use('/api/customer/device', customerDeviceRoutes);
 
 console.log('✅ Accountant routes mounted at /api/accountant');
+console.log('✅ Recovery head routes mounted at /api/recovery-head');
 console.log('✅ Customer device routes mounted at /api/customer/device');
 
 // Root endpoint
