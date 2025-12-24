@@ -2,11 +2,13 @@ const express = require('express');
 const router = express.Router();
 const authRoutes = require('./authRoutes');
 const retailerRoutes = require('./retailerRoutes');
+const recoveryHeadRoutes = require('./recoveryHeadRoutes');
 const accountantRoutes = require('./accountantRoutes');
 const { authenticate } = require('../middleware/auth');
 const { getAllCustomers, updateEmiPaymentStatus, toggleCustomerLock, getCustomerLockStatus, getLockedCustomersImei, getPendingEmiCustomersAdmin, getEmiStatisticsAdmin, getCustomerCountAdmin, sendEmiReminder } = require('../controllers/authController');
 const { getLateFine, updateLateFine, updateLateFineValidation } = require('../controllers/lateFineController');
 const { updateRetailerStatus, updateRetailerStatusValidation } = require('../controllers/retailerController');
+const { updateRecoveryHeadStatus, updateRecoveryHeadStatusValidation } = require('../controllers/recoveryHeadController');
 
 // Mount routes
 router.use('/auth', authRoutes);
@@ -15,6 +17,11 @@ router.use('/auth', authRoutes);
 router.use('/retailers/:retailerId/status', authenticate, updateRetailerStatusValidation, updateRetailerStatus);
 
 router.use('/retailers', retailerRoutes);
+
+// Recovery Head Status Update (Admin only) - Must be before recoveryHeadRoutes mount
+router.use('/recovery-heads/:recoveryHeadId/status', authenticate, updateRecoveryHeadStatusValidation, updateRecoveryHeadStatus);
+
+router.use('/recovery-heads', recoveryHeadRoutes);
 
 // Accountant routes (Admin management only - for creating/managing accountants)
 router.use('/accountants', accountantRoutes);
