@@ -1,12 +1,11 @@
 name: EMI Reminder Cron Job
 
-# TESTING MODE: Run every 5 minutes
-# For production, change back to: '30 6 * * *' (12:00 PM IST daily)
+# Run every 30 minutes
 # Cron format: minute hour day month day-of-week
 on:
   schedule:
-    # Runs every 5 minutes for testing
-    - cron: '*/5 * * * *'
+    # Runs every 30 minutes
+    - cron: '*/30 * * * *'
   
   # Allow manual trigger from GitHub Actions UI
   workflow_dispatch:
