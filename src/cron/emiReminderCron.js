@@ -16,7 +16,7 @@ const mongoose = require('mongoose');
 // Import models and services
 const Customer = require('../models/Customer');
 const RecoveryHead = require('../models/RecoveryHead');
-const { sendNotification, sendLockNotification } = require('../services/firebaseService');
+const { initializeFirebase, sendNotification, sendLockNotification } = require('../services/firebaseService');
 
 /**
  * Connect to MongoDB
@@ -115,6 +115,9 @@ async function runEmiReminderCron() {
     console.log('Timezone:', Intl.DateTimeFormat().resolvedOptions().timeZone);
 
     try {
+        // Initialize Firebase
+        initializeFirebase();
+
         // Connect to database
         await connectDB();
 
