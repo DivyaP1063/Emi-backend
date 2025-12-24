@@ -1,0 +1,59 @@
+name: EMI Reminder Cron Job
+
+# TESTING MODE: Run every 5 minutes
+# For production, change back to: '30 6 * * *' (12:00 PM IST daily)
+# Cron format: minute hour day month day-of-week
+on:
+  schedule:
+    # Runs every 5 minutes for testing
+    - cron: '*/5 * * * *'
+  
+  # Allow manual trigger from GitHub Actions UI
+  workflow_dispatch:
+
+jobs:
+  emi-reminder-job:
+    name: Send EMI Reminders and Lock Devices
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Run EMI Reminder Cron Job
+        env:
+          # MongoDB connection
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          
+          # Firebase configuration
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          FIREBASE_PRIVATE_KEY: ${{ secrets.FIREBASE_PRIVATE_KEY }}
+          FIREBASE_CLIENT_EMAIL: ${{ secrets.FIREBASE_CLIENT_EMAIL }}
+          
+          # JWT secret (if needed)
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          
+          # Node environment
+          NODE_ENV: production
+        run: node src/cron/emiReminderCron.js
+      
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "❌ EMI Reminder Cron Job failed!"
+          echo "Check the logs for details."
+          # You can add Slack/Email notification here if needed
+      
+      - name: Notify on success
+        if: success()
+        run: |
+          echo "✅ EMI Reminder Cron Job completed successfully!"
