@@ -255,10 +255,93 @@ const updateRecoveryHeadStatus = async (req, res) => {
     }
 };
 
+/**
+ * Assign locked customers to recovery heads based on pincode matching
+ * Admin only - typically called by cron job
+ */
+const assignCustomersToRecoveryHeads = async (req, res) => {
+    try {
+        console.log('\n🔍 ===== RECOVERY HEAD ASSIGNMENT API CALLED =====');
+        console.log('Timestamp:', new Date().toISOString());
+
+        const Customer = require('../models/Customer');
+
+        // Find all locked customers that are not yet assigned
+        const customersToAssign = await Customer.find({
+            isLocked: true,
+            assigned: false
+        });
+
+        console.log(`Found ${customersToAssign.length} locked customers to assign`);
+
+        let assignedCount = 0;
+        let noMatchCount = 0;
+        const assignments = [];
+
+        for (const customer of customersToAssign) {
+            const customerPincode = customer.address.pincode;
+
+            // Find active recovery head with matching pincode
+            const recoveryHead = await RecoveryHead.findOne({
+                status: 'ACTIVE',
+                pinCodes: customerPincode
+            });
+
+            if (recoveryHead) {
+                // Assign customer to recovery head
+                await Customer.findByIdAndUpdate(customer._id, {
+                    assigned: true,
+                    assignedTo: recoveryHead.fullName,
+                    assignedToRecoveryHeadId: recoveryHead._id,
+                    assignedAt: new Date()
+                });
+
+                console.log(`✅ Assigned ${customer.fullName} (${customerPincode}) to ${recoveryHead.fullName}`);
+
+                assignments.push({
+                    customerId: customer._id.toString(),
+                    customerName: customer.fullName,
+                    pincode: customerPincode,
+                    recoveryHeadId: recoveryHead._id.toString(),
+                    recoveryHeadName: recoveryHead.fullName
+                });
+
+                assignedCount++;
+            } else {
+                console.log(`⚠️  No recovery head found for ${customer.fullName} (pincode: ${customerPincode})`);
+                noMatchCount++;
+            }
+        }
+
+        console.log(`\n📊 Assignment Summary: ${assignedCount} assigned, ${noMatchCount} no match`);
+        console.log('=====================================\n');
+
+        return res.status(200).json({
+            success: true,
+            message: 'Customer assignment completed',
+            data: {
+                totalCustomers: customersToAssign.length,
+                assignedCount,
+                noMatchCount,
+                assignments
+            }
+        });
+
+    } catch (error) {
+        console.error('Assignment error:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Failed to assign customers',
+            error: error.message
+        });
+    }
+};
+
 module.exports = {
     createRecoveryHead,
     getAllRecoveryHeads,
     createRecoveryHeadValidation,
     updateRecoveryHeadStatus,
-    updateRecoveryHeadStatusValidation
+    updateRecoveryHeadStatusValidation,
+    assignCustomersToRecoveryHeads
 };

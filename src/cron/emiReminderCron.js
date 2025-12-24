@@ -5,6 +5,7 @@
  * 1. Check all customers with pending EMIs
  * 2. Send EMI reminder notifications to customers with overdue payments
  * 3. Lock devices if payment is 5+ days past due date
+ * 4. Assign locked customers to recovery heads after 15 minutes
  * 
  * Scheduled to run daily at 12:00 PM via GitHub Actions
  */
@@ -14,6 +15,7 @@ const mongoose = require('mongoose');
 
 // Import models and services
 const Customer = require('../models/Customer');
+const RecoveryHead = require('../models/RecoveryHead');
 const { sendNotification, sendLockNotification } = require('../services/firebaseService');
 
 /**
@@ -41,6 +43,66 @@ async function disconnectDB() {
         console.log('✅ MongoDB disconnected successfully');
     } catch (error) {
         console.error('❌ MongoDB disconnection error:', error);
+    }
+}
+
+/**
+ * Assign locked customers to recovery heads based on pincode matching
+ */
+async function assignCustomersToRecoveryHeads() {
+    console.log('\n🔍 ===== RECOVERY HEAD ASSIGNMENT STARTED =====');
+    console.log('Timestamp:', new Date().toISOString());
+
+    try {
+        // Find all locked customers that are not yet assigned
+        const customersToAssign = await Customer.find({
+            isLocked: true,
+            assigned: false
+        });
+
+        console.log(`Found ${customersToAssign.length} locked customers to assign`);
+
+        if (customersToAssign.length === 0) {
+            console.log('No customers to assign');
+            return { assignedCount: 0, noMatchCount: 0 };
+        }
+
+        let assignedCount = 0;
+        let noMatchCount = 0;
+
+        for (const customer of customersToAssign) {
+            const customerPincode = customer.address.pincode;
+
+            // Find active recovery head with matching pincode
+            const recoveryHead = await RecoveryHead.findOne({
+                status: 'ACTIVE',
+                pinCodes: customerPincode
+            });
+
+            if (recoveryHead) {
+                // Assign customer to recovery head
+                await Customer.findByIdAndUpdate(customer._id, {
+                    assigned: true,
+                    assignedTo: recoveryHead.fullName,
+                    assignedToRecoveryHeadId: recoveryHead._id,
+                    assignedAt: new Date()
+                });
+
+                console.log(`✅ Assigned ${customer.fullName} (${customerPincode}) to ${recoveryHead.fullName}`);
+                assignedCount++;
+            } else {
+                console.log(`⚠️  No recovery head found for ${customer.fullName} (pincode: ${customerPincode})`);
+                noMatchCount++;
+            }
+        }
+
+        console.log(`\n📊 Assignment Summary: ${assignedCount} assigned, ${noMatchCount} no match`);
+        console.log('=====================================\n');
+
+        return { assignedCount, noMatchCount };
+    } catch (error) {
+        console.error('❌ Assignment error:', error);
+        return { assignedCount: 0, noMatchCount: 0, error: error.message };
     }
 }
 
@@ -105,6 +167,7 @@ async function runEmiReminderCron() {
 
         let remindersSent = 0;
         let devicesLocked = 0;
+        let customersAssigned = 0;
         let errors = 0;
 
         // Process each customer
@@ -210,11 +273,34 @@ async function runEmiReminderCron() {
             }
         }
 
+        // After device locking is complete, wait 15 minutes then assign to recovery heads
+        if (devicesLocked > 0) {
+            console.log(`\n⏰ Waiting 15 minutes before assigning customers to recovery heads...`);
+            console.log(`${devicesLocked} customers will be assigned after delay`);
+
+            // Wait 15 minutes (900000 milliseconds)
+            // For testing, you can reduce this to 1-2 minutes: 1 * 60 * 1000
+            await new Promise(resolve => setTimeout(resolve, 15 * 60 * 1000));
+
+            console.log(`\n📋 Starting customer assignment...`);
+
+            // Call assignment function directly
+            const assignmentResult = await assignCustomersToRecoveryHeads();
+
+            if (assignmentResult.error) {
+                console.error(`❌ Assignment failed: ${assignmentResult.error}`);
+            } else {
+                customersAssigned = assignmentResult.assignedCount;
+                console.log(`✅ Assignment completed: ${assignmentResult.assignedCount} assigned, ${assignmentResult.noMatchCount} no match`);
+            }
+        }
+
         // Summary
         console.log('\n📊 ===== CRON JOB SUMMARY =====');
         console.log(`Total customers processed: ${customers.length}`);
         console.log(`Reminders sent: ${remindersSent}`);
         console.log(`Devices locked: ${devicesLocked}`);
+        console.log(`Customers assigned to recovery heads: ${customersAssigned}`);
         console.log(`Errors: ${errors}`);
         console.log('=====================================\n');
 
