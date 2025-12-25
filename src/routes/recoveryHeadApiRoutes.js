@@ -6,7 +6,7 @@ const {
     sendOtpValidation,
     verifyOtpValidation
 } = require('../controllers/recoveryHeadAuthController');
-const { getAssignedCustomers, getCustomerLocationByRecoveryHead, assignCustomerToRecoveryPerson, assignCustomerToRecoveryPersonValidation, getRecoveryPersonsWithCustomers, getAssignmentDetails, unassignCustomerFromRecoveryPerson } = require('../controllers/recoveryHeadController');
+const { getAssignedCustomers, getCustomerLocationByRecoveryHead, getUnassignedCustomers, assignCustomersToRecoveryPerson, assignCustomersToRecoveryPersonValidation, getRecoveryPersonsWithCustomers, getAssignmentDetails, unassignCustomerFromRecoveryPerson } = require('../controllers/recoveryHeadController');
 const { authenticateRecoveryHead } = require('../middleware/auth');
 
 // POST /api/recovery-head/send-otp - Send OTP to recovery head mobile
@@ -21,8 +21,11 @@ router.get('/assigned-customers', authenticateRecoveryHead, getAssignedCustomers
 // GET /api/recovery-head/customers/:customerId/location - Get customer location (Protected)
 router.get('/customers/:customerId/location', authenticateRecoveryHead, getCustomerLocationByRecoveryHead);
 
-// POST /api/recovery-head/assign-customer - Assign customer to recovery person (Protected)
-router.post('/assign-customer', authenticateRecoveryHead, assignCustomerToRecoveryPersonValidation, assignCustomerToRecoveryPerson);
+// GET /api/recovery-head/unassigned-customers - Get customers not assigned to any recovery person (Protected)
+router.get('/unassigned-customers', authenticateRecoveryHead, getUnassignedCustomers);
+
+// POST /api/recovery-head/assign-customers - Bulk assign customers to recovery person (Protected)
+router.post('/assign-customers', authenticateRecoveryHead, assignCustomersToRecoveryPersonValidation, assignCustomersToRecoveryPerson);
 
 // GET /api/recovery-head/recovery-persons-with-customers - Get all recovery persons with customers (Protected)
 router.get('/recovery-persons-with-customers', authenticateRecoveryHead, getRecoveryPersonsWithCustomers);
