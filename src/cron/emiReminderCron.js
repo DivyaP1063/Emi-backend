@@ -1,14 +1,14 @@
 /**
  * EMI Reminder and Device Lock Cron Job
  * 
- * This script runs every 15 seconds as part of the server to:
+ * This script runs every 12 hours as part of the server to:
  * 1. Check all customers with pending EMIs
  * 2. Send EMI reminder notifications to customers with overdue payments
  * 3. Lock devices if payment is 5+ days past due date
  * 4. Assign locked customers to recovery heads (30 seconds after locking)
  * 
  * Executed by: cronService.js (interval-based)
- * Frequency: Every 15 seconds
+ * Frequency: Every 12 hours
  * 
  * NOTE: This job uses the existing MongoDB connection and Firebase service.
  * It does not initialize its own connections.
