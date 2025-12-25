@@ -8,8 +8,10 @@ const adminRoutes = require('./routes');
 const retailerApiRoutes = require('./routes/retailerApiRoutes');
 const accountantApiRoutes = require('./routes/accountantApiRoutes');
 const recoveryHeadApiRoutes = require('./routes/recoveryHeadApiRoutes');
+const recoveryPersonApiRoutes = require('./routes/recoveryPersonApiRoutes');
 const customerDeviceRoutes = require('./routes/customerDeviceRoutes');
 const { initializeFirebase } = require('./services/firebaseService');
+const { startCronService, stopCronService } = require('./services/cronService');
 
 // Initialize Express app
 const app = express();
@@ -42,10 +44,12 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/retailer', retailerApiRoutes);
 app.use('/api/accountant', accountantApiRoutes);
 app.use('/api/recovery-head', recoveryHeadApiRoutes);
+app.use('/api/recovery-person', recoveryPersonApiRoutes);
 app.use('/api/customer/device', customerDeviceRoutes);
 
 console.log('✅ Accountant routes mounted at /api/accountant');
 console.log('✅ Recovery head routes mounted at /api/recovery-head');
+console.log('✅ Recovery person routes mounted at /api/recovery-person');
 console.log('✅ Customer device routes mounted at /api/customer/device');
 
 // Root endpoint
@@ -91,15 +95,38 @@ app.use((err, req, res, next) => {
 // Start server
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`🚀 Server is running on port ${PORT}`);
   console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`📡 API Base URL: http://localhost:${PORT}/api/admin`);
+
+  // Start cron service after server is ready
+  startCronService();
+});
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('\n🛑 SIGTERM signal received: closing HTTP server');
+  stopCronService();
+  server.close(() => {
+    console.log('✅ HTTP server closed');
+    process.exit(0);
+  });
+});
+
+process.on('SIGINT', () => {
+  console.log('\n🛑 SIGINT signal received: closing HTTP server');
+  stopCronService();
+  server.close(() => {
+    console.log('✅ HTTP server closed');
+    process.exit(0);
+  });
 });
 
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (err) => {
   console.error('Unhandled Promise Rejection:', err);
+  stopCronService();
   // Close server & exit process
   process.exit(1);
 });

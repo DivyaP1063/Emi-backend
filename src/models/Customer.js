@@ -223,7 +223,16 @@ const customerSchema = new mongoose.Schema({
   assignedAt: {
     type: Date,
     default: null
-  }
+  },
+  isCollected: {
+    type: Boolean,
+    default: false
+  },
+  collectedAt: {
+    type: Date,
+    default: null
+  },
+
 }, {
   timestamps: true
 });
