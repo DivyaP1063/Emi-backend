@@ -443,6 +443,120 @@ const fixLockedCustomersAssignment = async (req, res) => {
     }
 };
 
+/**
+ * Get all customers assigned to the authenticated recovery head
+ * Recovery Head only - requires authentication
+ */
+const getAssignedCustomers = async (req, res) => {
+    try {
+        const recoveryHeadId = req.recoveryHead.id;
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 20;
+        const search = req.query.search || '';
+
+        const skip = (page - 1) * limit;
+
+        // Build query
+        const query = {
+            assignedToRecoveryHeadId: recoveryHeadId,
+            assigned: true
+        };
+
+        // Add search filter
+        if (search) {
+            query.$or = [
+                { fullName: { $regex: search, $options: 'i' } },
+                { mobileNumber: { $regex: search, $options: 'i' } },
+                { imei1: { $regex: search, $options: 'i' } },
+                { imei2: { $regex: search, $options: 'i' } }
+            ];
+        }
+
+        const Customer = require('../models/Customer');
+
+        // Get total count
+        const totalItems = await Customer.countDocuments(query);
+
+        // Get customers
+        const customers = await Customer.find(query)
+            .select('fullName mobileNumber aadharNumber dob fatherName address imei1 imei2 emiDetails isLocked assignedAt documents')
+            .skip(skip)
+            .limit(limit)
+            .sort({ assignedAt: -1 });
+
+        const totalPages = Math.ceil(totalItems / limit);
+
+        // Format customer data
+        const formattedCustomers = customers.map(customer => {
+            // Find next unpaid EMI
+            const nextUnpaidEmi = customer.emiDetails.emiMonths
+                .filter(emi => !emi.paid)
+                .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate))[0];
+
+            return {
+                customerId: customer._id.toString(),
+                fullName: customer.fullName,
+                mobileNumber: customer.mobileNumber,
+                aadharNumber: customer.aadharNumber,
+                dob: customer.dob,
+                fatherName: customer.fatherName,
+                address: {
+                    village: customer.address.village,
+                    nearbyLocation: customer.address.nearbyLocation,
+                    post: customer.address.post,
+                    district: customer.address.district,
+                    pincode: customer.address.pincode
+                },
+                productDetails: {
+                    imei1: customer.imei1,
+                    imei2: customer.imei2 || null,
+                    phoneType: customer.emiDetails.phoneType,
+                    model: customer.emiDetails.model,
+                    productName: customer.emiDetails.productName
+                },
+                emiInfo: {
+                    nextDueDate: nextUnpaidEmi ? nextUnpaidEmi.dueDate : null,
+                    nextDueAmount: nextUnpaidEmi ? nextUnpaidEmi.amount : null,
+                    emiPerMonth: customer.emiDetails.emiPerMonth,
+                    balanceAmount: customer.emiDetails.balanceAmount
+                },
+                deviceStatus: {
+                    isLocked: customer.isLocked
+                },
+                documents: {
+                    customerPhoto: customer.documents.customerPhoto,
+                    aadharFrontPhoto: customer.documents.aadharFrontPhoto,
+                    aadharBackPhoto: customer.documents.aadharBackPhoto,
+                    signaturePhoto: customer.documents.signaturePhoto
+                },
+                assignedAt: customer.assignedAt
+            };
+        });
+
+        return res.status(200).json({
+            success: true,
+            message: 'Assigned customers fetched successfully',
+            data: {
+                customers: formattedCustomers,
+                pagination: {
+                    currentPage: page,
+                    totalPages,
+                    totalItems,
+                    itemsPerPage: limit
+                }
+            }
+        });
+
+    } catch (error) {
+        console.error('Get assigned customers error:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Failed to fetch assigned customers',
+            error: 'SERVER_ERROR'
+        });
+    }
+};
+
 module.exports = {
     createRecoveryHead,
     createRecoveryHeadValidation,
@@ -451,5 +565,6 @@ module.exports = {
     updateRecoveryHeadStatusValidation,
     assignCustomersToRecoveryHeads,
     debugLockedCustomers,
-    fixLockedCustomersAssignment
+    fixLockedCustomersAssignment,
+    getAssignedCustomers
 };
