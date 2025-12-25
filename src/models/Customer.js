@@ -180,11 +180,10 @@ const customerSchema = new mongoose.Schema({
     default: null,
     trim: true
   },
-  devicePin: {
+  enterpriseId: {
     type: String,
     default: null,
-    trim: true,
-    match: /^[0-9]{4,6}$/
+    trim: true
   },
   location: {
     latitude: {
