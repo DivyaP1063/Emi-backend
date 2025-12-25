@@ -204,6 +204,24 @@ const customerSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Retailer',
     required: true
+  },
+  assigned: {
+    type: Boolean,
+    default: false
+  },
+  assignedTo: {
+    type: String,
+    default: null,
+    trim: true
+  },
+  assignedToRecoveryHeadId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'RecoveryHead',
+    default: null
+  },
+  assignedAt: {
+    type: Date,
+    default: null
   }
 }, {
   timestamps: true
@@ -214,6 +232,9 @@ customerSchema.index({ mobileNumber: 1, retailerId: 1 });
 customerSchema.index({ aadharNumber: 1 });
 customerSchema.index({ imei1: 1 }, { unique: true });
 customerSchema.index({ imei2: 1 }, { unique: true, sparse: true });
+customerSchema.index({ assigned: 1 });
+customerSchema.index({ assignedToRecoveryHeadId: 1 });
+customerSchema.index({ isLocked: 1, assigned: 1 });
 
 const Customer = mongoose.model('Customer', customerSchema);
 
