@@ -16,37 +16,97 @@ const initializeFirebase = () => {
     }
 
     try {
-        // Check if service account file path is provided
+        // Method 1: Base64-encoded service account JSON (RECOMMENDED for CI/CD)
+        if (process.env.FIREBASE_SERVICE_ACCOUNT_BASE64) {
+            console.log('🔧 Attempting Firebase initialization with base64-encoded service account...');
+            
+            try {
+                const serviceAccountJson = Buffer.from(
+                    process.env.FIREBASE_SERVICE_ACCOUNT_BASE64,
+                    'base64'
+                ).toString('utf-8');
+                
+                const serviceAccount = JSON.parse(serviceAccountJson);
+
+                admin.initializeApp({
+                    credential: admin.credential.cert(serviceAccount)
+                });
+
+                console.log('✅ Firebase initialized with base64-encoded service account');
+                firebaseInitialized = true;
+                return;
+            } catch (base64Error) {
+                console.error('❌ Failed to parse base64 service account:', base64Error.message);
+                throw new Error('Invalid FIREBASE_SERVICE_ACCOUNT_BASE64 format. Please ensure it is a valid base64-encoded JSON.');
+            }
+        }
+        
+        // Method 2: Service account file path (for local development)
         if (process.env.FIREBASE_SERVICE_ACCOUNT_PATH) {
-            const serviceAccount = require(`../../${process.env.FIREBASE_SERVICE_ACCOUNT_PATH}`);
+            console.log('🔧 Attempting Firebase initialization with service account file...');
+            
+            try {
+                const serviceAccount = require(`../../${process.env.FIREBASE_SERVICE_ACCOUNT_PATH}`);
 
-            admin.initializeApp({
-                credential: admin.credential.cert(serviceAccount)
-            });
+                admin.initializeApp({
+                    credential: admin.credential.cert(serviceAccount)
+                });
 
-            console.log('✅ Firebase initialized with service account file');
+                console.log('✅ Firebase initialized with service account file');
+                firebaseInitialized = true;
+                return;
+            } catch (fileError) {
+                console.error('❌ Failed to load service account file:', fileError.message);
+                throw fileError;
+            }
         }
-        // Otherwise use individual environment variables
-        else if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_PRIVATE_KEY && process.env.FIREBASE_CLIENT_EMAIL) {
-            admin.initializeApp({
-                credential: admin.credential.cert({
-                    projectId: process.env.FIREBASE_PROJECT_ID,
-                    privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
-                    clientEmail: process.env.FIREBASE_CLIENT_EMAIL
-                })
-            });
+        
+        // Method 3: Individual environment variables (fallback, prone to newline issues)
+        if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_PRIVATE_KEY && process.env.FIREBASE_CLIENT_EMAIL) {
+            console.log('🔧 Attempting Firebase initialization with individual environment variables...');
+            console.warn('⚠️  Using individual env variables. Consider using FIREBASE_SERVICE_ACCOUNT_BASE64 for CI/CD.');
+            
+            try {
+                // Handle multiple private key formats
+                let privateKey = process.env.FIREBASE_PRIVATE_KEY;
+                
+                // Replace escaped newlines (handles both \n and \\n)
+                privateKey = privateKey.replace(/\\n/g, '\n');
+                
+                // Validate private key format
+                if (!privateKey.includes('BEGIN PRIVATE KEY') || !privateKey.includes('END PRIVATE KEY')) {
+                    throw new Error('FIREBASE_PRIVATE_KEY does not appear to be a valid private key format');
+                }
 
-            console.log('✅ Firebase initialized with environment variables');
-        }
-        else {
-            console.warn('⚠️  Firebase credentials not found. FCM notifications will not work.');
-            console.warn('Please configure FIREBASE_SERVICE_ACCOUNT_PATH or individual Firebase env variables.');
-            return;
-        }
+                admin.initializeApp({
+                    credential: admin.credential.cert({
+                        projectId: process.env.FIREBASE_PROJECT_ID,
+                        privateKey: privateKey,
+                        clientEmail: process.env.FIREBASE_CLIENT_EMAIL
+                    })
+                });
 
-        firebaseInitialized = true;
+                console.log('✅ Firebase initialized with environment variables');
+                firebaseInitialized = true;
+                return;
+            } catch (envError) {
+                console.error('❌ Failed to initialize with environment variables:', envError.message);
+                console.error('💡 Tip: Use FIREBASE_SERVICE_ACCOUNT_BASE64 instead to avoid newline issues');
+                throw envError;
+            }
+        }
+        
+        // No credentials found
+        console.warn('⚠️  Firebase credentials not found. FCM notifications will not work.');
+        console.warn('Please configure one of the following:');
+        console.warn('  1. FIREBASE_SERVICE_ACCOUNT_BASE64 (recommended for CI/CD)');
+        console.warn('  2. FIREBASE_SERVICE_ACCOUNT_PATH (for local development)');
+        console.warn('  3. FIREBASE_PROJECT_ID, FIREBASE_PRIVATE_KEY, FIREBASE_CLIENT_EMAIL');
+        return;
+
     } catch (error) {
         console.error('❌ Firebase initialization error:', error.message);
+        console.error('Stack trace:', error.stack);
         throw error;
     }
 };
