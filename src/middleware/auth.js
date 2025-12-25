@@ -215,8 +215,87 @@ const authenticateAccountant = async (req, res, next) => {
   }
 };
 
+/**
+ * Middleware to verify JWT token and authenticate recovery head
+ */
+const authenticateRecoveryHead = async (req, res, next) => {
+  try {
+    // Get token from header
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authorization token not found',
+        error: 'INVALID_TOKEN'
+      });
+    }
+
+    const token = authHeader.substring(7); // Remove 'Bearer ' prefix
+
+    // Verify token
+    const decoded = verifyToken(token);
+
+    if (!decoded) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid or expired token',
+        error: 'INVALID_TOKEN'
+      });
+    }
+
+    // Check if token is for recovery head
+    if (decoded.role !== 'RECOVERY_HEAD') {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied: Recovery Head role required',
+        error: 'FORBIDDEN'
+      });
+    }
+
+    // Check if recovery head exists and is active
+    const RecoveryHead = require('../models/RecoveryHead');
+    const recoveryHead = await RecoveryHead.findById(decoded.id);
+
+    if (!recoveryHead) {
+      return res.status(401).json({
+        success: false,
+        message: 'Recovery head not found',
+        error: 'UNAUTHORIZED_ACCESS'
+      });
+    }
+
+    if (recoveryHead.status !== 'ACTIVE') {
+      return res.status(403).json({
+        success: false,
+        message: `Recovery head account is ${recoveryHead.status.toLowerCase()}`,
+        error: 'ACCOUNT_NOT_ACTIVE'
+      });
+    }
+
+    // Attach recovery head to request object
+    req.recoveryHead = {
+      id: recoveryHead._id.toString(),
+      fullName: recoveryHead.fullName,
+      mobileNumber: recoveryHead.mobileNumber,
+      pinCodes: recoveryHead.pinCodes,
+      status: recoveryHead.status
+    };
+
+    next();
+  } catch (error) {
+    console.error('Recovery head authentication error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Authentication failed',
+      error: 'SERVER_ERROR'
+    });
+  }
+};
+
 module.exports = {
   authenticate,
   authenticateRetailer,
-  authenticateAccountant
+  authenticateAccountant,
+  authenticateRecoveryHead
 };
