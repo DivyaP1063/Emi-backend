@@ -30,6 +30,38 @@ const { sendLockNotification, sendNotification } = require('../services/firebase
 // ============================================================================
 
 /**
+ * Lock a customer's device
+ * Sends lock notification but does NOT update database
+ * The Kotlin app will set isLocked=true when device is actually locked
+ * @param {Object} customer - Customer object with _id, fullName, fcmToken
+ * @returns {Object} - { success: boolean, error: string }
+ */
+async function sendLockNotificationToCustomer(customer) {
+    try {
+        if (!customer.fcmToken) {
+            return { success: false, error: 'NO_FCM_TOKEN' };
+        }
+
+        // Send lock notification via Firebase
+        const lockResult = await sendLockNotification(customer.fcmToken, true);
+
+        if (lockResult.success) {
+            // DO NOT update database here
+            // Kotlin app will set isLocked=true when device is actually locked
+            return { success: true };
+        } else {
+            // Clear invalid FCM token if needed
+            if (lockResult.error === 'INVALID_TOKEN') {
+                await Customer.findByIdAndUpdate(customer._id, { fcmToken: null });
+            }
+            return { success: false, error: lockResult.error };
+        }
+    } catch (error) {
+        return { success: false, error: error.message };
+    }
+}
+
+/**
  * Call the recovery head assignment API
  * This uses the existing API endpoint to assign customers
  */
@@ -110,7 +142,7 @@ async function runEmiReminderCron() {
         console.log(`   📊 Processing ${customers.length} customers with pending EMIs`);
 
         let remindersSent = 0;
-        let devicesLocked = 0;
+        let lockNotificationsSent = 0;
         let errors = 0;
 
         // Process each customer
@@ -138,32 +170,16 @@ async function runEmiReminderCron() {
             try {
                 // Check if device should be locked (5+ days overdue and not already locked)
                 if (daysOverdue >= 5 && !customer.isLocked) {
-                    console.log(`   🔒 Locking device: ${customer.fullName} (${daysOverdue} days overdue)`);
+                    console.log(`   🔒 Sending lock notification: ${customer.fullName} (${daysOverdue} days overdue)`);
 
-                    // Send lock notification
-                    const lockResult = await sendLockNotification(customer.fcmToken, true);
+                    // Send lock notification (does NOT update database)
+                    const lockResult = await sendLockNotificationToCustomer(customer);
 
                     if (lockResult.success) {
-                        // Update lock status in database with timestamp
-                        await Customer.findByIdAndUpdate(customer._id, {
-                            isLocked: true,
-                            deviceLockedAt: new Date()
-                        });
-                        console.log(`   ✅ Device locked: ${customer.fullName}`);
-                        devicesLocked++;
-
-                        // Schedule assignment API call after 30 seconds
-                        console.log(`   ⏰ Scheduling assignment API call in 30 seconds...`);
-                        setTimeout(() => {
-                            callAssignmentAPI();
-                        }, 30000); // 30 seconds delay
+                        console.log(`   ✅ Lock notification sent to ${customer.fullName}`);
+                        lockNotificationsSent++;
                     } else {
-                        console.log(`   ❌ Failed to lock device: ${lockResult.error}`);
-
-                        // Clear invalid FCM token
-                        if (lockResult.error === 'INVALID_TOKEN') {
-                            await Customer.findByIdAndUpdate(customer._id, { fcmToken: null });
-                        }
+                        console.log(`   ❌ Failed to send lock notification: ${lockResult.error}`);
                         errors++;
                     }
                 }
@@ -201,9 +217,18 @@ async function runEmiReminderCron() {
             }
         }
 
+        // If any lock notifications were sent, schedule assignment after 30 seconds
+        if (lockNotificationsSent > 0) {
+            console.log(`   ⏰ Scheduling assignment check in 30 seconds for ${lockNotificationsSent} lock notifications...`);
+            setTimeout(() => {
+                console.log(`   🔍 Checking for locked customers to assign...`);
+                callAssignmentAPI();
+            }, 30000); // 30 seconds delay
+        }
+
         // Log summary if there was activity
-        if (remindersSent > 0 || devicesLocked > 0 || errors > 0) {
-            console.log(`   📊 Summary: ${remindersSent} reminders, ${devicesLocked} locked, ${errors} errors`);
+        if (remindersSent > 0 || lockNotificationsSent > 0 || errors > 0) {
+            console.log(`   📊 Summary: ${remindersSent} reminders, ${lockNotificationsSent} lock notifications sent, ${errors} errors`);
         }
 
     } catch (error) {
