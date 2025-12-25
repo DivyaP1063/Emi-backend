@@ -32,13 +32,15 @@ jobs:
           # MongoDB connection
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
           
-          # Firebase configuration
+          # Firebase configuration (Method 1 - RECOMMENDED)
+          # Use base64-encoded service account JSON to avoid newline issues
+          FIREBASE_SERVICE_ACCOUNT_BASE64: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_BASE64 }}
+          
+          # Firebase configuration (Method 2 - FALLBACK)
+          # Use if you prefer individual environment variables
           FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
           FIREBASE_PRIVATE_KEY: ${{ secrets.FIREBASE_PRIVATE_KEY }}
           FIREBASE_CLIENT_EMAIL: ${{ secrets.FIREBASE_CLIENT_EMAIL }}
-          
-          # JWT secret (if needed)
-          JWT_SECRET: ${{ secrets.JWT_SECRET }}
           
           # Node environment
           NODE_ENV: production

@@ -337,11 +337,119 @@ const assignCustomersToRecoveryHeads = async (req, res) => {
     }
 };
 
+/**
+ * DEBUG: Get locked customers status
+ * Temporary endpoint to debug assignment issues
+ */
+const debugLockedCustomers = async (req, res) => {
+    try {
+        const Customer = require('../models/Customer');
+
+        // Get ALL customers with their lock and assignment status
+        const allCustomers = await Customer.find({})
+            .select('fullName isLocked assigned assignedTo address.pincode')
+            .lean();
+
+        // Get locked customers
+        const lockedCustomers = await Customer.find({ isLocked: true })
+            .select('fullName isLocked assigned assignedTo assignedToRecoveryHeadId address.pincode')
+            .lean();
+
+        // Get locked but not assigned
+        const lockedNotAssigned = await Customer.find({
+            isLocked: true,
+            assigned: false
+        })
+            .select('fullName isLocked assigned assignedTo address.pincode')
+            .lean();
+
+        // Get all recovery heads
+        const allRecoveryHeads = await RecoveryHead.find({})
+            .select('fullName status pinCodes')
+            .lean();
+
+        return res.status(200).json({
+            success: true,
+            debug: {
+                totalCustomers: allCustomers.length,
+                lockedCustomers: {
+                    count: lockedCustomers.length,
+                    data: lockedCustomers
+                },
+                lockedNotAssigned: {
+                    count: lockedNotAssigned.length,
+                    data: lockedNotAssigned
+                },
+                recoveryHeads: {
+                    count: allRecoveryHeads.length,
+                    data: allRecoveryHeads
+                },
+                sampleCustomers: allCustomers.slice(0, 3) // First 3 customers to see structure
+            }
+        });
+
+    } catch (error) {
+        console.error('Debug error:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Debug failed',
+            error: error.message
+        });
+    }
+};
+
+/**
+ * MIGRATION: Fix existing locked customers by adding assigned field
+ * One-time migration endpoint
+ */
+const fixLockedCustomersAssignment = async (req, res) => {
+    try {
+        const Customer = require('../models/Customer');
+
+        // Find all locked customers that don't have the assigned field
+        const result = await Customer.updateMany(
+            {
+                isLocked: true,
+                assigned: { $exists: false }
+            },
+            {
+                $set: {
+                    assigned: false,
+                    assignedTo: null,
+                    assignedToRecoveryHeadId: null,
+                    assignedAt: null
+                }
+            }
+        );
+
+        console.log(`✅ Migration completed: Updated ${result.modifiedCount} customers`);
+
+        return res.status(200).json({
+            success: true,
+            message: 'Migration completed successfully',
+            data: {
+                matchedCount: result.matchedCount,
+                modifiedCount: result.modifiedCount
+            }
+        });
+
+    } catch (error) {
+        console.error('Migration error:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Migration failed',
+            error: error.message
+        });
+    }
+};
+
 module.exports = {
     createRecoveryHead,
-    getAllRecoveryHeads,
     createRecoveryHeadValidation,
+    getAllRecoveryHeads,
     updateRecoveryHeadStatus,
     updateRecoveryHeadStatusValidation,
-    assignCustomersToRecoveryHeads
+    assignCustomersToRecoveryHeads,
+    debugLockedCustomers,
+    fixLockedCustomersAssignment
 };

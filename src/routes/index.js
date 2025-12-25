@@ -3,6 +3,7 @@ const router = express.Router();
 const authRoutes = require('./authRoutes');
 const retailerRoutes = require('./retailerRoutes');
 const recoveryHeadRoutes = require('./recoveryHeadRoutes');
+const recoveryHeadApiRoutes = require('./recoveryHeadApiRoutes');
 const accountantRoutes = require('./accountantRoutes');
 const { authenticate } = require('../middleware/auth');
 const { getAllCustomers, updateEmiPaymentStatus, toggleCustomerLock, getCustomerLockStatus, getLockedCustomersImei, getPendingEmiCustomersAdmin, getEmiStatisticsAdmin, getCustomerCountAdmin, sendEmiReminder } = require('../controllers/authController');
@@ -21,7 +22,11 @@ router.use('/retailers', retailerRoutes);
 // Recovery Head Status Update (Admin only) - Must be before recoveryHeadRoutes mount
 router.use('/recovery-heads/:recoveryHeadId/status', authenticate, updateRecoveryHeadStatusValidation, updateRecoveryHeadStatus);
 
+// Recovery Head Admin routes (Admin management)
 router.use('/recovery-heads', recoveryHeadRoutes);
+
+// Recovery Head Authentication routes (Public - for recovery head login)
+router.use('/recovery-head', recoveryHeadApiRoutes);
 
 // Accountant routes (Admin management only - for creating/managing accountants)
 router.use('/accountants', accountantRoutes);
