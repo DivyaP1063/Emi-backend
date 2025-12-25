@@ -896,7 +896,7 @@ const getRecoveryPersonsWithCustomers = async (req, res) => {
         const recoveryPersons = await RecoveryPerson.find(query)
             .populate({
                 path: 'customers',
-                select: 'fullName mobileNumber address.pincode emiDetails.balanceAmount isLocked'
+                select: 'fullName mobileNumber address.pincode emiDetails.balanceAmount isLocked isCollected'
             })
             .select('fullName mobileNumber aadharNumber isActive customers')
             .skip(skip)
@@ -906,22 +906,31 @@ const getRecoveryPersonsWithCustomers = async (req, res) => {
         const totalPages = Math.ceil(totalItems / limit);
 
         // Format response
-        const formattedRecoveryPersons = recoveryPersons.map(rp => ({
-            recoveryPersonId: rp._id.toString(),
-            fullName: rp.fullName,
-            mobileNumber: rp.mobileNumber,
-            aadharNumber: rp.aadharNumber,
-            isActive: rp.isActive,
-            customersCount: rp.customers.length,
-            customers: rp.customers.map(customer => ({
-                customerId: customer._id.toString(),
-                fullName: customer.fullName,
-                mobileNumber: customer.mobileNumber,
-                pincode: customer.address.pincode,
-                balanceAmount: customer.emiDetails.balanceAmount,
-                isLocked: customer.isLocked
-            }))
-        }));
+        const formattedRecoveryPersons = recoveryPersons.map(rp => {
+            const totalCustomers = rp.customers.length;
+            const collectedCustomers = rp.customers.filter(c => c.isCollected).length;
+            const isRecoveryTaskDone = totalCustomers > 0 && totalCustomers === collectedCustomers;
+
+            return {
+                recoveryPersonId: rp._id.toString(),
+                fullName: rp.fullName,
+                mobileNumber: rp.mobileNumber,
+                aadharNumber: rp.aadharNumber,
+                isActive: rp.isActive,
+                customersCount: totalCustomers,
+                collectedCount: collectedCustomers,
+                isRecoveryTaskDone: isRecoveryTaskDone,
+                customers: rp.customers.map(customer => ({
+                    customerId: customer._id.toString(),
+                    fullName: customer.fullName,
+                    mobileNumber: customer.mobileNumber,
+                    pincode: customer.address.pincode,
+                    balanceAmount: customer.emiDetails.balanceAmount,
+                    isLocked: customer.isLocked,
+                    isCollected: customer.isCollected
+                }))
+            };
+        });
 
         return res.status(200).json({
             success: true,

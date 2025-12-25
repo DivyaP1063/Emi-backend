@@ -29,6 +29,19 @@ router.post(
     recoveryPersonAuthController.verifyOtpController
 );
 
+/**
+ * @route   POST /api/recovery-person/collect-device
+ * @desc    Collect device from customer
+ * @access  Private (Recovery Person)
+ */
+const { collectDevice, collectDeviceValidation } = require('../controllers/recoveryPersonController');
+router.post(
+    '/collect-device',
+    authenticateRecoveryPerson,
+    collectDeviceValidation,
+    collectDevice
+);
+
 // Protected routes (require authentication) can be added here
 // Example:
 // router.get('/profile', authenticateRecoveryPerson, getProfile);
