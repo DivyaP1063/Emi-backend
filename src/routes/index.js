@@ -6,7 +6,7 @@ const recoveryHeadRoutes = require('./recoveryHeadRoutes');
 const recoveryHeadApiRoutes = require('./recoveryHeadApiRoutes');
 const accountantRoutes = require('./accountantRoutes');
 const { authenticate } = require('../middleware/auth');
-const { getAllCustomers, updateEmiPaymentStatus, toggleCustomerLock, getCustomerLockStatus, getLockedCustomersImei, getPendingEmiCustomersAdmin, getEmiStatisticsAdmin, getCustomerCountAdmin, sendEmiReminder } = require('../controllers/authController');
+const { getAllCustomers, updateEmiPaymentStatus, toggleCustomerLock, getCustomerLockStatus, getLockedCustomersImei, getPendingEmiCustomersAdmin, getEmiStatisticsAdmin, getCustomerCountAdmin, sendEmiReminder, getCustomerLocationByAdmin } = require('../controllers/authController');
 const { getLateFine, updateLateFine, updateLateFineValidation } = require('../controllers/lateFineController');
 const { updateRetailerStatus, updateRetailerStatusValidation } = require('../controllers/retailerController');
 const { updateRecoveryHeadStatus, updateRecoveryHeadStatusValidation } = require('../controllers/recoveryHeadController');
@@ -61,6 +61,9 @@ router.post('/customers/emi-reminder', authenticate, sendEmiReminder);
 // Late Fine routes
 router.get('/late-fine', getLateFine); // Public - no auth required
 router.put('/late-fine', authenticate, updateLateFineValidation, updateLateFine); // Admin only
+
+// Get Customer Location (Admin only)
+router.get('/customers/:customerId/location', authenticate, getCustomerLocationByAdmin);
 
 // Health check endpoint
 router.get('/health', (req, res) => {

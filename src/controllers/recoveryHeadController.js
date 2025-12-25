@@ -258,6 +258,7 @@ const updateRecoveryHeadStatus = async (req, res) => {
 /**
  * Assign locked customers to recovery heads based on pincode matching
  * Admin only - typically called by cron job
+ * Note: Skips customers that are already assigned to a recovery head
  */
 const assignCustomersToRecoveryHeads = async (req, res) => {
     try {
@@ -266,10 +267,11 @@ const assignCustomersToRecoveryHeads = async (req, res) => {
 
         const Customer = require('../models/Customer');
 
-        // Find all locked customers that are not yet assigned
+        // Find all locked customers that are NOT yet assigned
+        // This automatically skips customers who are already assigned to a recovery head
         const customersToAssign = await Customer.find({
             isLocked: true,
-            assigned: false
+            assigned: false  // Only unassigned customers
         });
 
         console.log(`Found ${customersToAssign.length} locked customers to assign`);
@@ -557,6 +559,77 @@ const getAssignedCustomers = async (req, res) => {
     }
 };
 
+/**
+ * Get customer location by recovery head
+ * Recovery Head only - requires authentication
+ * Only returns location for customers assigned to the authenticated recovery head
+ */
+const getCustomerLocationByRecoveryHead = async (req, res) => {
+    try {
+        const recoveryHeadId = req.recoveryHead.id;
+        const { customerId } = req.params;
+
+        // Validate customerId format
+        if (!customerId || !customerId.match(/^[0-9a-fA-F]{24}$/)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid customer ID format',
+                error: 'VALIDATION_ERROR'
+            });
+        }
+
+        const Customer = require('../models/Customer');
+
+        // Find customer and verify assignment
+        const customer = await Customer.findOne({
+            _id: customerId,
+            assignedToRecoveryHeadId: recoveryHeadId,
+            assigned: true
+        })
+            .select('fullName mobileNumber location')
+            .lean();
+
+        if (!customer) {
+            return res.status(404).json({
+                success: false,
+                message: 'Customer not found or not assigned to you',
+                error: 'CUSTOMER_NOT_FOUND'
+            });
+        }
+
+        // Check if location data exists
+        if (!customer.location || !customer.location.latitude || !customer.location.longitude) {
+            return res.status(404).json({
+                success: false,
+                message: 'Location data not available for this customer',
+                error: 'LOCATION_NOT_FOUND'
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: 'Customer location fetched successfully',
+            data: {
+                customerId: customer._id.toString(),
+                customerName: customer.fullName,
+                mobileNumber: customer.mobileNumber,
+                location: {
+                    latitude: customer.location.latitude,
+                    longitude: customer.location.longitude,
+                    lastUpdated: customer.location.lastUpdated
+                }
+            }
+        });
+    } catch (error) {
+        console.error('Get customer location by recovery head error:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Failed to fetch customer location',
+            error: 'SERVER_ERROR'
+        });
+    }
+};
+
 module.exports = {
     createRecoveryHead,
     createRecoveryHeadValidation,
@@ -566,5 +639,6 @@ module.exports = {
     assignCustomersToRecoveryHeads,
     debugLockedCustomers,
     fixLockedCustomersAssignment,
-    getAssignedCustomers
+    getAssignedCustomers,
+    getCustomerLocationByRecoveryHead
 };
