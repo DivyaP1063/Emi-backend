@@ -631,28 +631,114 @@ const getCustomerLocationByRecoveryHead = async (req, res) => {
 };
 
 /**
- * Validation rules for assign customer to recovery person
+ * Validation rules for bulk assign customers to recovery person
  */
-const assignCustomerToRecoveryPersonValidation = [
+const assignCustomersToRecoveryPersonValidation = [
     body('recoveryPersonId')
         .trim()
         .notEmpty()
         .withMessage('Recovery person ID is required')
         .matches(/^[0-9a-fA-F]{24}$/)
         .withMessage('Invalid recovery person ID format'),
-    body('customerId')
-        .trim()
-        .notEmpty()
-        .withMessage('Customer ID is required')
+    body('customerIds')
+        .isArray({ min: 1 })
+        .withMessage('Customer IDs must be an array with at least one customer'),
+    body('customerIds.*')
         .matches(/^[0-9a-fA-F]{24}$/)
-        .withMessage('Invalid customer ID format')
+        .withMessage('Each customer ID must be a valid MongoDB ObjectId')
 ];
 
 /**
- * Assign a customer to a recovery person
+ * Get all unassigned customers (assigned to recovery head but not to any recovery person)
  * Recovery Head only - requires authentication
  */
-const assignCustomerToRecoveryPerson = async (req, res) => {
+const getUnassignedCustomers = async (req, res) => {
+    try {
+        const recoveryHeadId = req.recoveryHead.id;
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 20;
+        const search = req.query.search || '';
+
+        const skip = (page - 1) * limit;
+
+        const Customer = require('../models/Customer');
+        const RecoveryHeadAssignment = require('../models/RecoveryHeadAssignment');
+
+        // Get all customer IDs that are actively assigned to recovery persons
+        const assignedCustomerIds = await RecoveryHeadAssignment.find({
+            recoveryHeadId: recoveryHeadId,
+            status: 'ACTIVE'
+        }).distinct('customerId');
+
+        // Build query for customers assigned to recovery head but not to recovery person
+        let query = {
+            assignedToRecoveryHeadId: recoveryHeadId,
+            assigned: true,
+            _id: { $nin: assignedCustomerIds } // Not in assigned customers list
+        };
+
+        // Add search filter
+        if (search) {
+            query.$or = [
+                { fullName: { $regex: search, $options: 'i' } },
+                { mobileNumber: { $regex: search, $options: 'i' } },
+                { imei1: { $regex: search, $options: 'i' } }
+            ];
+        }
+
+        // Get total count
+        const totalItems = await Customer.countDocuments(query);
+
+        // Get customers
+        const customers = await Customer.find(query)
+            .select('fullName mobileNumber address.pincode emiDetails.balanceAmount emiDetails.emiPerMonth isLocked assignedAt')
+            .skip(skip)
+            .limit(limit)
+            .sort({ assignedAt: -1 });
+
+        const totalPages = Math.ceil(totalItems / limit);
+
+        // Format customer data
+        const formattedCustomers = customers.map(customer => ({
+            customerId: customer._id.toString(),
+            fullName: customer.fullName,
+            mobileNumber: customer.mobileNumber,
+            pincode: customer.address.pincode,
+            balanceAmount: customer.emiDetails.balanceAmount,
+            emiPerMonth: customer.emiDetails.emiPerMonth,
+            isLocked: customer.isLocked,
+            assignedAt: customer.assignedAt
+        }));
+
+        return res.status(200).json({
+            success: true,
+            message: 'Unassigned customers fetched successfully',
+            data: {
+                customers: formattedCustomers,
+                pagination: {
+                    currentPage: page,
+                    totalPages,
+                    totalItems,
+                    itemsPerPage: limit
+                }
+            }
+        });
+
+    } catch (error) {
+        console.error('Get unassigned customers error:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Failed to fetch unassigned customers',
+            error: 'SERVER_ERROR'
+        });
+    }
+};
+
+/**
+ * Bulk assign multiple customers to a recovery person
+ * Recovery Head only - requires authentication
+ */
+const assignCustomersToRecoveryPerson = async (req, res) => {
     try {
         // Check validation errors
         const errors = validationResult(req);
@@ -666,7 +752,7 @@ const assignCustomerToRecoveryPerson = async (req, res) => {
         }
 
         const recoveryHeadId = req.recoveryHead.id;
-        const { recoveryPersonId, customerId } = req.body;
+        const { recoveryPersonId, customerIds } = req.body;
 
         const RecoveryPerson = require('../models/RecoveryPerson');
         const Customer = require('../models/Customer');
@@ -687,78 +773,89 @@ const assignCustomerToRecoveryPerson = async (req, res) => {
             });
         }
 
-        // Verify customer is assigned to this recovery head
-        const customer = await Customer.findOne({
-            _id: customerId,
+        // Get recovery head details
+        const recoveryHead = await RecoveryHead.findById(recoveryHeadId);
+
+        // Verify all customers are assigned to this recovery head
+        const customers = await Customer.find({
+            _id: { $in: customerIds },
             assignedToRecoveryHeadId: recoveryHeadId,
             assigned: true
         });
 
-        if (!customer) {
+        if (customers.length !== customerIds.length) {
             return res.status(404).json({
                 success: false,
-                message: 'Customer not found or not assigned to you',
+                message: 'Some customers not found or not assigned to you',
                 error: 'CUSTOMER_NOT_FOUND'
             });
         }
 
-        // Check if customer is already assigned to a recovery person
-        const existingAssignment = await RecoveryHeadAssignment.findOne({
-            customerId: customerId,
+        // Check if any customer is already assigned to a recovery person
+        const existingAssignments = await RecoveryHeadAssignment.find({
+            customerId: { $in: customerIds },
             status: 'ACTIVE'
         });
 
-        if (existingAssignment) {
+        if (existingAssignments.length > 0) {
+            const alreadyAssignedCustomers = existingAssignments.map(assignment => ({
+                customerId: assignment.customerId.toString(),
+                customerName: assignment.customerName,
+                recoveryPersonId: assignment.recoveryPersonId.toString(),
+                recoveryPersonName: assignment.recoveryPersonName
+            }));
+
             return res.status(409).json({
                 success: false,
-                message: 'Customer is already assigned to a recovery person',
-                error: 'CUSTOMER_ALREADY_ASSIGNED',
+                message: 'Some customers are already assigned to recovery persons',
+                error: 'CUSTOMERS_ALREADY_ASSIGNED',
                 data: {
-                    assignmentId: existingAssignment._id.toString(),
-                    recoveryPersonId: existingAssignment.recoveryPersonId.toString(),
-                    recoveryPersonName: existingAssignment.recoveryPersonName
+                    alreadyAssignedCustomers
                 }
             });
         }
 
-        // Get recovery head details
-        const recoveryHead = await RecoveryHead.findById(recoveryHeadId);
-
-        // Create assignment
-        const assignment = await RecoveryHeadAssignment.create({
+        // Create assignments for all customers
+        const assignmentsToCreate = customers.map(customer => ({
             recoveryHeadId: recoveryHeadId,
             recoveryHeadName: recoveryHead.fullName,
             recoveryPersonId: recoveryPersonId,
             recoveryPersonName: recoveryPerson.fullName,
-            customerId: customerId,
+            customerId: customer._id,
             customerName: customer.fullName,
             status: 'ACTIVE'
-        });
+        }));
 
-        // Add customer to recovery person's customers array
-        if (!recoveryPerson.customers.includes(customerId)) {
-            recoveryPerson.customers.push(customerId);
+        const createdAssignments = await RecoveryHeadAssignment.insertMany(assignmentsToCreate);
+
+        // Add all customers to recovery person's customers array
+        const newCustomerIds = customerIds.filter(id => !recoveryPerson.customers.includes(id));
+        if (newCustomerIds.length > 0) {
+            recoveryPerson.customers.push(...newCustomerIds);
             await recoveryPerson.save();
         }
 
         return res.status(201).json({
             success: true,
-            message: 'Customer assigned to recovery person successfully',
+            message: `${customers.length} customer(s) assigned to recovery person successfully`,
             data: {
-                assignmentId: assignment._id.toString(),
                 recoveryPersonId: recoveryPerson._id.toString(),
                 recoveryPersonName: recoveryPerson.fullName,
-                customerId: customer._id.toString(),
-                customerName: customer.fullName,
-                assignedAt: assignment.assignedAt
+                assignedCount: createdAssignments.length,
+                assignments: createdAssignments.map(assignment => ({
+                    assignmentId: assignment._id.toString(),
+                    customerId: assignment.customerId.toString(),
+                    customerName: assignment.customerName,
+                    assignedAt: assignment.assignedAt
+                }))
             }
         });
 
     } catch (error) {
-        console.error('Assign customer to recovery person error:', error);
+        console.error('Assign customers to recovery person error:', error);
         return res.status(500).json({
             success: false,
-            message: 'Failed to assign customer to recovery person',
+            message: 'Failed to assign customers to recovery person',
             error: 'SERVER_ERROR'
         });
     }
@@ -1005,8 +1102,9 @@ module.exports = {
     fixLockedCustomersAssignment,
     getAssignedCustomers,
     getCustomerLocationByRecoveryHead,
-    assignCustomerToRecoveryPerson,
-    assignCustomerToRecoveryPersonValidation,
+    getUnassignedCustomers,
+    assignCustomersToRecoveryPerson,
+    assignCustomersToRecoveryPersonValidation,
     getRecoveryPersonsWithCustomers,
     getAssignmentDetails,
     unassignCustomerFromRecoveryPerson
