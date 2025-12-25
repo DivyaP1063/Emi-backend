@@ -278,6 +278,8 @@ GET /api/recovery-head/recovery-persons-with-customers?page=1&limit=10&search=Jo
         "aadharNumber": "123456789012",
         "isActive": true,
         "customersCount": 3,
+        "collectedCount": 2,
+        "isRecoveryTaskDone": false,
         "customers": [
           {
             "customerId": "507f1f77bcf86cd799439022",
@@ -285,7 +287,8 @@ GET /api/recovery-head/recovery-persons-with-customers?page=1&limit=10&search=Jo
             "mobileNumber": "9123456789",
             "pincode": "123456",
             "balanceAmount": 15000,
-            "isLocked": true
+            "isLocked": true,
+            "isCollected": true
           },
           {
             "customerId": "507f1f77bcf86cd799439023",
@@ -293,7 +296,17 @@ GET /api/recovery-head/recovery-persons-with-customers?page=1&limit=10&search=Jo
             "mobileNumber": "9234567890",
             "pincode": "123456",
             "balanceAmount": 8000,
-            "isLocked": false
+            "isLocked": false,
+            "isCollected": true
+          },
+          {
+            "customerId": "507f1f77bcf86cd799439024",
+            "fullName": "Alice Brown",
+            "mobileNumber": "9345678901",
+            "pincode": "654321",
+            "balanceAmount": 12000,
+            "isLocked": true,
+            "isCollected": false
           }
         ]
       },
@@ -303,8 +316,29 @@ GET /api/recovery-head/recovery-persons-with-customers?page=1&limit=10&search=Jo
         "mobileNumber": "9345678901",
         "aadharNumber": "987654321098",
         "isActive": true,
-        "customersCount": 0,
-        "customers": []
+        "customersCount": 2,
+        "collectedCount": 2,
+        "isRecoveryTaskDone": true,
+        "customers": [
+          {
+            "customerId": "507f1f77bcf86cd799439025",
+            "fullName": "Charlie Wilson",
+            "mobileNumber": "9456789012",
+            "pincode": "111111",
+            "balanceAmount": 10000,
+            "isLocked": true,
+            "isCollected": true
+          },
+          {
+            "customerId": "507f1f77bcf86cd799439026",
+            "fullName": "David Lee",
+            "mobileNumber": "9567890123",
+            "pincode": "222222",
+            "balanceAmount": 5000,
+            "isLocked": false,
+            "isCollected": true
+          }
+        ]
       }
     ],
     "pagination": {
@@ -316,6 +350,19 @@ GET /api/recovery-head/recovery-persons-with-customers?page=1&limit=10&search=Jo
   }
 }
 ```
+
+**Response Fields Explanation:**
+
+**Recovery Person Level:**
+- `customersCount`: Total number of customers assigned to this recovery person
+- `collectedCount`: Number of customers whose devices have been collected
+- `isRecoveryTaskDone`: `true` if all assigned customers' devices are collected, `false` otherwise
+
+**Customer Level:**
+- `isCollected`: `true` if the device has been collected from this customer, `false` otherwise
+
+> [!NOTE]
+> The `isRecoveryTaskDone` field helps recovery heads quickly identify which recovery persons have completed their device collection tasks. A recovery person's task is considered done when all their assigned customers' devices have been collected.
 
 **Error Responses:**
 
@@ -647,6 +694,38 @@ console.log(unassignResult);
 4. **Active Recovery Person**: Only active recovery persons can receive assignments
 5. **No Duplicate Assignments**: A customer cannot be assigned to multiple recovery persons simultaneously
 6. **Audit Trail**: All assignments are tracked with ACTIVE/INACTIVE status
+7. **Device Collection Tracking**: System tracks which customers' devices have been collected by recovery persons
+
+### Device Collection Integration
+
+The assignment system integrates with the device collection workflow:
+
+1. **Assignment**: Recovery head assigns customers to recovery persons
+2. **Collection**: Recovery person collects devices from assigned customers (see [Device Collection API](../DEVICE_COLLECTION_API_DOCUMENTATION.md))
+3. **Tracking**: System automatically updates `isCollected` status when device is collected
+4. **Progress Monitoring**: Recovery head can see collection progress via `collectedCount` and `isRecoveryTaskDone` fields
+
+**Collection Status Fields:**
+- `isCollected` (Customer level): Indicates if device has been collected
+- `collectedCount` (Recovery Person level): Number of devices collected out of total assigned
+- `isRecoveryTaskDone` (Recovery Person level): `true` when all assigned devices are collected
+
+**Example Scenario:**
+```javascript
+// Recovery person has 3 assigned customers
+{
+  "customersCount": 3,
+  "collectedCount": 2,        // 2 devices collected
+  "isRecoveryTaskDone": false  // Still 1 device pending
+}
+
+// After collecting the last device
+{
+  "customersCount": 3,
+  "collectedCount": 3,        // All 3 devices collected
+  "isRecoveryTaskDone": true   // Task complete!
+}
+```
 
 ### Data Flow
 
@@ -665,6 +744,9 @@ console.log(unassignResult);
 4. **Pagination**: All list endpoints support pagination for large datasets
 5. **Real-time Updates**: After assignment/unassignment, fetch the lists again to see updated data
 6. **Validation**: System validates that all customers belong to the recovery head before assignment
+7. **Device Collection Tracking**: The `GET /api/recovery-head/recovery-persons-with-customers` endpoint now includes collection status to help monitor recovery progress
+8. **Task Completion**: Use `isRecoveryTaskDone` field to quickly identify which recovery persons have completed all device collections
+9. **Integration**: This API works seamlessly with the [Device Collection API](../DEVICE_COLLECTION_API_DOCUMENTATION.md) for end-to-end recovery workflow
 
 ---
 

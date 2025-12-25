@@ -230,9 +230,159 @@ const updateRecoveryPersonStatus = async (req, res) => {
     }
 };
 
+/**
+ * Validation rules for collect device
+ */
+const collectDeviceValidation = [
+    body('customerId')
+        .trim()
+        .notEmpty()
+        .withMessage('Customer ID is required')
+        .matches(/^[0-9a-fA-F]{24}$/)
+        .withMessage('Invalid customer ID format'),
+    body('deviceFrontImage')
+        .trim()
+        .notEmpty()
+        .withMessage('Device front image is required')
+        .isURL()
+        .withMessage('Device front image must be a valid URL'),
+    body('deviceBackImage')
+        .trim()
+        .notEmpty()
+        .withMessage('Device back image is required')
+        .isURL()
+        .withMessage('Device back image must be a valid URL'),
+    body('devicePin')
+        .trim()
+        .notEmpty()
+        .withMessage('Device PIN is required'),
+    body('paymentDeadline')
+        .trim()
+        .notEmpty()
+        .withMessage('Payment deadline is required')
+        .isISO8601()
+        .withMessage('Payment deadline must be a valid date'),
+    body('notes')
+        .optional()
+        .trim()
+];
+
+/**
+ * Collect device from customer
+ * Recovery Person only - requires authentication
+ */
+const collectDevice = async (req, res) => {
+    try {
+        // Check validation errors
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({
+                success: false,
+                message: 'Validation failed',
+                error: 'VALIDATION_ERROR',
+                details: errors.array()
+            });
+        }
+
+        const recoveryPersonId = req.recoveryPerson.id;
+        const { customerId, deviceFrontImage, deviceBackImage, devicePin, paymentDeadline, notes } = req.body;
+
+        const Customer = require('../models/Customer');
+        const RecoveryHeadAssignment = require('../models/RecoveryHeadAssignment');
+
+        // Verify customer is assigned to this recovery person
+        const assignment = await RecoveryHeadAssignment.findOne({
+            customerId: customerId,
+            recoveryPersonId: recoveryPersonId,
+            status: 'ACTIVE'
+        });
+
+        if (!assignment) {
+            return res.status(404).json({
+                success: false,
+                message: 'Customer not found or not assigned to you',
+                error: 'CUSTOMER_NOT_FOUND'
+            });
+        }
+
+        // Get customer
+        const customer = await Customer.findById(customerId);
+
+        if (!customer) {
+            return res.status(404).json({
+                success: false,
+                message: 'Customer not found',
+                error: 'CUSTOMER_NOT_FOUND'
+            });
+        }
+
+        // Check if device is already collected
+        if (customer.isCollected) {
+            return res.status(409).json({
+                success: false,
+                message: 'Device has already been collected',
+                error: 'DEVICE_ALREADY_COLLECTED',
+                data: {
+                    collectedAt: customer.collectedAt,
+                    collectedBy: customer.deviceCollection.collectedByName
+                }
+            });
+        }
+
+        // Get recovery person details
+        const recoveryPerson = await RecoveryPerson.findById(recoveryPersonId);
+
+        // Update customer with device collection details
+        customer.isCollected = true;
+        customer.collectedAt = new Date();
+        customer.deviceCollection = {
+            deviceFrontImage,
+            deviceBackImage,
+            devicePin,
+            paymentDeadline: new Date(paymentDeadline),
+            collectedBy: recoveryPersonId,
+            collectedByName: recoveryPerson.fullName,
+            notes: notes || null
+        };
+
+        await customer.save();
+
+        return res.status(200).json({
+            success: true,
+            message: 'Device collected successfully',
+            data: {
+                customerId: customer._id.toString(),
+                customerName: customer.fullName,
+                isCollected: customer.isCollected,
+                collectedAt: customer.collectedAt,
+                deviceCollection: {
+                    deviceFrontImage: customer.deviceCollection.deviceFrontImage,
+                    deviceBackImage: customer.deviceCollection.deviceBackImage,
+                    devicePin: customer.deviceCollection.devicePin,
+                    paymentDeadline: customer.deviceCollection.paymentDeadline,
+                    collectedBy: customer.deviceCollection.collectedBy.toString(),
+                    collectedByName: customer.deviceCollection.collectedByName,
+                    notes: customer.deviceCollection.notes
+                }
+            }
+        });
+
+    } catch (error) {
+        console.error('Collect device error:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Failed to collect device',
+            error: 'SERVER_ERROR'
+        });
+    }
+};
+
+
 module.exports = {
     createRecoveryPerson,
     getAllRecoveryPersons,
     updateRecoveryPersonStatus,
-    createRecoveryPersonValidation
+    createRecoveryPersonValidation,
+    collectDevice,
+    collectDeviceValidation
 };
