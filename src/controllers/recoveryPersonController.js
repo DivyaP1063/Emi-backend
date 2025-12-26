@@ -378,11 +378,149 @@ const collectDevice = async (req, res) => {
 };
 
 
+/**
+ * Get all customers assigned to the authenticated recovery person
+ */
+const getAssignedCustomers = async (req, res) => {
+    try {
+        const recoveryPersonId = req.recoveryPerson.id;
+        const { page = 1, limit = 20, search = '' } = req.query;
+
+        const pageNum = parseInt(page);
+        const limitNum = parseInt(limit);
+        const skip = (pageNum - 1) * limitNum;
+
+        const Customer = require('../models/Customer');
+        const RecoveryHeadAssignment = require('../models/RecoveryHeadAssignment');
+
+        // Get all active assignments for this recovery person
+        const assignments = await RecoveryHeadAssignment.find({
+            recoveryPersonId,
+            status: 'ACTIVE'
+        }).select('customerId');
+
+        const customerIds = assignments.map(a => a.customerId);
+
+        // Build search query
+        let searchQuery = { _id: { $in: customerIds } };
+        if (search) {
+            searchQuery = {
+                _id: { $in: customerIds },
+                $or: [
+                    { fullName: { $regex: search, $options: 'i' } },
+                    { mobileNumber: { $regex: search, $options: 'i' } },
+                    { aadharNumber: { $regex: search, $options: 'i' } }
+                ]
+            };
+        }
+
+        // Get total count
+        const totalCustomers = await Customer.countDocuments(searchQuery);
+
+        // Fetch customers with pagination
+        const customers = await Customer.find(searchQuery)
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limitNum)
+            .lean();
+
+        const totalPages = Math.ceil(totalCustomers / limitNum);
+
+        return res.status(200).json({
+            success: true,
+            message: 'Customers fetched successfully',
+            data: {
+                customers: customers.map(customer => ({
+                    id: customer._id.toString(),
+                    fullName: customer.fullName,
+                    mobileNumber: customer.mobileNumber,
+                    aadharNumber: customer.aadharNumber,
+                    address: {
+                        village: customer.address.village,
+                        nearbyLocation: customer.address.nearbyLocation,
+                        post: customer.address.post,
+                        district: customer.address.district,
+                        pincode: customer.address.pincode
+                    },
+                    imei: customer.imei1,
+                    productName: customer.emiDetails.productName,
+                    model: customer.emiDetails.model,
+                    isCollected: customer.isCollected,
+                    collectedAt: customer.collectedAt
+                })),
+                pagination: {
+                    currentPage: pageNum,
+                    totalPages,
+                    totalItems: totalCustomers,
+                    itemsPerPage: limitNum,
+                    hasNextPage: pageNum < totalPages,
+                    hasPrevPage: pageNum > 1
+                }
+            }
+        });
+    } catch (error) {
+        console.error('Get assigned customers error:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Failed to fetch customers',
+            error: 'SERVER_ERROR'
+        });
+    }
+};
+
+/**
+ * Get dashboard statistics for the authenticated recovery person
+ */
+const getDashboardStats = async (req, res) => {
+    try {
+        const recoveryPersonId = req.recoveryPerson.id;
+
+        const Customer = require('../models/Customer');
+        const RecoveryHeadAssignment = require('../models/RecoveryHeadAssignment');
+
+        // Get all active assignments for this recovery person
+        const assignments = await RecoveryHeadAssignment.find({
+            recoveryPersonId,
+            status: 'ACTIVE'
+        }).select('customerId');
+
+        const customerIds = assignments.map(a => a.customerId);
+
+        // Count total assigned customers
+        const totalAssigned = customerIds.length;
+
+        // Count collected customers
+        const totalCollected = await Customer.countDocuments({
+            _id: { $in: customerIds },
+            isCollected: true
+        });
+
+        return res.status(200).json({
+            success: true,
+            message: 'Dashboard statistics fetched successfully',
+            data: {
+                totalAssigned,
+                totalCollected
+            }
+        });
+    } catch (error) {
+        console.error('Get dashboard stats error:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Failed to fetch dashboard statistics',
+            error: 'SERVER_ERROR'
+        });
+    }
+};
+
+
 module.exports = {
     createRecoveryPerson,
     getAllRecoveryPersons,
     updateRecoveryPersonStatus,
     createRecoveryPersonValidation,
     collectDevice,
-    collectDeviceValidation
+    collectDeviceValidation,
+    getAssignedCustomers,
+    getDashboardStats
 };
