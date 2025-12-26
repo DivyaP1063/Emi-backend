@@ -592,7 +592,7 @@ const generateEnrollmentToken = async (customerId, policyId, durationSeconds = 3
  * @returns {object} QR code payload
  */
 const buildProvisioningPayload = (customerId, enrollmentToken, backendUrl = process.env.BACKEND_URL) => {
-    const appDownloadUrl = process.env.APP_DOWNLOAD_URL || "https://play.google.com/store/apps/details?id=com.androidmanager";
+    const appDownloadUrl = process.env.PROVISIONING_DEVICE_ADMIN_PACKAGE_DOWNLOAD_LOCATION
     
     return {
         "android.app.extra.PROVISIONING_DEVICE_ADMIN_COMPONENT_NAME": "com.androidmanager/.receiver.EMIDeviceAdminReceiver",
