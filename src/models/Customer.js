@@ -180,6 +180,10 @@ const customerSchema = new mongoose.Schema({
     default: null,
     trim: true
   },
+  isActive: {
+    type: Boolean,
+    default: false
+  },
   enterpriseId: {
     type: String,
     default: null,
@@ -222,6 +226,33 @@ const customerSchema = new mongoose.Schema({
   assignedAt: {
     type: Date,
     default: null
+  },
+  amapiEnrollment: {
+    enrolled: {
+      type: Boolean,
+      default: false
+    },
+    deviceName: {
+      type: String,
+      default: null
+    },
+    enrollmentToken: {
+      type: String,
+      default: null
+    },
+    enrolledAt: {
+      type: Date,
+      default: null
+    },
+    lastPolicySync: {
+      type: Date,
+      default: null
+    },
+    complianceStatus: {
+      type: String,
+      enum: ['COMPLIANT', 'NON_COMPLIANT', 'UNKNOWN'],
+      default: 'UNKNOWN'
+    }
   }
 }, {
   timestamps: true

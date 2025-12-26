@@ -14,11 +14,6 @@ const updateFcmTokenValidation = [
         .trim()
         .matches(/^[0-9]{15}$/)
         .withMessage('IMEI1 must be exactly 15 digits'),
-    body('devicePin')
-        .optional()
-        .trim()
-        .matches(/^[0-9]{4,6}$/)
-        .withMessage('Device PIN must be 4-6 digits'),
     body('latitude')
         .optional()
         .isFloat({ min: -90, max: 90 })
@@ -52,10 +47,9 @@ const registerDevice = async (req, res) => {
             });
         }
 
-        const { fcmToken, imei1, devicePin, latitude, longitude } = req.body;
+        const { fcmToken, imei1, latitude, longitude } = req.body;
 
         console.log('IMEI1:', imei1);
-        console.log('Device PIN:', devicePin);
         console.log('Location:', { latitude, longitude });
         console.log('Searching for customer with IMEI:', imei1);
 
@@ -76,7 +70,6 @@ const registerDevice = async (req, res) => {
 
         // Update device information
         customer.fcmToken = fcmToken;
-        customer.devicePin = devicePin;
         customer.location = {
             latitude,
             longitude,
@@ -140,11 +133,10 @@ const updateCustomerFcmToken = async (req, res) => {
             });
         }
 
-        const { fcmToken, imei1, devicePin, latitude, longitude } = req.body;
+        const { fcmToken, imei1, latitude, longitude } = req.body;
 
         console.log('FCM Token (first 20 chars):', fcmToken.substring(0, 20) + '...');
         console.log('IMEI1:', imei1);
-        if (devicePin) console.log('Device PIN:', devicePin);
         if (latitude && longitude) console.log('Location:', { latitude, longitude });
         console.log('Searching for customer with IMEI:', imei1);
 
@@ -166,12 +158,6 @@ const updateCustomerFcmToken = async (req, res) => {
 
         // Update FCM token
         customer.fcmToken = fcmToken;
-
-        // Update device PIN if provided
-        if (devicePin) {
-            customer.devicePin = devicePin;
-            console.log('Device PIN updated');
-        }
 
         // Update location if provided
         if (latitude !== undefined && longitude !== undefined) {
@@ -468,7 +454,7 @@ const getCustomerLocation = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Get customer location error:', error);
+        console.error('❌ Get customer location error:', error);
         return res.status(500).json({
             success: false,
             message: 'Failed to fetch customer location',
@@ -478,12 +464,13 @@ const getCustomerLocation = async (req, res) => {
 };
 
 /**
- * Update Customer Location
- * Called by Kotlin app every 15 minutes to update device location
+ * Update customer location
+ * Called by app every 15 minutes to update GPS location
+ * Also updates device activity status if provided
  */
 const updateCustomerLocation = async (req, res) => {
     try {
-        console.log('\n📍 ===== LOCATION UPDATE REQUEST =====');
+        console.log('\n📍 ===== LOCATION UPDATE =====');
         console.log('Timestamp:', new Date().toISOString());
         console.log('Request Body:', JSON.stringify(req.body, null, 2));
 
@@ -499,12 +486,9 @@ const updateCustomerLocation = async (req, res) => {
             });
         }
 
-        const { imei1, latitude, longitude } = req.body;
+        const { imei1, latitude, longitude, isActive } = req.body;
 
-        console.log('IMEI1:', imei1);
-        console.log('New Location:', { latitude, longitude });
-
-        // Find customer by IMEI1
+        // Find customer by IMEI
         const customer = await Customer.findOne({ imei1 });
 
         if (!customer) {
@@ -517,7 +501,8 @@ const updateCustomerLocation = async (req, res) => {
         }
 
         console.log('✅ Customer found:', customer.fullName);
-        console.log('Previous Location:', customer.location);
+        console.log('Previous location:', customer.location);
+        console.log('Previous active status:', customer.isActive);
 
         // Update location
         customer.location = {
@@ -526,12 +511,18 @@ const updateCustomerLocation = async (req, res) => {
             lastUpdated: new Date()
         };
 
+        // Update isActive if provided by app
+        if (typeof isActive === 'boolean') {
+            customer.isActive = isActive;
+            console.log('📱 App set isActive:', isActive);
+        }
+
         await customer.save();
 
         console.log('✅ Location updated successfully');
-        console.log('Customer:', customer.fullName);
-        console.log('New Location:', customer.location);
-        console.log('=========================================\n');
+        console.log('New location:', customer.location);
+        console.log('Active status:', customer.isActive);
+        console.log('================================\n');
 
         return res.status(200).json({
             success: true,
@@ -539,11 +530,9 @@ const updateCustomerLocation = async (req, res) => {
             data: {
                 customerId: customer._id.toString(),
                 customerName: customer.fullName,
-                location: {
-                    latitude: customer.location.latitude,
-                    longitude: customer.location.longitude,
-                    lastUpdated: customer.location.lastUpdated
-                }
+                location: customer.location,
+                isActive: customer.isActive,
+                updatedAt: customer.updatedAt
             }
         });
     } catch (error) {

@@ -353,7 +353,8 @@ const updateEmiPaymentStatus = async (req, res) => {
 
 /**
  * Toggle Customer Lock Status (Admin only)
- * Sends FCM notification to device and updates lock status
+ * Sends FCM notification to device for payment-related lock/unlock
+ * FCM token is REQUIRED - no fallback
  */
 const toggleCustomerLock = async (req, res) => {
   try {
@@ -402,64 +403,10 @@ const toggleCustomerLock = async (req, res) => {
     console.log('Current Lock Status:', customer.isLocked);
     console.log('FCM Token:', customer.fcmToken ? 'Present' : 'Missing');
 
-    // Try to send FCM notification if token exists
-    let notificationSent = false;
-    let notificationError = null;
-
-    if (customer.fcmToken) {
-      console.log('📤 Attempting to send FCM notification...');
-      console.log('Action:', isLocked ? 'LOCK_DEVICE' : 'UNLOCK_DEVICE');
-
-      try {
-        const { sendLockNotification } = require('../services/firebaseService');
-        const fcmResult = await sendLockNotification(customer.fcmToken, isLocked);
-
-        console.log('FCM Result:', JSON.stringify(fcmResult, null, 2));
-
-        if (fcmResult.success) {
-          notificationSent = true;
-          console.log(`✅ FCM notification sent successfully`);
-          console.log('Message ID:', fcmResult.messageId);
-        } else {
-          notificationError = fcmResult.error;
-          console.warn(`⚠️  Failed to send FCM notification`);
-          console.warn('Error:', fcmResult.error);
-          console.warn('Message:', fcmResult.message);
-
-          // If token is invalid, clear it from database
-          if (fcmResult.error === 'INVALID_TOKEN') {
-            customer.fcmToken = null;
-            await customer.save();
-            console.log('🗑️  Cleared invalid FCM token from database');
-          }
-        }
-      } catch (error) {
-        console.error('❌ FCM notification exception:', error);
-        console.error('Error stack:', error.stack);
-        notificationError = error.message;
-      }
-    } else {
-      console.log(`⚠️  No FCM token for customer ${customer.fullName}`);
-      console.log('Skipping notification - device not registered');
-    }
-
-    // IMPORTANT: Only update lock status if notification was sent successfully
-    // Device MUST have FCM token to be locked/unlocked
-    let lockStatusUpdated = false;
-
-    if (notificationSent) {
-      console.log('✅ Notification sent successfully');
-      console.log('⏳ Waiting for device confirmation...');
-      console.log('NOTE: Lock status will be updated by device response callback');
-      console.log('Endpoint: POST /api/customer/device/lock-response');
-
-      // Don't update isLocked here - wait for device confirmation
-      lockStatusUpdated = false;
-
-    } else if (!customer.fcmToken) {
-      // No FCM token - cannot lock device
+    // Check if FCM token exists - REQUIRED for payment lock/unlock
+    if (!customer.fcmToken) {
       console.log('❌ No FCM token - CANNOT lock/unlock device');
-      console.log('Device must register FCM token first');
+      console.log('Device must have app installed with valid FCM token');
       console.log('=========================================\n');
 
       return res.status(400).json({
@@ -470,44 +417,85 @@ const toggleCustomerLock = async (req, res) => {
           customerId: customer._id.toString(),
           customerName: customer.fullName,
           currentLockStatus: customer.isLocked,
-          hasFcmToken: false,
-          reason: 'Device must install and register the mobile app with FCM token before it can be locked/unlocked'
+          hasFcmToken: false
         }
       });
-
-    } else {
-      // Notification failed - don't update lock status
-      console.log('❌ Notification failed - NOT updating lock status');
-      console.log('Device will not be locked/unlocked');
-      lockStatusUpdated = false;
     }
 
-    console.log('Lock Status Updated in DB:', lockStatusUpdated);
-    console.log('Current DB Lock Status:', customer.isLocked);
+    // Send FCM notification to device
+    console.log('📤 Sending Firebase FCM notification...');
+    console.log('Action:', isLocked ? 'LOCK_DEVICE' : 'UNLOCK_DEVICE');
+
+    let notificationSent = false;
+    let notificationError = null;
+
+    try {
+      const { sendLockNotification } = require('../services/firebaseService');
+      const fcmResult = await sendLockNotification(customer.fcmToken, isLocked);
+
+      console.log('FCM Result:', JSON.stringify(fcmResult, null, 2));
+
+      if (fcmResult.success) {
+        notificationSent = true;
+        console.log(`✅ FCM notification sent successfully`);
+        console.log('Message ID:', fcmResult.messageId);
+        console.log('⏳ Waiting for device confirmation...');
+        console.log('Callback: POST /api/customer/device/lock-response');
+      } else {
+        notificationError = fcmResult.error;
+        console.warn(`❌ Failed to send FCM notification`);
+        console.warn('Error:', fcmResult.error);
+        console.warn('Message:', fcmResult.message);
+
+        // If token is invalid, clear it from database
+        if (fcmResult.error === 'INVALID_TOKEN') {
+          customer.fcmToken = null;
+          await customer.save();
+          console.log('🗑️  Cleared invalid FCM token from database');
+        }
+      }
+    } catch (error) {
+      console.error('❌ FCM notification exception:', error);
+      console.error('Error stack:', error.stack);
+      notificationError = error.message;
+    }
+
     console.log('Notification Sent:', notificationSent);
+    console.log('Current DB Lock Status:', customer.isLocked);
     console.log('=========================================\n');
 
-    return res.status(200).json({
-      success: true,
-      message: notificationSent
-        ? `Lock notification sent to ${customer.fullName}. Waiting for device confirmation.`
-        : `Failed to send lock notification`,
-      data: {
-        customerId: customer._id.toString(),
-        customerName: customer.fullName,
-        currentLockStatus: customer.isLocked,  // Current DB status (what it is NOW)
-        requestedLockStatus: isLocked,         // What was requested
-        lockStatusUpdated: lockStatusUpdated,  // Was DB updated immediately?
-        notificationSent,
-        notificationError: notificationError || undefined,
-        pendingDeviceConfirmation: notificationSent,  // Is it waiting for device?
-        // UI should use this logic:
-        // - If pendingDeviceConfirmation === true: Show "Pending" or "Locking..." state
-        // - If lockStatusUpdated === true: Use currentLockStatus for UI
-        // - If notificationSent === false && notificationError: Show error
-        updatedAt: customer.updatedAt
-      }
-    });
+    // Return response
+    if (notificationSent) {
+      return res.status(200).json({
+        success: true,
+        message: `Lock notification sent to ${customer.fullName} via Firebase FCM. Waiting for device confirmation.`,
+        data: {
+          customerId: customer._id.toString(),
+          customerName: customer.fullName,
+          currentLockStatus: customer.isLocked,
+          requestedLockStatus: isLocked,
+          lockStatusUpdated: false, // Waiting for device callback
+          notificationSent: true,
+          methodUsed: 'FIREBASE_FCM',
+          pendingDeviceConfirmation: true,
+          updatedAt: customer.updatedAt
+        }
+      });
+    } else {
+      return res.status(500).json({
+        success: false,
+        message: `Failed to send lock notification to ${customer.fullName}`,
+        error: notificationError || 'FCM_SEND_FAILED',
+        data: {
+          customerId: customer._id.toString(),
+          customerName: customer.fullName,
+          currentLockStatus: customer.isLocked,
+          requestedLockStatus: isLocked,
+          notificationSent: false,
+          notificationError
+        }
+      });
+    }
   } catch (error) {
     console.error('❌ Toggle customer lock error:', error);
     console.error('Error stack:', error.stack);

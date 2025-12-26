@@ -9,7 +9,10 @@ const retailerApiRoutes = require('./routes/retailerApiRoutes');
 const accountantApiRoutes = require('./routes/accountantApiRoutes');
 const recoveryHeadApiRoutes = require('./routes/recoveryHeadApiRoutes');
 const customerDeviceRoutes = require('./routes/customerDeviceRoutes');
+const webhookRoutes = require('./routes/webhookRoutes');
 const { initializeFirebase } = require('./services/firebaseService');
+const { initializeAndroidManagement } = require('./services/androidManagementService');
+const { initializeActivityMonitor } = require('./services/deviceActivityMonitor');
 
 // Initialize Express app
 const app = express();
@@ -28,6 +31,22 @@ try {
   console.log('ℹ️  Server will continue without FCM notifications');
 }
 
+// Initialize Android Management API
+try {
+  initializeAndroidManagement();
+} catch (error) {
+  console.error('⚠️  Android Management API initialization failed:', error.message);
+  console.log('ℹ️  Server will continue without Android Management fallback');
+}
+
+// Initialize Device Activity Monitor (auto-mark inactive devices)
+try {
+  initializeActivityMonitor();
+} catch (error) {
+  console.error('⚠️  Device Activity Monitor initialization failed:', error.message);
+  console.log('ℹ️  Server will continue without activity monitoring');
+}
+
 // Middleware
 app.use(helmet()); // Security headers
 app.use(cors()); // Enable CORS
@@ -43,6 +62,7 @@ app.use('/api/retailer', retailerApiRoutes);
 app.use('/api/accountant', accountantApiRoutes);
 app.use('/api/recovery-head', recoveryHeadApiRoutes);
 app.use('/api/customer/device', customerDeviceRoutes);
+app.use('/api/webhooks', webhookRoutes); // AMAPI webhooks
 
 console.log('✅ Accountant routes mounted at /api/accountant');
 console.log('✅ Recovery head routes mounted at /api/recovery-head');

@@ -29,6 +29,7 @@ router.get('/status/:imei1', getCustomerStatus);
 router.get('/location/:imei1', getCustomerLocation);
 
 // POST /api/customer/device/location - Update customer location (called every 15 minutes)
+// This also updates device activity status automatically
 router.post('/location', updateLocationValidation, updateCustomerLocation);
 
 module.exports = router;
