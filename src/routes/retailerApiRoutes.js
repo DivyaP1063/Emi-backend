@@ -1,11 +1,12 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const { authenticateRetailer } = require('../middleware/auth');
-const { otpRateLimiter } = require('../middleware/rateLimiter');
-const { uploadDocuments } = require('../middleware/upload');
-const retailerAuthController = require('../controllers/retailerAuthController');
-const retailerBusinessController = require('../controllers/retailerBusinessController');
-const retailerProductController = require('../controllers/retailerProductController');
+const { authenticateRetailer } = require("../middleware/auth");
+const { otpRateLimiter } = require("../middleware/rateLimiter");
+const { uploadDocuments } = require("../middleware/upload");
+const retailerAuthController = require("../controllers/retailerAuthController");
+const retailerBusinessController = require("../controllers/retailerBusinessController");
+const retailerProductController = require("../controllers/retailerProductController");
+const retailerDeviceSetupRoutes = require("./retailerDeviceSetupRoutes");
 
 /**
  * @route   POST /api/retailer/auth/send-otp
@@ -13,7 +14,7 @@ const retailerProductController = require('../controllers/retailerProductControl
  * @access  Public
  */
 router.post(
-  '/auth/send-otp',
+  "/auth/send-otp",
   otpRateLimiter,
   retailerAuthController.sendOtpValidation,
   retailerAuthController.sendOtpController
@@ -25,7 +26,7 @@ router.post(
  * @access  Public
  */
 router.post(
-  '/auth/verify-otp',
+  "/auth/verify-otp",
   retailerAuthController.verifyOtpValidation,
   retailerAuthController.verifyOtpController
 );
@@ -36,7 +37,7 @@ router.post(
  * @access  Protected (Retailer only)
  */
 router.get(
-  '/permissions',
+  "/permissions",
   authenticateRetailer,
   retailerBusinessController.getPermissions
 );
@@ -49,7 +50,7 @@ router.get(
  * @access  Protected (Retailer only)
  */
 router.post(
-  '/customers/send-otp',
+  "/customers/send-otp",
   authenticateRetailer,
   otpRateLimiter,
   retailerProductController.sendCustomerOTP
@@ -61,7 +62,7 @@ router.post(
  * @access  Protected (Retailer only)
  */
 router.post(
-  '/customers/verify-otp',
+  "/customers/verify-otp",
   authenticateRetailer,
   retailerProductController.verifyCustomerOTP
 );
@@ -72,7 +73,7 @@ router.post(
  * @access  Protected (Retailer only)
  */
 router.post(
-  '/customers',
+  "/customers",
   authenticateRetailer,
   uploadDocuments,
   retailerProductController.createCustomer
@@ -84,7 +85,7 @@ router.post(
  * @access  Protected (Retailer only)
  */
 router.get(
-  '/customers',
+  "/customers",
   authenticateRetailer,
   retailerProductController.getCustomers
 );
@@ -95,7 +96,7 @@ router.get(
  * @access  Protected (Retailer only)
  */
 router.get(
-  '/customers/pending-emi',
+  "/customers/pending-emi",
   authenticateRetailer,
   retailerProductController.getPendingEmiCustomers
 );
@@ -106,7 +107,7 @@ router.get(
  * @access  Protected (Retailer only)
  */
 router.get(
-  '/emi/statistics',
+  "/emi/statistics",
   authenticateRetailer,
   retailerProductController.getEmiStatisticsRetailer
 );
@@ -117,7 +118,7 @@ router.get(
  * @access  Protected (Retailer only)
  */
 router.get(
-  '/customers/count',
+  "/customers/count",
   authenticateRetailer,
   retailerProductController.getCustomerCountRetailer
 );
@@ -128,10 +129,13 @@ router.get(
  * @access  Protected (Retailer only)
  */
 router.post(
-  '/verify-aadhar',
+  "/verify-aadhar",
   authenticateRetailer,
   retailerProductController.verifyAadharValidation,
   retailerProductController.verifyAadharNumber
 );
+
+// ========== Device Setup & Provisioning ==========
+router.use("/device-setup", retailerDeviceSetupRoutes);
 
 module.exports = router;

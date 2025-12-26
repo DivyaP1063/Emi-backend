@@ -596,7 +596,7 @@ const buildProvisioningPayload = (customerId, enrollmentToken, backendUrl = proc
         "android.app.extra.PROVISIONING_SKIP_ENCRYPTION": false,
         "android.app.extra.PROVISIONING_LEAVE_ALL_SYSTEM_APPS_ENABLED": true,
         "android.app.extra.PROVISIONING_ADMIN_EXTRAS_BUNDLE": {
-            "backend_url": backendUrl || "https://emi-backend-2wts.onrender.com",
+            "backend_url": backendUrl,
             "enrollment_token": enrollmentToken,
             "customer_id": customerId,
             "enterprise_id": enterpriseId
