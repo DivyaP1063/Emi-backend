@@ -1113,6 +1113,71 @@ const sendEmiReminder = async (req, res) => {
   }
 };
 
+/**
+ * Get customer location by admin
+ * Admin only - can access any customer's location
+ */
+const getCustomerLocationByAdmin = async (req, res) => {
+  try {
+    const { customerId } = req.params;
+
+    // Validate customerId format
+    if (!customerId || !customerId.match(/^[0-9a-fA-F]{24}$/)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid customer ID format',
+        error: 'VALIDATION_ERROR'
+      });
+    }
+
+    const Customer = require('../models/Customer');
+
+    // Find customer
+    const customer = await Customer.findById(customerId)
+      .select('fullName mobileNumber location')
+      .lean();
+
+    if (!customer) {
+      return res.status(404).json({
+        success: false,
+        message: 'Customer not found',
+        error: 'CUSTOMER_NOT_FOUND'
+      });
+    }
+
+    // Check if location data exists
+    if (!customer.location || !customer.location.latitude || !customer.location.longitude) {
+      return res.status(404).json({
+        success: false,
+        message: 'Location data not available for this customer',
+        error: 'LOCATION_NOT_FOUND'
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Customer location fetched successfully',
+      data: {
+        customerId: customer._id.toString(),
+        customerName: customer.fullName,
+        mobileNumber: customer.mobileNumber,
+        location: {
+          latitude: customer.location.latitude,
+          longitude: customer.location.longitude,
+          lastUpdated: customer.location.lastUpdated
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Get customer location by admin error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch customer location',
+      error: 'SERVER_ERROR'
+    });
+  }
+};
+
 
 module.exports = {
   sendOtpController,
@@ -1127,6 +1192,7 @@ module.exports = {
   getPendingEmiCustomersAdmin,
   getEmiStatisticsAdmin,
   getCustomerCountAdmin,
-  sendEmiReminder
+  sendEmiReminder,
+  getCustomerLocationByAdmin
 };
 

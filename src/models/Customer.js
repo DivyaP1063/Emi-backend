@@ -253,7 +253,50 @@ const customerSchema = new mongoose.Schema({
       enum: ['COMPLIANT', 'NON_COMPLIANT', 'UNKNOWN'],
       default: 'UNKNOWN'
     }
-  }
+  },
+  isCollected: {
+    type: Boolean,
+    default: false
+  },
+  collectedAt: {
+    type: Date,
+    default: null
+  },
+  deviceCollection: {
+    deviceFrontImage: {
+      type: String, // Cloudinary URL
+      default: null
+    },
+    deviceBackImage: {
+      type: String, // Cloudinary URL
+      default: null
+    },
+    devicePin: {
+      type: String,
+      default: null,
+      trim: true
+    },
+    paymentDeadline: {
+      type: Date,
+      default: null
+    },
+    collectedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'RecoveryPerson',
+      default: null
+    },
+    collectedByName: {
+      type: String,
+      default: null,
+      trim: true
+    },
+    notes: {
+      type: String,
+      default: null,
+      trim: true
+    }
+  },
+
 }, {
   timestamps: true
 });

@@ -16,7 +16,7 @@ const {
   getPendingEmiCustomersAdmin,
   getEmiStatisticsAdmin,
   getCustomerCountAdmin,
-  sendEmiReminder,
+  sendEmiReminder, getCustomerLocationByAdmin,
 } = require("../controllers/authController");
 const {
   getLateFine,
@@ -108,6 +108,9 @@ router.put(
   updateLateFineValidation,
   updateLateFine
 ); // Admin only
+
+// Get Customer Location (Admin only)
+router.get('/customers/:customerId/location', authenticate, getCustomerLocationByAdmin);
 
 // Health check endpoint
 router.get("/health", (req, res) => {
