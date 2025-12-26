@@ -1,11 +1,20 @@
-node_modules/
+# Environment variables
 .env
-.DS_Store
-*.log
+.env.local
+.env.production
+
+# Config files with sensitive data
+config/*.json
+android-manager-*.json
+
+# Logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 dist/
 build/
+node_modules/
+.DS_Store
+*.log
 .vscode/
 .idea/
