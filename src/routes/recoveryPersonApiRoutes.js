@@ -34,12 +34,63 @@ router.post(
  * @desc    Collect device from customer
  * @access  Private (Recovery Person)
  */
-const { collectDevice, collectDeviceValidation } = require('../controllers/recoveryPersonController');
+const {
+    collectDevice,
+    collectDeviceValidation,
+    getAssignedCustomers,
+    getDashboardStats,
+    getCustomerDetails,
+    getCustomerLocation
+} = require('../controllers/recoveryPersonController');
 router.post(
     '/collect-device',
     authenticateRecoveryPerson,
     collectDeviceValidation,
     collectDevice
+);
+
+/**
+ * @route   GET /api/recovery-person/customers
+ * @desc    Get all customers assigned to recovery person
+ * @access  Private (Recovery Person)
+ */
+router.get(
+    '/customers',
+    authenticateRecoveryPerson,
+    getAssignedCustomers
+);
+
+/**
+ * @route   GET /api/recovery-person/customers/:customerId
+ * @desc    Get complete details of a specific customer
+ * @access  Private (Recovery Person)
+ */
+router.get(
+    '/customers/:customerId',
+    authenticateRecoveryPerson,
+    getCustomerDetails
+);
+
+/**
+ * @route   GET /api/recovery-person/customers/:customerId/location
+ * @desc    Get device location (lat/lng) for a specific customer
+ * @access  Private (Recovery Person)
+ */
+router.get(
+    '/customers/:customerId/location',
+    authenticateRecoveryPerson,
+    getCustomerLocation
+);
+
+/**
+ * @route   GET /api/recovery-person/dashboard
+ * @desc    Get dashboard statistics (assigned and collected counts)
+ * @access  Private (Recovery Person)
+ */
+router.get(
+    '/dashboard',
+    authenticateRecoveryPerson,
+    getDashboardStats
 );
 
 // Protected routes (require authentication) can be added here
