@@ -2,7 +2,7 @@
 
 ## Overview
 
-Complete API reference for Android Management API (AMAPI) endpoints. All admin endpoints require authentication.
+Complete API reference for Android Management API (AMAPI) endpoints. Includes both admin endpoints for device management and retailer endpoints for device provisioning during sales.
 
 **Base URL:** `https://your-backend.com`
 
@@ -10,10 +10,100 @@ Complete API reference for Android Management API (AMAPI) endpoints. All admin e
 
 ## Authentication
 
-All admin endpoints require JWT authentication:
+### Admin Endpoints
+
+Admin endpoints require JWT authentication with admin role:
 
 ```http
-Authorization: Bearer <your_admin_token>
+Authorization: Bearer <admin_token>
+```
+
+### Retailer Endpoints
+
+Retailer endpoints require JWT authentication with retailer role:
+
+```http
+Authorization: Bearer <retailer_token>
+```
+
+---
+
+## Retailer API Endpoints
+
+### 1. Generate QR Code for Device Setup (Retailer)
+
+Generate a QR code when selling a device to a customer. This endpoint is used by the retailer app during device sales.
+
+**Endpoint:**
+```
+POST /api/retailer/device-setup/qr/:customerId
+```
+
+**Authentication:** Required (Retailer)
+
+**Path Parameters:**
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| customerId | string | Yes | MongoDB ObjectId of the customer |
+
+**Request Body:** None
+
+**Success Response (200):**
+```json
+{
+  "success": true,
+  "message": "QR code generated successfully",
+  "data": {
+    "customerId": "6750abcd1234567890123456",
+    "customerName": "John Doe",
+    "mobileNumber": "9876543210",
+    "qrCode": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA...",
+    "expiresAt": "2025-12-27T00:03:00.000Z",
+    "instructions": {
+      "step1": "Factory reset the device",
+      "step2": "Start setup wizard",
+      "step3": "Tap screen 6 times to open camera",
+      "step4": "Scan this QR code",
+      "step5": "Device will auto-configure"
+    }
+  }
+}
+```
+
+**Error Responses:**
+
+**404 - Customer Not Found:**
+```json
+{
+  "success": false,
+  "error": "CUSTOMER_NOT_FOUND",
+  "message": "Customer not found"
+}
+```
+
+**403 - Not Retailer's Customer:**
+```json
+{
+  "success": false,
+  "error": "FORBIDDEN",
+  "message": "This customer does not belong to your shop"
+}
+```
+
+**400 - Already Enrolled:**
+```json
+{
+  "success": false,
+  "error": "ALREADY_ENROLLED",
+  "message": "Device is already enrolled. Factory reset required for new enrollment.",
+  "enrolledAt": "2025-12-26T10:00:00.000Z"
+}
+```
+
+**Example Usage:**
+```bash
+curl -X POST https://your-backend.com/api/retailer/device-setup/qr/6750abcd1234567890123456 \
+  -H "Authorization: Bearer YOUR_RETAILER_TOKEN"
 ```
 
 ---
@@ -557,6 +647,42 @@ GET {{base_url}}/api/admin/amapi/devices/123456789012345
 POST {{base_url}}/api/admin/amapi/devices/123456789012345/factory-reset
 Body: { "confirm": "FACTORY_RESET_CONFIRMED" }
 ```
+
+---
+
+## Authorization Summary
+
+### Who Can Access AMAPI Endpoints?
+
+**Retailer Endpoints:**
+- ✅ **Retailers** - Can generate QR codes for their own customers only
+- ❌ Admins, Recovery Heads, Accountants, Customers
+
+**Admin Endpoints:**
+- ✅ **Admins** - Full access to all AMAPI management features
+- ❌ Retailers, Recovery Heads, Accountants, Customers
+
+### Endpoint Access Matrix
+
+| Endpoint | Admin | Retailer | Purpose |
+|----------|-------|----------|---------|
+| `POST /api/retailer/device-setup/qr/:customerId` | ❌ | ✅ | Generate QR for device sales |
+| `POST /api/admin/amapi/qr/:customerId` | ✅ | ❌ | Generate QR with policy options |
+| `GET /api/admin/amapi/devices` | ✅ | ❌ | List all enrolled devices |
+| `GET /api/admin/amapi/devices/:imei` | ✅ | ❌ | Get device details |
+| `POST /api/admin/amapi/devices/:imei/factory-reset` | ✅ | ❌ | Emergency device wipe |
+
+### Security Features
+
+**Retailer Protection:**
+- Retailers can only access their own customers
+- Validates `customer.retailerId === req.retailer.id`
+- Prevents cross-retailer data access
+
+**Admin Protection:**
+- Full device management capabilities
+- Factory reset requires explicit confirmation
+- All actions require valid admin JWT token
 
 ---
 
