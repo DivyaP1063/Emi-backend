@@ -514,6 +514,198 @@ const getDashboardStats = async (req, res) => {
 };
 
 
+/**
+ * Get complete details of a specific customer
+ */
+const getCustomerDetails = async (req, res) => {
+    try {
+        const recoveryPersonId = req.recoveryPerson.id;
+        const { customerId } = req.params;
+
+        // Validate customer ID format
+        if (!customerId.match(/^[0-9a-fA-F]{24}$/)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid customer ID format',
+                error: 'VALIDATION_ERROR'
+            });
+        }
+
+        const Customer = require('../models/Customer');
+        const RecoveryHeadAssignment = require('../models/RecoveryHeadAssignment');
+
+        // Verify customer is assigned to this recovery person
+        const assignment = await RecoveryHeadAssignment.findOne({
+            customerId,
+            recoveryPersonId,
+            status: 'ACTIVE'
+        });
+
+        if (!assignment) {
+            return res.status(404).json({
+                success: false,
+                message: 'Customer not found or not assigned to you',
+                error: 'CUSTOMER_NOT_FOUND'
+            });
+        }
+
+        // Get complete customer details
+        const customer = await Customer.findById(customerId).lean();
+
+        if (!customer) {
+            return res.status(404).json({
+                success: false,
+                message: 'Customer not found',
+                error: 'CUSTOMER_NOT_FOUND'
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: 'Customer details fetched successfully',
+            data: {
+                customer: {
+                    id: customer._id.toString(),
+                    fullName: customer.fullName,
+                    fatherName: customer.fatherName,
+                    mobileNumber: customer.mobileNumber,
+                    aadharNumber: customer.aadharNumber,
+                    dob: customer.dob,
+                    address: {
+                        village: customer.address.village,
+                        nearbyLocation: customer.address.nearbyLocation,
+                        post: customer.address.post,
+                        district: customer.address.district,
+                        pincode: customer.address.pincode
+                    },
+                    documents: {
+                        customerPhoto: customer.documents.customerPhoto,
+                        aadharFrontPhoto: customer.documents.aadharFrontPhoto,
+                        aadharBackPhoto: customer.documents.aadharBackPhoto,
+                        signaturePhoto: customer.documents.signaturePhoto
+                    },
+                    deviceInfo: {
+                        imei1: customer.imei1,
+                        imei2: customer.imei2 || null,
+                        isLocked: customer.isLocked,
+                        isActive: customer.isActive
+                    },
+                    emiDetails: {
+                        branch: customer.emiDetails.branch,
+                        phoneType: customer.emiDetails.phoneType,
+                        model: customer.emiDetails.model,
+                        productName: customer.emiDetails.productName,
+                        sellPrice: customer.emiDetails.sellPrice,
+                        landingPrice: customer.emiDetails.landingPrice,
+                        downPayment: customer.emiDetails.downPayment,
+                        downPaymentPending: customer.emiDetails.downPaymentPending,
+                        emiRate: customer.emiDetails.emiRate,
+                        numberOfMonths: customer.emiDetails.numberOfMonths,
+                        emiPerMonth: customer.emiDetails.emiPerMonth,
+                        totalEmiAmount: customer.emiDetails.totalEmiAmount,
+                        balanceAmount: customer.emiDetails.balanceAmount,
+                        emiMonths: customer.emiDetails.emiMonths
+                    },
+                    collectionInfo: {
+                        isCollected: customer.isCollected,
+                        collectedAt: customer.collectedAt,
+                        deviceCollection: customer.deviceCollection
+                    },
+                    createdAt: customer.createdAt,
+                    updatedAt: customer.updatedAt
+                }
+            }
+        });
+    } catch (error) {
+        console.error('Get customer details error:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Failed to fetch customer details',
+            error: 'SERVER_ERROR'
+        });
+    }
+};
+
+/**
+ * Get device location (latitude and longitude) for a specific customer
+ */
+const getCustomerLocation = async (req, res) => {
+    try {
+        const recoveryPersonId = req.recoveryPerson.id;
+        const { customerId } = req.params;
+
+        // Validate customer ID format
+        if (!customerId.match(/^[0-9a-fA-F]{24}$/)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid customer ID format',
+                error: 'VALIDATION_ERROR'
+            });
+        }
+
+        const Customer = require('../models/Customer');
+        const RecoveryHeadAssignment = require('../models/RecoveryHeadAssignment');
+
+        // Verify customer is assigned to this recovery person
+        const assignment = await RecoveryHeadAssignment.findOne({
+            customerId,
+            recoveryPersonId,
+            status: 'ACTIVE'
+        });
+
+        if (!assignment) {
+            return res.status(404).json({
+                success: false,
+                message: 'Customer not found or not assigned to you',
+                error: 'CUSTOMER_NOT_FOUND'
+            });
+        }
+
+        // Get customer location
+        const customer = await Customer.findById(customerId).select('location fullName mobileNumber').lean();
+
+        if (!customer) {
+            return res.status(404).json({
+                success: false,
+                message: 'Customer not found',
+                error: 'CUSTOMER_NOT_FOUND'
+            });
+        }
+
+        // Check if location data exists
+        if (!customer.location || !customer.location.latitude || !customer.location.longitude) {
+            return res.status(404).json({
+                success: false,
+                message: 'Location data not available for this customer',
+                error: 'LOCATION_NOT_FOUND'
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: 'Customer location fetched successfully',
+            data: {
+                customerId: customer._id.toString(),
+                customerName: customer.fullName,
+                mobileNumber: customer.mobileNumber,
+                location: {
+                    latitude: customer.location.latitude,
+                    longitude: customer.location.longitude,
+                    lastUpdated: customer.location.lastUpdated
+                }
+            }
+        });
+    } catch (error) {
+        console.error('Get customer location error:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Failed to fetch customer location',
+            error: 'SERVER_ERROR'
+        });
+    }
+};
+
+
 module.exports = {
     createRecoveryPerson,
     getAllRecoveryPersons,
@@ -522,5 +714,7 @@ module.exports = {
     collectDevice,
     collectDeviceValidation,
     getAssignedCustomers,
-    getDashboardStats
+    getDashboardStats,
+    getCustomerDetails,
+    getCustomerLocation
 };

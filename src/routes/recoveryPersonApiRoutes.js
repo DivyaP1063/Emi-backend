@@ -34,7 +34,14 @@ router.post(
  * @desc    Collect device from customer
  * @access  Private (Recovery Person)
  */
-const { collectDevice, collectDeviceValidation, getAssignedCustomers, getDashboardStats } = require('../controllers/recoveryPersonController');
+const {
+    collectDevice,
+    collectDeviceValidation,
+    getAssignedCustomers,
+    getDashboardStats,
+    getCustomerDetails,
+    getCustomerLocation
+} = require('../controllers/recoveryPersonController');
 router.post(
     '/collect-device',
     authenticateRecoveryPerson,
@@ -51,6 +58,28 @@ router.get(
     '/customers',
     authenticateRecoveryPerson,
     getAssignedCustomers
+);
+
+/**
+ * @route   GET /api/recovery-person/customers/:customerId
+ * @desc    Get complete details of a specific customer
+ * @access  Private (Recovery Person)
+ */
+router.get(
+    '/customers/:customerId',
+    authenticateRecoveryPerson,
+    getCustomerDetails
+);
+
+/**
+ * @route   GET /api/recovery-person/customers/:customerId/location
+ * @desc    Get device location (lat/lng) for a specific customer
+ * @access  Private (Recovery Person)
+ */
+router.get(
+    '/customers/:customerId/location',
+    authenticateRecoveryPerson,
+    getCustomerLocation
 );
 
 /**

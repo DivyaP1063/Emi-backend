@@ -8,7 +8,9 @@ This API allows authenticated recovery persons to view their assigned customers 
 ## Table of Contents
 
 1. [Get Assigned Customers](#1-get-assigned-customers)
-2. [Get Dashboard Statistics](#2-get-dashboard-statistics)
+2. [Get Customer Details](#2-get-customer-details)
+3. [Get Customer Location](#3-get-customer-location)
+4. [Get Dashboard Statistics](#4-get-dashboard-statistics)
 
 ---
 
@@ -140,7 +142,251 @@ GET /api/recovery-person/customers?page=2&limit=15&search=9876
 
 ---
 
-## 2. Get Dashboard Statistics
+## 2. Get Customer Details
+
+Get complete details of a specific customer assigned to the recovery person.
+
+**URL:** `/api/recovery-person/customers/:customerId`  
+**Method:** `GET`  
+**Authentication:** Required (Recovery Person JWT token)
+
+### Request
+
+#### Headers
+```
+Authorization: Bearer <recovery_person_jwt_token>
+```
+
+#### URL Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| customerId | String | Yes | MongoDB ObjectId of the customer |
+
+#### Example Request URL
+```
+GET /api/recovery-person/customers/507f1f77bcf86cd799439011
+```
+
+### Success Response (200 OK)
+
+```json
+{
+  "success": true,
+  "message": "Customer details fetched successfully",
+  "data": {
+    "customer": {
+      "id": "507f1f77bcf86cd799439011",
+      "fullName": "John Doe",
+      "fatherName": "Robert Doe",
+      "mobileNumber": "9876543210",
+      "aadharNumber": "123456789012",
+      "dob": "1990-01-15T00:00:00.000Z",
+      "address": {
+        "village": "Sample Village",
+        "nearbyLocation": "Near Temple",
+        "post": "Sample Post",
+        "district": "Sample District",
+        "pincode": "110001"
+      },
+      "documents": {
+        "customerPhoto": "https://cloudinary.com/customer.jpg",
+        "aadharFrontPhoto": "https://cloudinary.com/aadhar_front.jpg",
+        "aadharBackPhoto": "https://cloudinary.com/aadhar_back.jpg",
+        "signaturePhoto": "https://cloudinary.com/signature.jpg"
+      },
+      "deviceInfo": {
+        "imei1": "123456789012345",
+        "imei2": null,
+        "isLocked": false,
+        "isActive": true
+      },
+      "emiDetails": {
+        "branch": "Main Branch",
+        "phoneType": "NEW",
+        "model": "A14",
+        "productName": "Samsung Galaxy A14",
+        "sellPrice": 15000,
+        "landingPrice": 13000,
+        "downPayment": 3000,
+        "downPaymentPending": 0,
+        "emiRate": 3,
+        "numberOfMonths": 12,
+        "emiPerMonth": 1000,
+        "totalEmiAmount": 12000,
+        "balanceAmount": 9000,
+        "emiMonths": [
+          {
+            "month": 1,
+            "dueDate": "2025-01-15T00:00:00.000Z",
+            "paid": true,
+            "paidDate": "2025-01-14T10:30:00.000Z",
+            "amount": 1000
+          },
+          {
+            "month": 2,
+            "dueDate": "2025-02-15T00:00:00.000Z",
+            "paid": false,
+            "paidDate": null,
+            "amount": 1000
+          }
+        ]
+      },
+      "collectionInfo": {
+        "isCollected": false,
+        "collectedAt": null,
+        "deviceCollection": {
+          "deviceFrontImage": null,
+          "deviceBackImage": null,
+          "devicePin": null,
+          "paymentDeadline": null,
+          "collectedBy": null,
+          "collectedByName": null,
+          "notes": null
+        }
+      },
+      "createdAt": "2024-12-01T10:00:00.000Z",
+      "updatedAt": "2025-12-26T15:30:00.000Z"
+    }
+  }
+}
+```
+
+### Error Responses
+
+#### 400 Bad Request - Invalid Customer ID
+```json
+{
+  "success": false,
+  "message": "Invalid customer ID format",
+  "error": "VALIDATION_ERROR"
+}
+```
+
+#### 404 Not Found - Customer Not Assigned
+```json
+{
+  "success": false,
+  "message": "Customer not found or not assigned to you",
+  "error": "CUSTOMER_NOT_FOUND"
+}
+```
+
+#### 401 Unauthorized
+```json
+{
+  "success": false,
+  "message": "Authorization token not found",
+  "error": "INVALID_TOKEN"
+}
+```
+
+#### 500 Internal Server Error
+```json
+{
+  "success": false,
+  "message": "Failed to fetch customer details",
+  "error": "SERVER_ERROR"
+}
+```
+
+---
+
+## 3. Get Customer Location
+
+Get the device location (latitude and longitude) for a specific customer.
+
+**URL:** `/api/recovery-person/customers/:customerId/location`  
+**Method:** `GET`  
+**Authentication:** Required (Recovery Person JWT token)
+
+### Request
+
+#### Headers
+```
+Authorization: Bearer <recovery_person_jwt_token>
+```
+
+#### URL Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| customerId | String | Yes | MongoDB ObjectId of the customer |
+
+#### Example Request URL
+```
+GET /api/recovery-person/customers/507f1f77bcf86cd799439011/location
+```
+
+### Success Response (200 OK)
+
+```json
+{
+  "success": true,
+  "message": "Customer location fetched successfully",
+  "data": {
+    "customerId": "507f1f77bcf86cd799439011",
+    "customerName": "John Doe",
+    "mobileNumber": "9876543210",
+    "location": {
+      "latitude": 28.6139,
+      "longitude": 77.2090,
+      "lastUpdated": "2025-12-27T01:30:00.000Z"
+    }
+  }
+}
+```
+
+### Error Responses
+
+#### 400 Bad Request - Invalid Customer ID
+```json
+{
+  "success": false,
+  "message": "Invalid customer ID format",
+  "error": "VALIDATION_ERROR"
+}
+```
+
+#### 404 Not Found - Customer Not Assigned
+```json
+{
+  "success": false,
+  "message": "Customer not found or not assigned to you",
+  "error": "CUSTOMER_NOT_FOUND"
+}
+```
+
+#### 404 Not Found - Location Not Available
+```json
+{
+  "success": false,
+  "message": "Location data not available for this customer",
+  "error": "LOCATION_NOT_FOUND"
+}
+```
+
+#### 401 Unauthorized
+```json
+{
+  "success": false,
+  "message": "Authorization token not found",
+  "error": "INVALID_TOKEN"
+}
+```
+
+#### 500 Internal Server Error
+```json
+{
+  "success": false,
+  "message": "Failed to fetch customer location",
+  "error": "SERVER_ERROR"
+}
+```
+
+---
+
+## 4. Get Dashboard Statistics
 
 Get dashboard statistics showing total assigned customers and total collected devices.
 
@@ -231,6 +477,18 @@ curl -X GET "http://localhost:5000/api/recovery-person/customers?search=John" \
   -H "Authorization: Bearer <recovery_person_token>"
 ```
 
+#### Get Customer Details
+```bash
+curl -X GET http://localhost:5000/api/recovery-person/customers/507f1f77bcf86cd799439011 \
+  -H "Authorization: Bearer <recovery_person_token>"
+```
+
+#### Get Customer Location
+```bash
+curl -X GET http://localhost:5000/api/recovery-person/customers/507f1f77bcf86cd799439011/location \
+  -H "Authorization: Bearer <recovery_person_token>"
+```
+
 #### Get Dashboard Statistics
 ```bash
 curl -X GET http://localhost:5000/api/recovery-person/dashboard \
@@ -315,6 +573,76 @@ const getDashboardStats = async () => {
 getDashboardStats();
 ```
 
+#### Get Customer Details
+```javascript
+const getCustomerDetails = async (customerId) => {
+  try {
+    const token = localStorage.getItem('recoveryPersonToken');
+    
+    const response = await fetch(
+      `http://localhost:5000/api/recovery-person/customers/${customerId}`,
+      {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      }
+    );
+
+    const data = await response.json();
+
+    if (data.success) {
+      console.log('✅ Customer details fetched');
+      console.log('Customer:', data.data.customer);
+      return data.data.customer;
+    } else {
+      console.error('❌ Failed to fetch customer details:', data.message);
+      return null;
+    }
+  } catch (error) {
+    console.error('Error fetching customer details:', error);
+    return null;
+  }
+};
+
+// Usage
+getCustomerDetails('507f1f77bcf86cd799439011');
+```
+
+#### Get Customer Location
+```javascript
+const getCustomerLocation = async (customerId) => {
+  try {
+    const token = localStorage.getItem('recoveryPersonToken');
+    
+    const response = await fetch(
+      `http://localhost:5000/api/recovery-person/customers/${customerId}/location`,
+      {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      }
+    );
+
+    const data = await response.json();
+
+    if (data.success) {
+      console.log('✅ Location fetched');
+      console.log(`Lat: ${data.data.location.latitude}, Lng: ${data.data.location.longitude}`);
+      return data.data.location;
+    } else {
+      console.error('❌ Failed to fetch location:', data.message);
+      return null;
+    }
+  } catch (error) {
+    console.error('Error fetching location:', error);
+    return null;
+  }
+};
+
+// Usage
+getCustomerLocation('507f1f77bcf86cd799439011');
+```
+
 ---
 
 ### Axios Examples
@@ -359,6 +687,34 @@ const getDashboardStats = async () => {
     
     console.log('✅ Dashboard stats:', response.data.data);
     return response.data.data;
+  } catch (error) {
+    console.error('❌ Error:', error.response?.data?.message || error.message);
+    throw error;
+  }
+};
+
+// Get customer details
+const getCustomerDetails = async (customerId) => {
+  try {
+    const api = createAuthAxios();
+    const response = await api.get(`/customers/${customerId}`);
+    
+    console.log('✅ Customer details:', response.data.data.customer);
+    return response.data.data.customer;
+  } catch (error) {
+    console.error('❌ Error:', error.response?.data?.message || error.message);
+    throw error;
+  }
+};
+
+// Get customer location
+const getCustomerLocation = async (customerId) => {
+  try {
+    const api = createAuthAxios();
+    const response = await api.get(`/customers/${customerId}/location`);
+    
+    console.log('✅ Location:', response.data.data.location);
+    return response.data.data.location;
   } catch (error) {
     console.error('❌ Error:', error.response?.data?.message || error.message);
     throw error;
@@ -475,7 +831,11 @@ const CustomerCard = ({ customer }) => {
 
 5. **Only Active Assignments**: The API only returns customers with active assignments to the recovery person.
 
-6. **Real-time Updates**: After collecting a device, refresh the customer list and dashboard to see updated statistics.
+6. **Customer Details**: Use the customer details endpoint to view complete information including documents, EMI details, and collection status.
+
+7. **Device Location**: The location endpoint returns the last known GPS coordinates of the customer's device. Location may not be available if the device hasn't reported its location yet.
+
+8. **Real-time Updates**: After collecting a device, refresh the customer list and dashboard to see updated statistics.
 
 ---
 
@@ -487,6 +847,11 @@ const CustomerCard = ({ customer }) => {
 - [ ] Test get customers with invalid token (should fail)
 - [ ] Test get customers without token (should fail)
 - [ ] Test dashboard statistics endpoint
+- [ ] Test get customer details with valid customer ID
+- [ ] Test get customer details with invalid customer ID (should fail)
+- [ ] Test get customer details for unassigned customer (should fail)
+- [ ] Test get customer location with valid customer ID
+- [ ] Test get customer location when location data not available (should fail)
 - [ ] Verify collection status is correctly displayed
 - [ ] Verify pagination works correctly
 - [ ] Verify search filters results properly
