@@ -53,7 +53,7 @@ const generateDeviceSetupQR = async (req, res) => {
     // Generate enrollment token
     const tokenResult = await generateEnrollmentToken(
       customerId,
-      'policy_emi_default',  // Default policy
+      process.env.ANDROID_MANAGEMENT_DEFAULT_POLICY_ID || 'policy1',  // Use env var or fallback
       3600  // 1 hour validity
     );
 

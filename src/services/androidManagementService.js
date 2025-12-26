@@ -399,7 +399,7 @@ const getDefaultPolicyTemplate = () => {
 
 /**
  * Create a new policy in AMAPI
- * @param {string} policyId - Unique policy identifier (e.g., 'policy_emi_default')
+ * @param {string} policyId - Unique policy identifier (e.g., 'policy1')
  * @param {object} policyConfig - Policy configuration (optional, uses default if not provided)
  * @returns {Promise<object>} Created policy
  */
@@ -532,18 +532,21 @@ const getPolicy = async (policyId) => {
  * @param {number} durationSeconds - Token validity duration (default: 1 hour)
  * @returns {Promise<object>} Enrollment token and details
  */
-const generateEnrollmentToken = async (customerId, policyId = 'policy_emi_default', durationSeconds = 3600) => {
+const generateEnrollmentToken = async (customerId, policyId, durationSeconds = 3600) => {
     if (!initialized || !androidManagement || !enterpriseId) {
         throw new Error('Android Management API is not initialized');
     }
 
+    // Use provided policyId or fallback to env var or 'policy1'
+    const effectivePolicyId = policyId || process.env.ANDROID_MANAGEMENT_DEFAULT_POLICY_ID || 'policy1';
+
     try {
         console.log(`\n🎫 ===== GENERATING ENROLLMENT TOKEN =====`);
         console.log(`Customer ID: ${customerId}`);
-        console.log(`Policy ID: ${policyId}`);
+        console.log(`Policy ID: ${effectivePolicyId}`);
         console.log(`Duration: ${durationSeconds}s (${durationSeconds / 3600}h)`);
 
-        const policyName = `${enterpriseId}/policies/${policyId}`;
+        const policyName = `${enterpriseId}/policies/${effectivePolicyId}`;
 
         const response = await androidManagement.enterprises.enrollmentTokens.create({
             parent: enterpriseId,

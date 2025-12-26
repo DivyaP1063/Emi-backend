@@ -10,7 +10,10 @@ const Customer = require('../models/Customer');
 const generateCustomerQR = async (req, res) => {
   try {
     const { customerId } = req.params;
-    const { policyId = "policy_emi_default", duration = 3600 } = req.body;
+    const { 
+      policyId = process.env.ANDROID_MANAGEMENT_DEFAULT_POLICY_ID || 'policy1', 
+      duration = 3600 
+    } = req.body;
 
     console.log("\n🎫 ===== ADMIN: GENERATE QR CODE =====");
     console.log(`Customer ID: ${customerId}`);
