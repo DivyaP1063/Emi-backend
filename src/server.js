@@ -78,17 +78,17 @@ app.get('/', (req, res) => {
     success: true,
     message: 'Admin Backend API Server',
     version: '1.0.0',
-    endpoints: {
-      health: '/api/admin/health',
-      auth: {
-        sendOtp: 'POST /api/admin/auth/send-otp',
-        verifyOtp: 'POST /api/admin/auth/verify-otp'
-      },
-      retailers: {
-        create: 'POST /api/admin/retailers',
-        getAll: 'GET /api/admin/retailers'
-      }
-    }
+    status: 'running',
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Health check endpoint for Render
+app.get('/health', (req, res) => {
+  res.status(200).json({
+    status: 'healthy',
+    uptime: process.uptime(),
+    timestamp: new Date().toISOString()
   });
 });
 
