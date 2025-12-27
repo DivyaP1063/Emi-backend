@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { authenticateRecoveryPerson } = require('../middleware/auth');
 const { otpRateLimiter } = require('../middleware/rateLimiter');
+const { uploadDeviceImages } = require('../middleware/upload');
 const recoveryPersonAuthController = require('../controllers/recoveryPersonAuthController');
 
 console.log('📋 Loading recovery person API routes...');
@@ -45,6 +46,7 @@ const {
 router.post(
     '/collect-device',
     authenticateRecoveryPerson,
+    uploadDeviceImages,
     collectDeviceValidation,
     collectDevice
 );

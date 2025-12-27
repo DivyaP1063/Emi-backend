@@ -29,7 +29,14 @@ const uploadDocuments = upload.fields([
   { name: 'signature', maxCount: 1 }
 ]);
 
+// Middleware for device collection uploads
+const uploadDeviceImages = upload.fields([
+  { name: 'deviceFrontImage', maxCount: 1 },
+  { name: 'deviceBackImage', maxCount: 1 }
+]);
+
 module.exports = {
   upload,
-  uploadDocuments
+  uploadDocuments,
+  uploadDeviceImages
 };

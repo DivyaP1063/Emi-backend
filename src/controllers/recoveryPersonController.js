@@ -1,5 +1,6 @@
 const { body, validationResult } = require('express-validator');
 const RecoveryPerson = require('../models/RecoveryPerson');
+const { uploadToCloudinary } = require('../config/cloudinary');
 
 /**
  * Validation rules for create recovery person
@@ -240,18 +241,6 @@ const collectDeviceValidation = [
         .withMessage('Customer ID is required')
         .matches(/^[0-9a-fA-F]{24}$/)
         .withMessage('Invalid customer ID format'),
-    body('deviceFrontImage')
-        .trim()
-        .notEmpty()
-        .withMessage('Device front image is required')
-        .isURL()
-        .withMessage('Device front image must be a valid URL'),
-    body('deviceBackImage')
-        .trim()
-        .notEmpty()
-        .withMessage('Device back image is required')
-        .isURL()
-        .withMessage('Device back image must be a valid URL'),
     body('devicePin')
         .trim()
         .notEmpty()
@@ -284,8 +273,30 @@ const collectDevice = async (req, res) => {
             });
         }
 
+        // Validate files
+        if (!req.files || Object.keys(req.files).length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'No files uploaded',
+                error: 'NO_FILES'
+            });
+        }
+
+        const { deviceFrontImage, deviceBackImage } = req.files;
+
+        if (!deviceFrontImage || !deviceBackImage) {
+            return res.status(400).json({
+                success: false,
+                message: 'Both device front and back images are required',
+                error: 'MISSING_IMAGES',
+                debug: {
+                    receivedFiles: Object.keys(req.files)
+                }
+            });
+        }
+
         const recoveryPersonId = req.recoveryPerson.id;
-        const { customerId, deviceFrontImage, deviceBackImage, devicePin, paymentDeadline, notes } = req.body;
+        const { customerId, devicePin, paymentDeadline, notes } = req.body;
 
         const Customer = require('../models/Customer');
         const RecoveryHeadAssignment = require('../models/RecoveryHeadAssignment');
@@ -329,6 +340,14 @@ const collectDevice = async (req, res) => {
             });
         }
 
+        // Upload images to Cloudinary
+        const uploadResults = await Promise.all([
+            uploadToCloudinary(deviceFrontImage[0].buffer, 'device-collection/front'),
+            uploadToCloudinary(deviceBackImage[0].buffer, 'device-collection/back')
+        ]);
+
+        const [deviceFrontImageUrl, deviceBackImageUrl] = uploadResults.map(r => r.secure_url);
+
         // Get recovery person details
         const recoveryPerson = await RecoveryPerson.findById(recoveryPersonId);
 
@@ -336,8 +355,8 @@ const collectDevice = async (req, res) => {
         customer.isCollected = true;
         customer.collectedAt = new Date();
         customer.deviceCollection = {
-            deviceFrontImage,
-            deviceBackImage,
+            deviceFrontImage: deviceFrontImageUrl,
+            deviceBackImage: deviceBackImageUrl,
             devicePin,
             paymentDeadline: new Date(paymentDeadline),
             collectedBy: recoveryPersonId,
