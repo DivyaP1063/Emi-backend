@@ -1,268 +1,315 @@
-# Admin Backend API
+# EMI Backend - Device Management & Payment System
 
-A Node.js Express backend API for managing retailers in an admin application.
+Backend API for managing EMI (Equated Monthly Installment) payments with integrated device provisioning and remote management using Android Management API.
 
-## Tech Stack
+---
 
-- **Node.js** - Runtime environment
-- **Express.js** - Web framework
-- **MongoDB** - Database
-- **Mongoose** - MongoDB ODM
-- **JWT** - Authentication
-- **Cloudinary** - Image storage
-- **Express Validator** - Input validation
-- **Helmet** - Security headers
-- **Express Rate Limit** - API rate limiting
+## 🚀 Features
 
-## Features
+### Core Functionality
 
-- ✅ OTP-based authentication for admin users
-- ✅ JWT token authentication
-- ✅ Create and manage retailers
-- ✅ Search and filter retailers with pagination
-- ✅ Rate limiting for OTP requests
-- ✅ Input validation and error handling
-- ✅ Security best practices
-- ✅ MongoDB with Mongoose ODM
-- ✅ Cloudinary integration ready
+- **EMI Management** - Track customer payments, installments, and overdue accounts
+- **Device Provisioning** - QR code-based Android device setup via AMAPI
+- **Remote Lock/Unlock** - Control device access based on payment status (via FCM)
+- **Multi-Role System** - Admin, Retailer, Accountant, Recovery Head, Recovery Person
+- **Real-time Monitoring** - Device location tracking and activity monitoring
+- **Automated Reminders** - Cron jobs for EMI reminders and auto-lock
 
-## Installation
+### Android Management API (AMAPI)
 
-1. **Install dependencies:**
-   ```bash
-   npm install
-   ```
+- Enterprise device enrollment
+- Policy enforcement (app restrictions, security settings)
+- QR code generation for device provisioning
+- Webhook integration for device status updates
+- Factory reset capability (emergency)
 
-2. **Configure environment variables:**
-   
-   Copy `.env.example` to `.env`:
-   ```bash
-   copy .env.example .env
-   ```
+### Payment & Financial
 
-   Update the `.env` file with your actual values:
-   ```env
-   PORT=5000
-   NODE_ENV=development
-   MONGODB_URI=mongodb://localhost:27017/admin_app
-   JWT_SECRET=your_secure_jwt_secret_key
-   JWT_EXPIRES_IN=24h
-   OTP_EXPIRY_MINUTES=5
-   OTP_MAX_ATTEMPTS=3
-   CLOUDINARY_CLOUD_NAME=your_cloud_name
-   CLOUDINARY_API_KEY=your_api_key
-   CLOUDINARY_API_SECRET=your_api_secret
-   ```
+- Customer registration and KYC
+- EMI calculation and tracking
+- Late fee management
+- Payment history
+- Device collection tracking
 
-3. **Set up MongoDB:**
-   
-   Make sure MongoDB is running locally or use MongoDB Atlas.
+---
 
-## Project Structure
+## 🛠️ Tech Stack
 
-```
-server/
-├── src/
-│   ├── config/
-│   │   ├── database.js       # MongoDB connection
-│   │   └── cloudinary.js     # Cloudinary configuration
-│   ├── controllers/
-│   │   ├── authController.js # Authentication logic
-│   │   └── retailerController.js # Retailer management
-│   ├── middleware/
-│   │   ├── auth.js           # JWT authentication middleware
-│   │   └── rateLimiter.js    # Rate limiting middleware
-│   ├── models/
-│   │   ├── Admin.js          # Admin model
-│   │   ├── Retailer.js       # Retailer model
-│   │   └── OTP.js            # OTP model
-│   ├── routes/
-│   │   ├── authRoutes.js     # Authentication routes
-│   │   ├── retailerRoutes.js # Retailer routes
-│   │   └── index.js          # Main router
-│   ├── utils/
-│   │   ├── jwt.js            # JWT utilities
-│   │   └── otpService.js     # OTP generation & verification
-│   └── server.js             # Main server file
-├── .env                      # Environment variables (create from .env.example)
-├── .env.example              # Environment variables template
-├── .gitignore                # Git ignore file
-├── package.json              # Dependencies
-└── README.md                 # This file
-```
+**Backend:**
 
-## API Endpoints
+- Node.js + Express.js
+- MongoDB + Mongoose
+- JWT Authentication
 
-### Base URL
-```
-http://localhost:5000/api/admin
-```
+**External Services:**
 
-### Authentication (No auth required)
+- Firebase Cloud Messaging (FCM) - Device notifications
+- Google Android Management API (AMAPI) - Device management
+- Cloudinary - Image storage
 
-#### 1. Send OTP
-- **POST** `/auth/send-otp`
-- **Body:**
-  ```json
-  {
-    "mobileNumber": "9876543210"
-  }
-  ```
+**DevOps:**
 
-#### 2. Verify OTP
-- **POST** `/auth/verify-otp`
-- **Body:**
-  ```json
-  {
-    "mobileNumber": "9876543210",
-    "otp": "123456"
-  }
-  ```
+- Render (Deployment)
+- Docker support
+- Redis (optional caching)
 
-### Retailers (Auth required)
+---
 
-#### 3. Create Retailer
-- **POST** `/retailers`
-- **Headers:** `Authorization: Bearer {token}`
-- **Body:**
-  ```json
-  {
-    "basicInfo": {
-      "fullName": "Retailer Name",
-      "email": "retailer@example.com",
-      "mobileNumber": "9876543210",
-      "shopName": "Shop Name"
-    },
-    "address": {
-      "country": "India",
-      "state": "Maharashtra",
-      "city": "Mumbai",
-      "address": "Complete address"
-    },
-    "permissions": {
-      "canPayEmiDownPayment": true,
-      "dpPending": false,
-      "autoLockDay": 30,
-      "serverAadharVerify": true,
-      "allowElectronic": true,
-      "allowIPhone": false,
-      "allow8Month": true,
-      "allow4Month": false
-    }
-  }
-  ```
+## 📦 Installation
 
-#### 4. Get All Retailers
-- **GET** `/retailers?page=1&limit=20&search=query&status=ACTIVE`
-- **Headers:** `Authorization: Bearer {token}`
-- **Query Parameters:**
-  - `page` (optional): Page number (default: 1)
-  - `limit` (optional): Items per page (default: 20)
-  - `search` (optional): Search by name, email, or mobile
-  - `status` (optional): Filter by status (ACTIVE, INACTIVE, SUSPENDED)
+### Prerequisites
 
-## Running the Server
+- Node.js (v18+)
+- MongoDB
+- Firebase project (for FCM)
+- Google Cloud project (for AMAPI)
 
-### Development Mode (with auto-restart):
+### Quick Start
+
 ```bash
+# Clone repository
+git clone <repo-url>
+cd Emi-backend
+
+# Install dependencies
+npm install
+
+# Setup environment variables
+cp .env.example .env
+# Edit .env with your credentials
+
+# Run development server
 npm run dev
-```
 
-### Production Mode:
-```bash
+# Run production server
 npm start
 ```
 
-The server will start on `http://localhost:5000` (or the port specified in `.env`)
+---
 
-## Initial Setup
+## ⚙️ Environment Configuration
 
-Before using the API, you need to create an admin user in MongoDB:
+### Required Variables
 
-```javascript
-// Connect to MongoDB and run this:
-db.admins.insertOne({
-  name: "Admin Name",
-  email: "admin@example.com",
-  mobileNumber: "9999999999",
-  isActive: true,
-  role: "ADMIN",
-  createdAt: new Date(),
-  updatedAt: new Date()
-})
+```env
+# Database
+MONGODB_URI=mongodb+srv://...
+
+# Authentication
+JWT_SECRET=your_secret_key
+
+# Firebase (FCM)
+FIREBASE_SERVICE_ACCOUNT_BASE64=<base64_encoded_json>
+
+# Android Management API
+ANDROID_MANAGEMENT_ENABLED=true
+ANDROID_MANAGEMENT_SERVICE_ACCOUNT_PATH=./android-manager.json
+ANDROID_MANAGEMENT_ENTERPRISE_ID=enterprises/LC...
+ANDROID_MANAGEMENT_DEFAULT_POLICY_ID=policy1
+AMAPI_WEBHOOK_SECRET=your_webhook_secret
+
+# Backend Config
+BACKEND_URL=https://your-backend.com
+APP_SIGNATURE_CHECKSUM=your_app_sha256
+PROVISIONING_DEVICE_ADMIN_PACKAGE_DOWNLOAD_LOCATION=https://...
 ```
 
-## Testing
+**See `.env.example` for complete configuration.**
 
-### Test Credentials (Development Only)
-- **Mobile:** 9999999999
-- **OTP:** 123456
+---
 
-**Important:** Disable test credentials in production by setting `NODE_ENV=production`
+## 👥 User Roles
 
-### Test with cURL
+| Role                | Capabilities                                              |
+| ------------------- | --------------------------------------------------------- |
+| **Admin**           | Full system access, AMAPI management, all customer data   |
+| **Retailer**        | Register customers, generate QR codes, view own customers |
+| **Accountant**      | View financial data, payment tracking                     |
+| **Recovery Head**   | Manage recovery persons, assign customers                 |
+| **Recovery Person** | Field operations, device collection                       |
 
-1. **Send OTP:**
-   ```bash
-   curl -X POST http://localhost:5000/api/admin/auth/send-otp ^
-   -H "Content-Type: application/json" ^
-   -d "{\"mobileNumber\":\"9999999999\"}"
-   ```
+---
 
-2. **Verify OTP:**
-   ```bash
-   curl -X POST http://localhost:5000/api/admin/auth/verify-otp ^
-   -H "Content-Type: application/json" ^
-   -d "{\"mobileNumber\":\"9999999999\",\"otp\":\"123456\"}"
-   ```
+## 📱 AMAPI Integration
 
-3. **Create Retailer:**
-   ```bash
-   curl -X POST http://localhost:5000/api/admin/retailers ^
-   -H "Content-Type: application/json" ^
-   -H "Authorization: Bearer YOUR_TOKEN_HERE" ^
-   -d "{\"basicInfo\":{\"fullName\":\"Test Retailer\",\"email\":\"test@example.com\",\"mobileNumber\":\"9876543210\",\"shopName\":\"Test Shop\"},\"address\":{\"country\":\"India\",\"state\":\"Maharashtra\",\"city\":\"Mumbai\",\"address\":\"Test Address\"},\"permissions\":{\"canPayEmiDownPayment\":true,\"dpPending\":false,\"autoLockDay\":30,\"serverAadharVerify\":true,\"allowElectronic\":true,\"allowIPhone\":false,\"allow8Month\":true,\"allow4Month\":false}}"
-   ```
+### Device Provisioning Flow
 
-## Security Features
+1. **Retailer generates QR code** (during device sale)
+2. **Customer scans QR** (during Android setup)
+3. **Device auto-enrolls** with enterprise management
+4. **Policy applied** (app restrictions, security)
+5. **Backend notified** via webhook
 
-- ✅ Helmet for security headers
-- ✅ CORS enabled
-- ✅ Rate limiting (3 OTP requests per 5 minutes)
-- ✅ JWT authentication with 24-hour expiry
-- ✅ OTP with 5-minute expiry and 3 attempt limit
-- ✅ Input validation on all endpoints
-- ✅ Unique constraints on mobile and email
+### Key Endpoints
 
-## Error Codes
+**Retailer:**
 
-- `UNAUTHORIZED_ACCESS` - Not authorized to access
-- `INVALID_TOKEN` - JWT token invalid or expired
-- `VALIDATION_ERROR` - Request validation failed
-- `DUPLICATE_MOBILE` - Mobile number already exists
-- `DUPLICATE_EMAIL` - Email already exists
-- `INVALID_OTP` - OTP is invalid or expired
-- `SERVER_ERROR` - Internal server error
-- `RATE_LIMIT_EXCEEDED` - Too many requests
+```
+POST /api/retailer/device-setup/qr/:customerId
+```
 
-## Production Deployment
+**Admin:**
 
-1. Set `NODE_ENV=production` in `.env`
-2. Use a strong `JWT_SECRET`
-3. Disable test credentials
-4. Set up MongoDB Atlas or production MongoDB
-5. Configure SMS gateway for OTP (Twilio, MSG91, etc.)
-6. Set up Cloudinary for production
-7. Use a reverse proxy (Nginx)
-8. Enable HTTPS
-9. Set up monitoring and logging
+```
+POST /api/admin/amapi/qr/:customerId
+GET  /api/admin/amapi/devices
+POST /api/admin/amapi/devices/:imei/factory-reset
+```
 
-## Notes
+**Webhook:**
 
-- OTP sending is currently mocked. Integrate with an SMS gateway for production.
-- Cloudinary is configured but not used in the current endpoints. Ready for image uploads.
-- Make sure to create at least one admin user in MongoDB before testing.
+```
+POST /api/webhooks/amapi
+```
 
-## License
+---
+
+## 🔒 Device Lock/Unlock
+
+**Method:** Firebase Cloud Messaging (NOT AMAPI)
+
+- Payment received → Unlock via FCM notification
+- Payment overdue → Lock via FCM notification
+- Custom lock screen with payment info
+- App sends confirmation callback
+
+**AMAPI is NOT used for payment locks** - only for provisioning and emergency actions.
+
+---
+
+## 📊 API Structure
+
+```
+/api
+├── /admin          - Admin operations
+├── /retailer       - Retailer operations
+├── /accountant     - Financial operations
+├── /recovery-head  - Recovery management
+├── /recovery-person - Field operations
+├── /customer/device - Customer device endpoints
+└── /webhooks       - External webhooks (AMAPI)
+```
+
+---
+
+## 🔄 Background Jobs
+
+**Cron Service:**
+
+- EMI reminders (every 12 hours)
+- Auto-lock overdue devices
+- Activity monitoring (location-based timeout)
+
+**Device Activity Monitor:**
+
+- Tracks location updates
+- Auto-locks inactive devices (15 min timeout)
+- Unlocks on activity resume
+
+---
+
+## 🗄️ Database Models
+
+- **Customer** - Customer details, EMI data, device info
+- **Admin** - System administrators
+- **Retailer** - Shop/retailer accounts
+- **Accountant** - Finance team members
+- **RecoveryHead** - Recovery managers
+- **RecoveryPerson** - Field agents
+
+---
+
+## 🚀 Deployment
+
+### Render (Recommended)
+
+1. **Push to GitHub** (credentials in `.gitignore`)
+2. **Create Render service** (Web Service)
+3. **Add environment variables** in Render dashboard
+4. **Add secret files:**
+   - `android-manager.json` (AMAPI service account)
+5. **Deploy**
+
+### Environment-Specific Settings
+
+**Production:**
+
+- Use secret files for credentials (not in Git)
+- Enable AMAPI webhook signature verification
+- Configure Firebase service account via base64
+
+---
+
+## 🧪 Testing
+
+**Quick API Test:**
+
+```bash
+# Health check
+curl https://your-backend.com/api/health
+
+# Login (admin)
+POST /api/admin/send-otp
+POST /api/admin/verify-otp
+```
+
+**AMAPI Test:**
+
+```bash
+# Generate QR (requires auth)
+POST /api/retailer/device-setup/qr/:customerId
+Authorization: Bearer <token>
+```
+
+---
+
+## 📝 Key Features Summary
+
+✅ Multi-role authentication system  
+✅ EMI payment tracking  
+✅ Android device provisioning (AMAPI)  
+✅ Remote device lock/unlock (FCM)  
+✅ Location-based activity monitoring  
+✅ Automated payment reminders  
+✅ QR code device setup  
+✅ Enterprise policy enforcement  
+✅ Device collection tracking  
+✅ Factory reset capability
+
+---
+
+## 🔐 Security
+
+- JWT-based authentication
+- Role-based access control (RBAC)
+- Webhook signature verification (AMAPI)
+- Environment variable encryption
+- Service account isolation
+
+---
+
+## 📚 Documentation
+
+- API endpoints: See source code controllers
+- AMAPI setup: Check `.env.example` comments
+- Webhooks: `src/controllers/amapiWebhookController.js`
+
+---
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create feature branch
+3. Commit changes
+4. Push to branch
+5. Create Pull Request
+
+---
+
+## 📄 License
 
 ISC
+
+---
+
+**Built for EMI device management with enterprise-grade Android provisioning.**
