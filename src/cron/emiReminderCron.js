@@ -217,14 +217,9 @@ async function runEmiReminderCron() {
             }
         }
 
-        // If any lock notifications were sent, schedule assignment after 30 seconds
-        if (lockNotificationsSent > 0) {
-            console.log(`   ⏰ Scheduling assignment check in 30 seconds for ${lockNotificationsSent} lock notifications...`);
-            setTimeout(() => {
-                console.log(`   🔍 Checking for locked customers to assign...`);
-                callAssignmentAPI();
-            }, 30000); // 30 seconds delay
-        }
+        // Always check for locked customers to assign
+        console.log(`   🔍 Checking for locked customers to assign...`);
+        await callAssignmentAPI();
 
         // Log summary if there was activity
         if (remindersSent > 0 || lockNotificationsSent > 0 || errors > 0) {
