@@ -594,10 +594,14 @@ const generateEnrollmentToken = async (customerId, policyId, durationSeconds = 3
 const buildProvisioningPayload = (customerId, enrollmentToken, backendUrl = process.env.BACKEND_URL) => {
     const appDownloadUrl = process.env.PROVISIONING_DEVICE_ADMIN_PACKAGE_DOWNLOAD_LOCATION;
     
-    return {
+    // IMPORTANT: Android expects URL-safe base64 encoded SHA-256, NOT hex format
+    // See: https://developer.android.com/reference/android/app/admin/DevicePolicyManager
+    
+    const payload = {
         "android.app.extra.PROVISIONING_DEVICE_ADMIN_COMPONENT_NAME": "com.androidmanager/.receiver.EMIDeviceAdminReceiver",
-        "android.app.extra.PROVISIONING_DEVICE_ADMIN_SIGNATURE_CHECKSUM": process.env.APP_SIGNATURE_CHECKSUM.trim(),
         "android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_DOWNLOAD_LOCATION": appDownloadUrl,
+        "android.app.extra.PROVISIONING_DEVICE_ADMIN_SIGNATURE_CHECKSUM": process.env.APP_SIGNATURE_CHECKSUM.trim(),
+        "android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_CHECKSUM": process.env.APP_PACKAGE_CHECKSUM.trim(),
         "android.app.extra.PROVISIONING_SKIP_ENCRYPTION": false,
         "android.app.extra.PROVISIONING_LEAVE_ALL_SYSTEM_APPS_ENABLED": true,
         "android.app.extra.PROVISIONING_ADMIN_EXTRAS_BUNDLE": {
@@ -607,6 +611,8 @@ const buildProvisioningPayload = (customerId, enrollmentToken, backendUrl = proc
             "enterprise_id": enterpriseId
         }
     };
+    
+    return payload;
 };
 
 module.exports = {
