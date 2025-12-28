@@ -17,6 +17,7 @@ const {
   getEmiStatisticsAdmin,
   getCustomerCountAdmin,
   sendEmiReminder, getCustomerLocationByAdmin,
+  deleteCustomer,
 } = require("../controllers/authController");
 const {
   getLateFine,
@@ -111,6 +112,9 @@ router.put(
 
 // Get Customer Location (Admin only)
 router.get('/customers/:customerId/location', authenticate, getCustomerLocationByAdmin);
+
+// Delete Customer Completely (Admin only)
+router.delete('/customers/:customerId', authenticate, deleteCustomer);
 
 // Health check endpoint
 router.get("/health", (req, res) => {

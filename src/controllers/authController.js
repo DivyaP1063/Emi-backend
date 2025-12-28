@@ -1177,7 +1177,114 @@ const getCustomerLocationByAdmin = async (req, res) => {
     });
   }
 };
+/**
+ * Delete Customer Completely (Admin only)
+ * Performs cascading deletion of customer and all related records
+ */
+const deleteCustomer = async (req, res) => {
+  const mongoose = require('mongoose');
+  const session = await mongoose.startSession();
 
+  try {
+    console.log('\n🗑️  ===== CUSTOMER DELETION REQUEST =====');
+    console.log('Timestamp:', new Date().toISOString());
+    console.log('Customer ID:', req.params.customerId);
+
+    const { customerId } = req.params;
+
+    // Validate customerId format
+    if (!customerId.match(/^[0-9a-fA-F]{24}$/)) {
+      console.log('❌ Validation error: Invalid customer ID format');
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid customer ID format',
+        error: 'VALIDATION_ERROR'
+      });
+    }
+
+    // Start transaction
+    session.startTransaction();
+
+    // Get customer to verify existence
+    const Customer = require('../models/Customer');
+    const customer = await Customer.findById(customerId).session(session);
+
+    if (!customer) {
+      console.log('❌ Customer not found with ID:', customerId);
+      await session.abortTransaction();
+      return res.status(404).json({
+        success: false,
+        message: 'Customer not found',
+        error: 'CUSTOMER_NOT_FOUND'
+      });
+    }
+
+    console.log('✅ Customer found:', customer.fullName);
+    console.log('IMEI1:', customer.imei1);
+    console.log('Mobile:', customer.mobileNumber);
+
+    // Delete related records
+    const Transaction = require('../models/Transaction');
+    const RecoveryHeadAssignment = require('../models/RecoveryHeadAssignment');
+
+    // Delete all transactions for this customer
+    const transactionsDeleted = await Transaction.deleteMany(
+      { customerId: customerId },
+      { session }
+    );
+    console.log(`🗑️  Deleted ${transactionsDeleted.deletedCount} transaction(s)`);
+
+    // Delete all recovery head assignments for this customer
+    const assignmentsDeleted = await RecoveryHeadAssignment.deleteMany(
+      { customerId: customerId },
+      { session }
+    );
+    console.log(`🗑️  Deleted ${assignmentsDeleted.deletedCount} recovery assignment(s)`);
+
+    // Delete the customer
+    await Customer.findByIdAndDelete(customerId, { session });
+    console.log('🗑️  Customer deleted successfully');
+
+    // Commit transaction
+    await session.commitTransaction();
+    console.log('✅ Transaction committed successfully');
+    console.log('=========================================\n');
+
+    return res.status(200).json({
+      success: true,
+      message: `Customer ${customer.fullName} deleted successfully`,
+      data: {
+        customerId: customerId,
+        customerName: customer.fullName,
+        mobileNumber: customer.mobileNumber,
+        imei1: customer.imei1,
+        deletionSummary: {
+          customerDeleted: true,
+          transactionsDeleted: transactionsDeleted.deletedCount,
+          assignmentsDeleted: assignmentsDeleted.deletedCount,
+          totalRecordsDeleted: 1 + transactionsDeleted.deletedCount + assignmentsDeleted.deletedCount
+        },
+        deletedAt: new Date().toISOString()
+      }
+    });
+  } catch (error) {
+    // Rollback transaction on error
+    await session.abortTransaction();
+    console.error('❌ Delete customer error:', error);
+    console.error('Error stack:', error.stack);
+    console.log('Transaction rolled back');
+    console.log('=========================================\n');
+
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to delete customer',
+      error: 'SERVER_ERROR',
+      details: error.message
+    });
+  } finally {
+    session.endSession();
+  }
+};
 
 module.exports = {
   sendOtpController,
@@ -1193,6 +1300,7 @@ module.exports = {
   getEmiStatisticsAdmin,
   getCustomerCountAdmin,
   sendEmiReminder,
-  getCustomerLocationByAdmin
+  getCustomerLocationByAdmin,
+  deleteCustomer
 };
 
