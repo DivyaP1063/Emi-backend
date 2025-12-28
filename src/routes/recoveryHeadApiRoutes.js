@@ -6,7 +6,7 @@ const {
     sendOtpValidation,
     verifyOtpValidation
 } = require('../controllers/recoveryHeadAuthController');
-const { getAssignedCustomers, getCustomerLocationByRecoveryHead, getUnassignedCustomers, assignCustomersToRecoveryPerson, assignCustomersToRecoveryPersonValidation, getRecoveryPersonsWithCustomers, getAssignmentDetails, unassignCustomerFromRecoveryPerson, getRecoveryHeadStatistics } = require('../controllers/recoveryHeadController');
+const { getAssignedCustomers, getCustomerLocationByRecoveryHead, getUnassignedCustomers, assignCustomersToRecoveryPerson, assignCustomersToRecoveryPersonValidation, getRecoveryPersonsWithCustomers, getAssignmentDetails, unassignCustomerFromRecoveryPerson, getRecoveryHeadStatistics, getCollectedCustomers } = require('../controllers/recoveryHeadController');
 const { authenticateRecoveryHead } = require('../middleware/auth');
 
 // POST /api/recovery-head/send-otp - Send OTP to recovery head mobile
@@ -26,6 +26,9 @@ router.get('/customers/:customerId/location', authenticateRecoveryHead, getCusto
 
 // GET /api/recovery-head/unassigned-customers - Get customers not assigned to any recovery person (Protected)
 router.get('/unassigned-customers', authenticateRecoveryHead, getUnassignedCustomers);
+
+// GET /api/recovery-head/collected-customers - Get all collected customers with details (Protected)
+router.get('/collected-customers', authenticateRecoveryHead, getCollectedCustomers);
 
 // POST /api/recovery-head/assign-customers - Bulk assign customers to recovery person (Protected)
 router.post('/assign-customers', authenticateRecoveryHead, assignCustomersToRecoveryPersonValidation, assignCustomersToRecoveryPerson);
