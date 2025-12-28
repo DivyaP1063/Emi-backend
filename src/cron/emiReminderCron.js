@@ -67,7 +67,7 @@ async function sendLockNotificationToCustomer(customer) {
  */
 async function callAssignmentAPI() {
     try {
-        const { assignCustomersToRecoveryHeads } = require('../controllers/recoveryHeadController');
+        const { assignCustomersToRecoveryPersons } = require('../controllers/recoveryHeadController');
 
         // Create a mock request/response object for the controller
         const mockReq = {};
@@ -82,7 +82,7 @@ async function callAssignmentAPI() {
             })
         };
 
-        await assignCustomersToRecoveryHeads(mockReq, mockRes);
+        await assignCustomersToRecoveryPersons(mockReq, mockRes);
     } catch (error) {
         console.error('   ❌ Assignment API error:', error.message);
     }

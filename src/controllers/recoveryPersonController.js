@@ -10,14 +10,16 @@ const createRecoveryPersonValidation = [
         .trim()
         .notEmpty()
         .withMessage('Full name is required'),
-    body('aadharNumber')
-        .trim()
-        .matches(/^[0-9]{12}$/)
-        .withMessage('Aadhar number must be exactly 12 digits'),
     body('mobileNumber')
         .trim()
         .matches(/^[0-9]{10}$/)
-        .withMessage('Mobile number must be exactly 10 digits')
+        .withMessage('Mobile number must be exactly 10 digits'),
+    body('pinCodes')
+        .isArray({ min: 1 })
+        .withMessage('Pin codes must be an array with at least one pin code'),
+    body('pinCodes.*')
+        .matches(/^[0-9]{6}$/)
+        .withMessage('Each pin code must be exactly 6 digits')
 ];
 
 /**
@@ -36,18 +38,8 @@ const createRecoveryPerson = async (req, res) => {
             });
         }
 
-        const { fullName, aadharNumber, mobileNumber } = req.body;
+        const { fullName, mobileNumber, pinCodes } = req.body;
         const recoveryHeadId = req.recoveryHead.id; // From authenticateRecoveryHead middleware
-
-        // Check if aadhar already exists
-        const existingAadhar = await RecoveryPerson.findOne({ aadharNumber });
-        if (existingAadhar) {
-            return res.status(400).json({
-                success: false,
-                message: 'Recovery person with this Aadhar number already exists',
-                error: 'DUPLICATE_AADHAR'
-            });
-        }
 
         // Check if mobile already exists
         const existingMobile = await RecoveryPerson.findOne({ mobileNumber });
@@ -62,12 +54,16 @@ const createRecoveryPerson = async (req, res) => {
         // Create recovery person
         const recoveryPerson = await RecoveryPerson.create({
             fullName,
-            aadharNumber,
             mobileNumber,
+            pinCodes,
             recoveryHeadId,
             mobileVerified: true,
             isActive: true
         });
+
+        // Get recovery head details
+        const RecoveryHead = require('../models/RecoveryHead');
+        const recoveryHead = await RecoveryHead.findById(recoveryHeadId);
 
         return res.status(201).json({
             success: true,
@@ -75,11 +71,16 @@ const createRecoveryPerson = async (req, res) => {
             data: {
                 recoveryPersonId: recoveryPerson._id.toString(),
                 fullName: recoveryPerson.fullName,
-                aadharNumber: recoveryPerson.aadharNumber,
                 mobileNumber: recoveryPerson.mobileNumber,
+                pinCodes: recoveryPerson.pinCodes,
                 mobileVerified: recoveryPerson.mobileVerified,
                 isActive: recoveryPerson.isActive,
-                recoveryHeadId: recoveryPerson.recoveryHeadId.toString(),
+                recoveryHead: {
+                    recoveryHeadId: recoveryHead._id.toString(),
+                    fullName: recoveryHead.fullName,
+                    mobileNumber: recoveryHead.mobileNumber
+                },
+                assignedCustomersCount: 0,
                 createdAt: recoveryPerson.createdAt
             }
         });
@@ -112,8 +113,7 @@ const getAllRecoveryPersons = async (req, res) => {
                 recoveryHeadId,
                 $or: [
                     { fullName: { $regex: search, $options: 'i' } },
-                    { mobileNumber: { $regex: search, $options: 'i' } },
-                    { aadharNumber: { $regex: search, $options: 'i' } }
+                    { mobileNumber: { $regex: search, $options: 'i' } }
                 ]
             };
         }
@@ -137,10 +137,11 @@ const getAllRecoveryPersons = async (req, res) => {
                 recoveryPersons: recoveryPersons.map(rp => ({
                     id: rp._id.toString(),
                     fullName: rp.fullName,
-                    aadharNumber: rp.aadharNumber,
                     mobileNumber: rp.mobileNumber,
+                    pinCodes: rp.pinCodes,
                     mobileVerified: rp.mobileVerified,
                     isActive: rp.isActive,
+                    assignedCustomersCount: rp.customers ? rp.customers.length : 0,
                     createdAt: rp.createdAt,
                     updatedAt: rp.updatedAt
                 })),

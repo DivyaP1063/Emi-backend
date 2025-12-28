@@ -209,24 +209,14 @@ const customerSchema = new mongoose.Schema({
     ref: 'Retailer',
     required: true
   },
+
+  // Assignment Status - Simple flag to quickly check if customer is assigned
+  // Actual assignment details are in RecoveryHeadAssignment collection
   assigned: {
     type: Boolean,
     default: false
   },
-  assignedTo: {
-    type: String,
-    default: null,
-    trim: true
-  },
-  assignedToRecoveryHeadId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'RecoveryHead',
-    default: null
-  },
-  assignedAt: {
-    type: Date,
-    default: null
-  },
+
   amapiEnrollment: {
     enrolled: {
       type: Boolean,
@@ -306,9 +296,10 @@ customerSchema.index({ mobileNumber: 1, retailerId: 1 });
 customerSchema.index({ aadharNumber: 1 });
 customerSchema.index({ imei1: 1 }, { unique: true });
 customerSchema.index({ imei2: 1 }, { unique: true, sparse: true });
+customerSchema.index({ isLocked: 1 });
+customerSchema.index({ isCollected: 1 });
 customerSchema.index({ assigned: 1 });
-customerSchema.index({ assignedToRecoveryHeadId: 1 });
-customerSchema.index({ isLocked: 1, assigned: 1 });
+customerSchema.index({ isLocked: 1, assigned: 1 }); // Compound index for finding unassigned locked customers
 
 const Customer = mongoose.model('Customer', customerSchema);
 

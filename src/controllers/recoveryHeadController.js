@@ -15,15 +15,7 @@ const createRecoveryHeadValidation = [
     body('mobileNumber')
         .trim()
         .matches(/^[0-9]{10}$/)
-        .withMessage('Mobile number must be exactly 10 digits'),
-
-    // Pin Codes
-    body('pinCodes')
-        .isArray({ min: 1 })
-        .withMessage('Pin codes must be an array with at least one pin code'),
-    body('pinCodes.*')
-        .matches(/^[0-9]{6}$/)
-        .withMessage('Each pin code must be exactly 6 digits')
+        .withMessage('Mobile number must be exactly 10 digits')
 ];
 
 /**
@@ -47,7 +39,7 @@ const createRecoveryHead = async (req, res) => {
             });
         }
 
-        const { fullName, mobileNumber, pinCodes } = req.body;
+        const { fullName, mobileNumber } = req.body;
 
         // Check if mobile number already exists
         const existingMobile = await RecoveryHead.findOne({
@@ -66,7 +58,6 @@ const createRecoveryHead = async (req, res) => {
         const recoveryHead = await RecoveryHead.create({
             fullName,
             mobileNumber,
-            pinCodes,
             status: 'ACTIVE'
         });
 
@@ -77,7 +68,6 @@ const createRecoveryHead = async (req, res) => {
                 recoveryHeadId: recoveryHead._id.toString(),
                 fullName: recoveryHead.fullName,
                 mobileNumber: recoveryHead.mobileNumber,
-                pinCodes: recoveryHead.pinCodes,
                 status: recoveryHead.status,
                 createdAt: recoveryHead.createdAt
             }
@@ -125,7 +115,7 @@ const getAllRecoveryHeads = async (req, res) => {
 
         // Get recovery heads
         const recoveryHeads = await RecoveryHead.find(query)
-            .select('fullName mobileNumber pinCodes status createdAt')
+            .select('fullName mobileNumber status createdAt')
             .skip(skip)
             .limit(limit)
             .sort({ createdAt: -1 });
@@ -140,8 +130,6 @@ const getAllRecoveryHeads = async (req, res) => {
                     recoveryHeadId: recoveryHead._id.toString(),
                     fullName: recoveryHead.fullName,
                     mobileNumber: recoveryHead.mobileNumber,
-                    pinCodes: recoveryHead.pinCodes,
-                    pinCodesCount: recoveryHead.pinCodes.length,
                     status: recoveryHead.status,
                     createdAt: recoveryHead.createdAt
                 })),
@@ -256,25 +244,67 @@ const updateRecoveryHeadStatus = async (req, res) => {
 };
 
 /**
- * Assign locked customers to recovery heads based on pincode matching
+ * Assign locked customers to recovery persons based on pincode matching
  * Admin only - typically called by cron job
- * Note: Skips customers that are already assigned to a recovery head
+ * Implements load balancing: assigns to recovery person with least customers
  */
-const assignCustomersToRecoveryHeads = async (req, res) => {
+const assignCustomersToRecoveryPersons = async (req, res) => {
     try {
-        console.log('\n🔍 ===== RECOVERY HEAD ASSIGNMENT API CALLED =====');
+        console.log('\n🔍 ===== RECOVERY PERSON ASSIGNMENT API CALLED =====');
         console.log('Timestamp:', new Date().toISOString());
 
         const Customer = require('../models/Customer');
+        const RecoveryPerson = require('../models/RecoveryPerson');
+        const RecoveryHeadAssignment = require('../models/RecoveryHeadAssignment');
 
-        // Find all locked customers that are NOT yet assigned
-        // This automatically skips customers who are already assigned to a recovery head
-        const customersToAssign = await Customer.find({
-            isLocked: true,
-            assigned: false  // Only unassigned customers
-        });
+        // Find eligible customers: locked, not collected, 5+ days overdue, not already assigned
+        const currentDate = new Date();
+        const fiveDaysAgo = new Date(currentDate.getTime() - (5 * 24 * 60 * 60 * 1000));
 
-        console.log(`Found ${customersToAssign.length} locked customers to assign`);
+        // Get all customer IDs that are already actively assigned
+        const assignedCustomerIds = await RecoveryHeadAssignment.find({
+            status: 'ACTIVE'
+        }).distinct('customerId');
+
+        // Find customers with overdue EMIs (5+ days)
+        const customersToAssign = await Customer.aggregate([
+            {
+                $match: {
+                    isLocked: true,
+                    isCollected: false,
+                    _id: { $nin: assignedCustomerIds } // Not already assigned
+                }
+            },
+            {
+                $addFields: {
+                    overdueEmis: {
+                        $filter: {
+                            input: '$emiDetails.emiMonths',
+                            as: 'emi',
+                            cond: {
+                                $and: [
+                                    { $eq: ['$$emi.paid', false] },
+                                    { $lte: ['$$emi.dueDate', fiveDaysAgo] }
+                                ]
+                            }
+                        }
+                    }
+                }
+            },
+            {
+                $match: {
+                    'overdueEmis.0': { $exists: true } // Has at least one EMI overdue by 5+ days
+                }
+            },
+            {
+                $project: {
+                    fullName: 1,
+                    'address.pincode': 1
+                }
+            }
+        ]);
+
+        console.log(`Found ${customersToAssign.length} eligible customers to assign`);
 
         let assignedCount = 0;
         let noMatchCount = 0;
@@ -283,36 +313,75 @@ const assignCustomersToRecoveryHeads = async (req, res) => {
         for (const customer of customersToAssign) {
             const customerPincode = customer.address.pincode;
 
-            // Find active recovery head with matching pincode
-            const recoveryHead = await RecoveryHead.findOne({
-                status: 'ACTIVE',
+            // Find all active recovery persons with matching pincode
+            const matchingRecoveryPersons = await RecoveryPerson.find({
+                isActive: true,
                 pinCodes: customerPincode
+            }).lean();
+
+            if (matchingRecoveryPersons.length === 0) {
+                console.log(`⚠️  No recovery person found for ${customer.fullName} (pincode: ${customerPincode})`);
+                noMatchCount++;
+                continue;
+            }
+
+            // Load balancing: select recovery person with least customers
+            let selectedRecoveryPerson = matchingRecoveryPersons[0];
+            let minCustomerCount = selectedRecoveryPerson.customers ? selectedRecoveryPerson.customers.length : 0;
+
+            for (const rp of matchingRecoveryPersons) {
+                const customerCount = rp.customers ? rp.customers.length : 0;
+                if (customerCount < minCustomerCount) {
+                    selectedRecoveryPerson = rp;
+                    minCustomerCount = customerCount;
+                }
+            }
+
+            // Get recovery head details
+            const recoveryHead = await RecoveryHead.findById(selectedRecoveryPerson.recoveryHeadId);
+
+            if (!recoveryHead) {
+                console.log(`⚠️  Recovery head not found for recovery person ${selectedRecoveryPerson.fullName}`);
+                noMatchCount++;
+                continue;
+            }
+
+            // Create assignment record
+            await RecoveryHeadAssignment.create({
+                recoveryHeadId: recoveryHead._id,
+                recoveryHeadName: recoveryHead.fullName,
+                recoveryPersonId: selectedRecoveryPerson._id,
+                recoveryPersonName: selectedRecoveryPerson.fullName,
+                customerId: customer._id,
+                customerName: customer.fullName,
+                status: 'ACTIVE',
+                assignedAt: new Date()
             });
 
-            if (recoveryHead) {
-                // Assign customer to recovery head
-                await Customer.findByIdAndUpdate(customer._id, {
-                    assigned: true,
-                    assignedTo: recoveryHead.fullName,
-                    assignedToRecoveryHeadId: recoveryHead._id,
-                    assignedAt: new Date()
-                });
+            // Update customer assigned flag
+            await Customer.findByIdAndUpdate(customer._id, {
+                assigned: true
+            });
 
-                console.log(`✅ Assigned ${customer.fullName} (${customerPincode}) to ${recoveryHead.fullName}`);
+            // Add customer to recovery person's customers array
+            await RecoveryPerson.findByIdAndUpdate(
+                selectedRecoveryPerson._id,
+                { $addToSet: { customers: customer._id } }
+            );
 
-                assignments.push({
-                    customerId: customer._id.toString(),
-                    customerName: customer.fullName,
-                    pincode: customerPincode,
-                    recoveryHeadId: recoveryHead._id.toString(),
-                    recoveryHeadName: recoveryHead.fullName
-                });
+            console.log(`✅ Assigned ${customer.fullName} (${customerPincode}) to ${selectedRecoveryPerson.fullName} (${minCustomerCount} customers)`);
 
-                assignedCount++;
-            } else {
-                console.log(`⚠️  No recovery head found for ${customer.fullName} (pincode: ${customerPincode})`);
-                noMatchCount++;
-            }
+            assignments.push({
+                customerId: customer._id.toString(),
+                customerName: customer.fullName,
+                pincode: customerPincode,
+                recoveryPersonId: selectedRecoveryPerson._id.toString(),
+                recoveryPersonName: selectedRecoveryPerson.fullName,
+                recoveryHeadId: recoveryHead._id.toString(),
+                recoveryHeadName: recoveryHead.fullName
+            });
+
+            assignedCount++;
         }
 
         console.log(`\n📊 Assignment Summary: ${assignedCount} assigned, ${noMatchCount} no match`);
@@ -343,110 +412,18 @@ const assignCustomersToRecoveryHeads = async (req, res) => {
  * DEBUG: Get locked customers status
  * Temporary endpoint to debug assignment issues
  */
-const debugLockedCustomers = async (req, res) => {
-    try {
-        const Customer = require('../models/Customer');
-
-        // Get ALL customers with their lock and assignment status
-        const allCustomers = await Customer.find({})
-            .select('fullName isLocked assigned assignedTo address.pincode')
-            .lean();
-
-        // Get locked customers
-        const lockedCustomers = await Customer.find({ isLocked: true })
-            .select('fullName isLocked assigned assignedTo assignedToRecoveryHeadId address.pincode')
-            .lean();
-
-        // Get locked but not assigned
-        const lockedNotAssigned = await Customer.find({
-            isLocked: true,
-            assigned: false
-        })
-            .select('fullName isLocked assigned assignedTo address.pincode')
-            .lean();
-
-        // Get all recovery heads
-        const allRecoveryHeads = await RecoveryHead.find({})
-            .select('fullName status pinCodes')
-            .lean();
-
-        return res.status(200).json({
-            success: true,
-            debug: {
-                totalCustomers: allCustomers.length,
-                lockedCustomers: {
-                    count: lockedCustomers.length,
-                    data: lockedCustomers
-                },
-                lockedNotAssigned: {
-                    count: lockedNotAssigned.length,
-                    data: lockedNotAssigned
-                },
-                recoveryHeads: {
-                    count: allRecoveryHeads.length,
-                    data: allRecoveryHeads
-                },
-                sampleCustomers: allCustomers.slice(0, 3) // First 3 customers to see structure
-            }
-        });
-
-    } catch (error) {
-        console.error('Debug error:', error);
-        return res.status(500).json({
-            success: false,
-            message: 'Debug failed',
-            error: error.message
-        });
-    }
-};
-
 /**
- * MIGRATION: Fix existing locked customers by adding assigned field
- * One-time migration endpoint
+ * DEPRECATED - This function has been removed as it references old Customer assignment fields
+ * that no longer exist in the updated schema. Assignments are now tracked via RecoveryHeadAssignment.
  */
-const fixLockedCustomersAssignment = async (req, res) => {
-    try {
-        const Customer = require('../models/Customer');
-
-        // Find all locked customers that don't have the assigned field
-        const result = await Customer.updateMany(
-            {
-                isLocked: true,
-                assigned: { $exists: false }
-            },
-            {
-                $set: {
-                    assigned: false,
-                    assignedTo: null,
-                    assignedToRecoveryHeadId: null,
-                    assignedAt: null
-                }
-            }
-        );
-
-        console.log(`✅ Migration completed: Updated ${result.modifiedCount} customers`);
-
-        return res.status(200).json({
-            success: true,
-            message: 'Migration completed successfully',
-            data: {
-                matchedCount: result.matchedCount,
-                modifiedCount: result.modifiedCount
-            }
-        });
-
-    } catch (error) {
-        console.error('Migration error:', error);
-        return res.status(500).json({
-            success: false,
-            message: 'Migration failed',
-            error: error.message
-        });
-    }
-};
 
 /**
- * Get all customers assigned to the authenticated recovery head
+ * DEPRECATED - This migration function has been removed as it references old Customer assignment fields
+ * that no longer exist in the updated schema. Assignments are now tracked via RecoveryHeadAssignment.
+ */
+
+/**
+ * Get all customers assigned to recovery persons under the authenticated recovery head
  * Recovery Head only - requires authentication
  */
 const getAssignedCustomers = async (req, res) => {
@@ -458,15 +435,25 @@ const getAssignedCustomers = async (req, res) => {
 
         const skip = (page - 1) * limit;
 
-        // Build query
-        const query = {
-            assignedToRecoveryHeadId: recoveryHeadId,
-            assigned: true
+        const Customer = require('../models/Customer');
+        const RecoveryHeadAssignment = require('../models/RecoveryHeadAssignment');
+
+        // Get all active assignments for this recovery head
+        let assignmentQuery = {
+            recoveryHeadId: recoveryHeadId,
+            status: 'ACTIVE'
         };
 
-        // Add search filter
+        const assignments = await RecoveryHeadAssignment.find(assignmentQuery)
+            .populate('recoveryPersonId', 'fullName mobileNumber')
+            .lean();
+
+        const customerIds = assignments.map(a => a.customerId);
+
+        // Build search query for customers
+        let customerQuery = { _id: { $in: customerIds } };
         if (search) {
-            query.$or = [
+            customerQuery.$or = [
                 { fullName: { $regex: search, $options: 'i' } },
                 { mobileNumber: { $regex: search, $options: 'i' } },
                 { imei1: { $regex: search, $options: 'i' } },
@@ -474,22 +461,34 @@ const getAssignedCustomers = async (req, res) => {
             ];
         }
 
-        const Customer = require('../models/Customer');
-
         // Get total count
-        const totalItems = await Customer.countDocuments(query);
+        const totalItems = await Customer.countDocuments(customerQuery);
 
         // Get customers
-        const customers = await Customer.find(query)
-            .select('fullName mobileNumber aadharNumber dob fatherName address imei1 imei2 emiDetails isLocked assignedAt documents')
+        const customers = await Customer.find(customerQuery)
+            .select('fullName mobileNumber aadharNumber dob fatherName address imei1 imei2 emiDetails isLocked isCollected documents')
             .skip(skip)
             .limit(limit)
-            .sort({ assignedAt: -1 });
+            .sort({ createdAt: -1 })
+            .lean();
 
         const totalPages = Math.ceil(totalItems / limit);
 
+        // Create a map of customerId to assignment details
+        const assignmentMap = {};
+        assignments.forEach(assignment => {
+            assignmentMap[assignment.customerId.toString()] = {
+                recoveryPersonId: assignment.recoveryPersonId._id.toString(),
+                recoveryPersonName: assignment.recoveryPersonId.fullName,
+                recoveryPersonMobile: assignment.recoveryPersonId.mobileNumber,
+                assignedAt: assignment.assignedAt
+            };
+        });
+
         // Format customer data
         const formattedCustomers = customers.map(customer => {
+            const assignment = assignmentMap[customer._id.toString()];
+
             // Find next unpaid EMI
             const nextUnpaidEmi = customer.emiDetails.emiMonths
                 .filter(emi => !emi.paid)
@@ -523,7 +522,8 @@ const getAssignedCustomers = async (req, res) => {
                     balanceAmount: customer.emiDetails.balanceAmount
                 },
                 deviceStatus: {
-                    isLocked: customer.isLocked
+                    isLocked: customer.isLocked,
+                    isCollected: customer.isCollected
                 },
                 documents: {
                     customerPhoto: customer.documents.customerPhoto,
@@ -531,7 +531,12 @@ const getAssignedCustomers = async (req, res) => {
                     aadharBackPhoto: customer.documents.aadharBackPhoto,
                     signaturePhoto: customer.documents.signaturePhoto
                 },
-                assignedAt: customer.assignedAt
+                assignedTo: assignment ? {
+                    recoveryPersonId: assignment.recoveryPersonId,
+                    recoveryPersonName: assignment.recoveryPersonName,
+                    recoveryPersonMobile: assignment.recoveryPersonMobile,
+                    assignedAt: assignment.assignedAt
+                } : null
             };
         });
 
@@ -652,87 +657,11 @@ const assignCustomersToRecoveryPersonValidation = [
  * Get all unassigned customers (assigned to recovery head but not to any recovery person)
  * Recovery Head only - requires authentication
  */
-const getUnassignedCustomers = async (req, res) => {
-    try {
-        const recoveryHeadId = req.recoveryHead.id;
-        const page = parseInt(req.query.page) || 1;
-        const limit = parseInt(req.query.limit) || 20;
-        const search = req.query.search || '';
-
-        const skip = (page - 1) * limit;
-
-        const Customer = require('../models/Customer');
-        const RecoveryHeadAssignment = require('../models/RecoveryHeadAssignment');
-
-        // Get all customer IDs that are actively assigned to recovery persons
-        const assignedCustomerIds = await RecoveryHeadAssignment.find({
-            recoveryHeadId: recoveryHeadId,
-            status: 'ACTIVE'
-        }).distinct('customerId');
-
-        // Build query for customers assigned to recovery head but not to recovery person
-        let query = {
-            assignedToRecoveryHeadId: recoveryHeadId,
-            assigned: true,
-            _id: { $nin: assignedCustomerIds } // Not in assigned customers list
-        };
-
-        // Add search filter
-        if (search) {
-            query.$or = [
-                { fullName: { $regex: search, $options: 'i' } },
-                { mobileNumber: { $regex: search, $options: 'i' } },
-                { imei1: { $regex: search, $options: 'i' } }
-            ];
-        }
-
-        // Get total count
-        const totalItems = await Customer.countDocuments(query);
-
-        // Get customers
-        const customers = await Customer.find(query)
-            .select('fullName mobileNumber address.pincode emiDetails.balanceAmount emiDetails.emiPerMonth isLocked assignedAt')
-            .skip(skip)
-            .limit(limit)
-            .sort({ assignedAt: -1 });
-
-        const totalPages = Math.ceil(totalItems / limit);
-
-        // Format customer data
-        const formattedCustomers = customers.map(customer => ({
-            customerId: customer._id.toString(),
-            fullName: customer.fullName,
-            mobileNumber: customer.mobileNumber,
-            pincode: customer.address.pincode,
-            balanceAmount: customer.emiDetails.balanceAmount,
-            emiPerMonth: customer.emiDetails.emiPerMonth,
-            isLocked: customer.isLocked,
-            assignedAt: customer.assignedAt
-        }));
-
-        return res.status(200).json({
-            success: true,
-            message: 'Unassigned customers fetched successfully',
-            data: {
-                customers: formattedCustomers,
-                pagination: {
-                    currentPage: page,
-                    totalPages,
-                    totalItems,
-                    itemsPerPage: limit
-                }
-            }
-        });
-
-    } catch (error) {
-        console.error('Get unassigned customers error:', error);
-        return res.status(500).json({
-            success: false,
-            message: 'Failed to fetch unassigned customers',
-            error: 'SERVER_ERROR'
-        });
-    }
-};
+/**
+ * DEPRECATED - This function has been removed as it references old Customer assignment fields
+ * (assignedToRecoveryHeadId, assigned, assignedAt) that no longer exist in the updated schema.
+ * Assignments are now tracked via RecoveryHeadAssignment model.
+ */
 
 /**
  * Bulk assign multiple customers to a recovery person
@@ -898,7 +827,7 @@ const getRecoveryPersonsWithCustomers = async (req, res) => {
                 path: 'customers',
                 select: 'fullName mobileNumber address.pincode emiDetails.balanceAmount isLocked isCollected'
             })
-            .select('fullName mobileNumber aadharNumber isActive customers')
+            .select('fullName mobileNumber pinCodes isActive customers')
             .skip(skip)
             .limit(limit)
             .sort({ createdAt: -1 });
@@ -915,10 +844,11 @@ const getRecoveryPersonsWithCustomers = async (req, res) => {
                 recoveryPersonId: rp._id.toString(),
                 fullName: rp.fullName,
                 mobileNumber: rp.mobileNumber,
-                aadharNumber: rp.aadharNumber,
+                pinCodes: rp.pinCodes,
                 isActive: rp.isActive,
                 customersCount: totalCustomers,
                 collectedCount: collectedCustomers,
+                pendingCount: totalCustomers - collectedCustomers,
                 isRecoveryTaskDone: isRecoveryTaskDone,
                 customers: rp.customers.map(customer => ({
                     customerId: customer._id.toString(),
@@ -981,7 +911,7 @@ const getAssignmentDetails = async (req, res) => {
             _id: assignmentId,
             recoveryHeadId: recoveryHeadId
         })
-            .populate('recoveryPersonId', 'fullName mobileNumber aadharNumber isActive')
+            .populate('recoveryPersonId', 'fullName mobileNumber isActive')
             .populate('customerId', 'fullName mobileNumber address emiDetails.balanceAmount isLocked')
             .lean();
 
@@ -1110,12 +1040,18 @@ const getRecoveryHeadStatistics = async (req, res) => {
 
         const Customer = require('../models/Customer');
         const RecoveryPerson = require('../models/RecoveryPerson');
+        const RecoveryHeadAssignment = require('../models/RecoveryHeadAssignment');
 
-        // Count total customers assigned to this recovery head
-        const totalAssignedCustomers = await Customer.countDocuments({
-            assignedToRecoveryHeadId: recoveryHeadId,
-            assigned: true
-        });
+        // Get all active assignments for this recovery head
+        const assignments = await RecoveryHeadAssignment.find({
+            recoveryHeadId: recoveryHeadId,
+            status: 'ACTIVE'
+        }).lean();
+
+        const customerIds = assignments.map(a => a.customerId);
+
+        // Count total customers assigned to recovery persons under this recovery head
+        const totalAssignedCustomers = customerIds.length;
 
         // Count total active recovery persons under this recovery head
         const totalRecoveryPersons = await RecoveryPerson.countDocuments({
@@ -1123,20 +1059,26 @@ const getRecoveryHeadStatistics = async (req, res) => {
             isActive: true
         });
 
-        // Count total devices collected from customers assigned to this recovery head
+        // Count total devices collected
         const totalDevicesCollected = await Customer.countDocuments({
-            assignedToRecoveryHeadId: recoveryHeadId,
-            assigned: true,
+            _id: { $in: customerIds },
             isCollected: true
         });
+
+        // Count pending collections
+        const pendingCollections = totalAssignedCustomers - totalDevicesCollected;
 
         return res.status(200).json({
             success: true,
             message: 'Statistics fetched successfully',
             data: {
-                totalAssignedCustomers,
                 totalRecoveryPersons,
-                totalDevicesCollected
+                totalAssignedCustomers,
+                pendingCollections,
+                totalDevicesCollected,
+                collectionRate: totalAssignedCustomers > 0
+                    ? ((totalDevicesCollected / totalAssignedCustomers) * 100).toFixed(2)
+                    : 0
             }
         });
 
@@ -1165,17 +1107,25 @@ const getCollectedCustomers = async (req, res) => {
         const skip = (page - 1) * limit;
 
         const Customer = require('../models/Customer');
+        const RecoveryHeadAssignment = require('../models/RecoveryHeadAssignment');
+
+        // Get all active assignments for this recovery head
+        const assignments = await RecoveryHeadAssignment.find({
+            recoveryHeadId: recoveryHeadId,
+            status: 'ACTIVE'
+        }).lean();
+
+        const customerIds = assignments.map(a => a.customerId);
 
         // Build query for collected customers
-        const query = {
-            assignedToRecoveryHeadId: recoveryHeadId,
-            assigned: true,
+        let customerQuery = {
+            _id: { $in: customerIds },
             isCollected: true
         };
 
         // Add search filter
         if (search) {
-            query.$or = [
+            customerQuery.$or = [
                 { fullName: { $regex: search, $options: 'i' } },
                 { mobileNumber: { $regex: search, $options: 'i' } },
                 { imei1: { $regex: search, $options: 'i' } },
@@ -1184,11 +1134,11 @@ const getCollectedCustomers = async (req, res) => {
         }
 
         // Get total count
-        const totalItems = await Customer.countDocuments(query);
+        const totalItems = await Customer.countDocuments(customerQuery);
 
         // Get collected customers with populated recovery person details
-        const customers = await Customer.find(query)
-            .populate('deviceCollection.collectedBy', 'fullName mobileNumber aadharNumber')
+        const customers = await Customer.find(customerQuery)
+            .populate('deviceCollection.collectedBy', 'fullName mobileNumber')
             .populate('retailerId', 'shopName mobileNumber')
             .select('fullName mobileNumber aadharNumber dob fatherName address imei1 imei2 emiDetails isLocked isCollected collectedAt deviceCollection documents')
             .skip(skip)
@@ -1286,13 +1236,11 @@ const getCollectedCustomers = async (req, res) => {
                     collectedBy: customer.deviceCollection.collectedBy ? {
                         recoveryPersonId: customer.deviceCollection.collectedBy._id.toString(),
                         fullName: customer.deviceCollection.collectedBy.fullName,
-                        mobileNumber: customer.deviceCollection.collectedBy.mobileNumber,
-                        aadharNumber: customer.deviceCollection.collectedBy.aadharNumber
+                        mobileNumber: customer.deviceCollection.collectedBy.mobileNumber
                     } : {
                         recoveryPersonId: null,
                         fullName: customer.deviceCollection.collectedByName || 'Unknown',
-                        mobileNumber: null,
-                        aadharNumber: null
+                        mobileNumber: null
                     }
                 }
             };
@@ -1329,12 +1277,9 @@ module.exports = {
     getAllRecoveryHeads,
     updateRecoveryHeadStatus,
     updateRecoveryHeadStatusValidation,
-    assignCustomersToRecoveryHeads,
-    debugLockedCustomers,
-    fixLockedCustomersAssignment,
+    assignCustomersToRecoveryPersons,
     getAssignedCustomers,
     getCustomerLocationByRecoveryHead,
-    getUnassignedCustomers,
     assignCustomersToRecoveryPerson,
     assignCustomersToRecoveryPersonValidation,
     getRecoveryPersonsWithCustomers,

@@ -5,9 +5,7 @@ const {
     createRecoveryHead,
     getAllRecoveryHeads,
     createRecoveryHeadValidation,
-    assignCustomersToRecoveryHeads,
-    debugLockedCustomers,
-    fixLockedCustomersAssignment
+    assignCustomersToRecoveryPersons
 } = require('../controllers/recoveryHeadController');
 
 // All recovery head routes require authentication
@@ -19,13 +17,7 @@ router.post('/', createRecoveryHeadValidation, createRecoveryHead);
 // GET /api/admin/recovery-heads - Get all recovery heads
 router.get('/', getAllRecoveryHeads);
 
-// POST /api/admin/recovery-heads/assign-customers - Assign locked customers to recovery heads
-router.post('/assign-customers', assignCustomersToRecoveryHeads);
-
-// GET /api/admin/recovery-heads/debug-locked - Debug locked customers (temporary)
-router.get('/debug-locked', debugLockedCustomers);
-
-// POST /api/admin/recovery-heads/fix-assignment - Fix existing locked customers (one-time migration)
-router.post('/fix-assignment', fixLockedCustomersAssignment);
+// POST /api/admin/recovery-heads/assign-customers - Assign locked customers to recovery persons
+router.post('/assign-customers', assignCustomersToRecoveryPersons);
 
 module.exports = router;
