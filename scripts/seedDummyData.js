@@ -53,7 +53,7 @@ const seedDummyData = async () => {
         for (let i = 0; i < 10; i++) {
             const baseDate = new Date();
             const purchaseDate = new Date(baseDate);
-            purchaseDate.setDate(purchaseDate.getDate() - 60); // 60 days ago
+            purchaseDate.setDate(purchaseDate.getDate() - 100); // 100 days ago (ensures 3rd EMI is 10 days overdue)
 
             // Calculate EMI due dates (monthly)
             const emiMonths = [];

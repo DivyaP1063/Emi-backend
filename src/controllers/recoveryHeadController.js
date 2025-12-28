@@ -304,7 +304,24 @@ const assignCustomersToRecoveryPersons = async (req, res) => {
             }
         ]);
 
-        console.log(`Found ${customersToAssign.length} eligible customers to assign`);
+        console.log(`\n🔍 Assignment Debug:`);
+        console.log(`   - Total locked customers: ${await Customer.countDocuments({ isLocked: true })}`);
+        console.log(`   - Not collected: ${await Customer.countDocuments({ isLocked: true, isCollected: false })}`);
+        console.log(`   - Already assigned: ${assignedCustomerIds.length}`);
+        console.log(`   - Eligible (5+ days overdue): ${customersToAssign.length}`);
+
+        if (customersToAssign.length > 0) {
+            console.log(`   - Sample customer pincodes:`, customersToAssign.slice(0, 3).map(c => c.address.pincode));
+        }
+
+        // Check if there are any recovery persons
+        const totalRecoveryPersons = await RecoveryPerson.countDocuments({ isActive: true });
+        console.log(`   - Active recovery persons: ${totalRecoveryPersons}`);
+
+        if (totalRecoveryPersons > 0) {
+            const rpSample = await RecoveryPerson.findOne({ isActive: true }).select('fullName pinCodes');
+            console.log(`   - Sample recovery person: ${rpSample?.fullName}, pincodes: ${rpSample?.pinCodes}`);
+        }
 
         let assignedCount = 0;
         let noMatchCount = 0;
