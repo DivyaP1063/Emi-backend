@@ -1099,6 +1099,57 @@ const unassignCustomerFromRecoveryPerson = async (req, res) => {
     }
 };
 
+/**
+ * Get statistics for the authenticated recovery head
+ * Recovery Head only - requires authentication
+ * Returns: total assigned customers, total recovery persons, total devices collected
+ */
+const getRecoveryHeadStatistics = async (req, res) => {
+    try {
+        const recoveryHeadId = req.recoveryHead.id;
+
+        const Customer = require('../models/Customer');
+        const RecoveryPerson = require('../models/RecoveryPerson');
+
+        // Count total customers assigned to this recovery head
+        const totalAssignedCustomers = await Customer.countDocuments({
+            assignedToRecoveryHeadId: recoveryHeadId,
+            assigned: true
+        });
+
+        // Count total active recovery persons under this recovery head
+        const totalRecoveryPersons = await RecoveryPerson.countDocuments({
+            recoveryHeadId: recoveryHeadId,
+            isActive: true
+        });
+
+        // Count total devices collected from customers assigned to this recovery head
+        const totalDevicesCollected = await Customer.countDocuments({
+            assignedToRecoveryHeadId: recoveryHeadId,
+            assigned: true,
+            isCollected: true
+        });
+
+        return res.status(200).json({
+            success: true,
+            message: 'Statistics fetched successfully',
+            data: {
+                totalAssignedCustomers,
+                totalRecoveryPersons,
+                totalDevicesCollected
+            }
+        });
+
+    } catch (error) {
+        console.error('Get recovery head statistics error:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Failed to fetch statistics',
+            error: 'SERVER_ERROR'
+        });
+    }
+};
+
 
 module.exports = {
     createRecoveryHead,
@@ -1116,5 +1167,6 @@ module.exports = {
     assignCustomersToRecoveryPersonValidation,
     getRecoveryPersonsWithCustomers,
     getAssignmentDetails,
-    unassignCustomerFromRecoveryPerson
+    unassignCustomerFromRecoveryPerson,
+    getRecoveryHeadStatistics
 };
