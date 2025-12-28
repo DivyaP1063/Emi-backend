@@ -596,7 +596,7 @@ const buildProvisioningPayload = (customerId, enrollmentToken, backendUrl = proc
     
     return {
         "android.app.extra.PROVISIONING_DEVICE_ADMIN_COMPONENT_NAME": "com.androidmanager/.receiver.EMIDeviceAdminReceiver",
-        // "android.app.extra.PROVISIONING_DEVICE_ADMIN_SIGNATURE_CHECKSUM": process.env.APP_SIGNATURE_CHECKSUM.trim(),
+        "android.app.extra.PROVISIONING_DEVICE_ADMIN_SIGNATURE_CHECKSUM": process.env.APP_SIGNATURE_CHECKSUM.trim(),
         "android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_DOWNLOAD_LOCATION": appDownloadUrl,
         "android.app.extra.PROVISIONING_SKIP_ENCRYPTION": false,
         "android.app.extra.PROVISIONING_LEAVE_ALL_SYSTEM_APPS_ENABLED": true,
