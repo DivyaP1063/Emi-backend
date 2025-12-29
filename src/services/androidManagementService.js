@@ -598,7 +598,7 @@ const buildProvisioningPayload = (customerId, enrollmentToken, backendUrl = proc
     // See: https://developer.android.com/reference/android/app/admin/DevicePolicyManager
     
     const payload = {
-        "android.app.extra.PROVISIONING_DEVICE_ADMIN_COMPONENT_NAME": "com.androidmanager/.receiver.EMIDeviceAdminReceiver",
+        "android.app.extra.PROVISIONING_DEVICE_ADMIN_COMPONENT_NAME": "com.androidmanager/.receiver.DeviceAdminReceiver",
         "android.app.extra.PROVISIONING_DEVICE_ADMIN_SIGNATURE_CHECKSUM": process.env.APP_SIGNATURE_CHECKSUM.trim(),
         "android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_CHECKSUM": process.env.APP_PACKAGE_CHECKSUM.trim(),
         "android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_DOWNLOAD_LOCATION": appDownloadUrl,
