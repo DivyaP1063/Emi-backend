@@ -13,7 +13,7 @@ async function testEnrollmentToken() {
         console.log('\n2. Generating enrollment token...');
         const result = await generateEnrollmentToken(
             'test-customer-123',  // Test customer ID
-            'policy1',            // Your policy
+            process.env.ANDROID_MANAGEMENT_DEFAULT_POLICY_ID,            // Your policy
             3600                  // 1 hour
         );
         
