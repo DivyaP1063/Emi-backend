@@ -142,8 +142,6 @@ const verifyOtpController = async (req, res) => {
                     id: recoveryHead._id.toString(),
                     fullName: recoveryHead.fullName,
                     mobileNumber: recoveryHead.mobileNumber,
-                    pinCodes: recoveryHead.pinCodes,
-                    pinCodesCount: recoveryHead.pinCodes.length,
                     status: recoveryHead.status
                 }
             }
