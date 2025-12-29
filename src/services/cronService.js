@@ -2,10 +2,10 @@
  * Cron Service - Interval-based Job Scheduler
  * 
  * This service manages the EMI reminder and device lock cron job
- * as a server-side interval that runs every 30 minutes (TESTING MODE).
+ * as a server-side interval that runs every 10 minutes (TESTING MODE).
  * 
  * Features:
- * - Runs every 30 minutes (for testing)
+ * - Runs every 10 minutes (for testing)
  * - Prevents concurrent executions
  * - Handles errors gracefully
  * - Can be started/stopped programmatically
@@ -64,14 +64,14 @@ function startCronService() {
     }
 
     console.log('\n🚀 [CRON] Starting cron service');
-    console.log('📅 [CRON] Interval: Every 30 minutes (TESTING MODE)');
+    console.log('📅 [CRON] Interval: Every 10 minutes (TESTING MODE)');
     console.log('🎯 [CRON] Job: EMI Reminder and Device Lock\n');
 
     // Run immediately on start
     executeCronJob();
 
-    // Then run every 30 minutes (1800000ms)
-    intervalId = setInterval(executeCronJob, 1800000);
+    // Then run every 10 minutes (600000ms)
+    intervalId = setInterval(executeCronJob, 600000);
 
     console.log('✅ [CRON] Service started successfully\n');
 }
@@ -107,7 +107,7 @@ function getCronStatus() {
         executionCount,
         lastExecutionTime,
         lastExecutionDuration,
-        intervalMs: 1800000 // 30 minutes (TESTING MODE)
+        intervalMs: 600000 // 10 minutes (TESTING MODE)
     };
 }
 
