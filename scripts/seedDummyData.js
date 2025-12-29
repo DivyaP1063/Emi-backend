@@ -16,7 +16,7 @@ const seedDummyData = async () => {
         console.log('✅ Cleaned up existing test data');
 
         // Retailer configurations
-        // hello
+        // hello hh
         const retailerConfigs = [
             {
                 fullName: 'Rajesh Kumar',
