@@ -546,6 +546,67 @@ const updateCustomerLocation = async (req, res) => {
     }
 };
 
+/**
+ * Get retailer shop name for a customer
+ * Called by mobile app to display the shop where device was purchased
+ */
+const getRetailerShop = async (req, res) => {
+    try {
+        const { imei1 } = req.params;
+
+        // Validate IMEI format
+        if (!imei1 || !imei1.match(/^[0-9]{15}$/)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid IMEI format. Must be exactly 15 digits',
+                error: 'VALIDATION_ERROR'
+            });
+        }
+
+        const Retailer = require('../models/Retailer');
+        
+        // Find customer by IMEI and populate retailer details
+        const customer = await Customer.findOne({ imei1 })
+            .populate('retailerId', 'shopName fullName mobileNumber address.city')
+            .select('fullName retailerId')
+            .lean();
+
+        if (!customer) {
+            return res.status(404).json({
+                success: false,
+                message: 'Customer not found with this IMEI',
+                error: 'CUSTOMER_NOT_FOUND'
+            });
+        }
+
+        if (!customer.retailerId) {
+            return res.status(404).json({
+                success: false,
+                message: 'Retailer not found for this customer',
+                error: 'RETAILER_NOT_FOUND'
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: 'Retailer shop fetched successfully',
+            data: {
+                shopName: customer.retailerId.shopName,
+                retailerName: customer.retailerId.fullName,
+                retailerMobile: customer.retailerId.mobileNumber,
+                city: customer.retailerId.address?.city || ''
+            }
+        });
+    } catch (error) {
+        console.error('❌ Get retailer shop error:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Failed to fetch retailer shop',
+            error: 'SERVER_ERROR'
+        });
+    }
+};
+
 module.exports = {
     updateCustomerFcmToken,
     updateFcmTokenValidation,
@@ -554,5 +615,6 @@ module.exports = {
     getCustomerStatus,
     getCustomerLocation,
     updateCustomerLocation,
-    updateLocationValidation
+    updateLocationValidation,
+    getRetailerShop
 };

@@ -8,7 +8,8 @@ const {
     getCustomerStatus,
     getCustomerLocation,
     updateCustomerLocation,
-    updateLocationValidation
+    updateLocationValidation,
+    getRetailerShop
 } = require('../controllers/customerDeviceController');
 
 /**
@@ -31,5 +32,8 @@ router.get('/location/:imei1', getCustomerLocation);
 // POST /api/customer/device/location - Update customer location (called every 15 minutes)
 // This also updates device activity status automatically
 router.post('/location', updateLocationValidation, updateCustomerLocation);
+
+// GET /api/customer/device/retailer-shop/:imei1 - Get retailer shop for a customer
+router.get('/retailer-shop/:imei1', getRetailerShop);
 
 module.exports = router;
