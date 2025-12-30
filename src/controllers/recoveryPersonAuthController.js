@@ -125,9 +125,8 @@ const verifyOtpController = async (req, res) => {
             });
         }
 
-        // Get recovery person details
-        const recoveryPerson = await RecoveryPerson.findOne({ mobileNumber, mobileVerified: true })
-            .populate('recoveryHeadId', 'fullName mobileNumber');
+        // Get recovery person details (no longer populate recoveryHeadId)
+        const recoveryPerson = await RecoveryPerson.findOne({ mobileNumber, mobileVerified: true });
 
         if (!recoveryPerson) {
             return res.status(401).json({
@@ -146,12 +145,11 @@ const verifyOtpController = async (req, res) => {
             });
         }
 
-        // Generate JWT token
+        // Generate JWT token (no longer include recoveryHeadId)
         const token = generateToken({
             id: recoveryPerson._id.toString(),
             mobileNumber: recoveryPerson.mobileNumber,
-            role: 'RECOVERY_PERSON',
-            recoveryHeadId: recoveryPerson.recoveryHeadId._id.toString()
+            role: 'RECOVERY_PERSON'
         });
 
         return res.status(200).json({
@@ -163,12 +161,7 @@ const verifyOtpController = async (req, res) => {
                     id: recoveryPerson._id.toString(),
                     fullName: recoveryPerson.fullName,
                     mobileNumber: recoveryPerson.mobileNumber,
-                    aadharNumber: recoveryPerson.aadharNumber,
-                    recoveryHead: {
-                        id: recoveryPerson.recoveryHeadId._id.toString(),
-                        fullName: recoveryPerson.recoveryHeadId.fullName,
-                        mobileNumber: recoveryPerson.recoveryHeadId.mobileNumber
-                    }
+                    pinCodes: recoveryPerson.pinCodes
                 }
             }
         });

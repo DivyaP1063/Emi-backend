@@ -354,19 +354,20 @@ const assignCustomersToRecoveryPersons = async (req, res) => {
                 }
             }
 
-            // Get recovery head details
-            const recoveryHead = await RecoveryHead.findById(selectedRecoveryPerson.recoveryHeadId);
+            // Get any recovery head for audit trail (since recovery persons are now global)
+            // We'll use the first available recovery head or create a default entry
+            const anyRecoveryHead = await RecoveryHead.findOne();
 
-            if (!recoveryHead) {
-                console.log(`⚠️  Recovery head not found for recovery person ${selectedRecoveryPerson.fullName}`);
+            if (!anyRecoveryHead) {
+                console.log(`⚠️  No recovery head found in system`);
                 noMatchCount++;
                 continue;
             }
 
             // Create assignment record
             await RecoveryHeadAssignment.create({
-                recoveryHeadId: recoveryHead._id,
-                recoveryHeadName: recoveryHead.fullName,
+                recoveryHeadId: anyRecoveryHead._id,
+                recoveryHeadName: anyRecoveryHead.fullName,
                 recoveryPersonId: selectedRecoveryPerson._id,
                 recoveryPersonName: selectedRecoveryPerson.fullName,
                 customerId: customer._id,
@@ -394,8 +395,8 @@ const assignCustomersToRecoveryPersons = async (req, res) => {
                 pincode: customerPincode,
                 recoveryPersonId: selectedRecoveryPerson._id.toString(),
                 recoveryPersonName: selectedRecoveryPerson.fullName,
-                recoveryHeadId: recoveryHead._id.toString(),
-                recoveryHeadName: recoveryHead.fullName
+                recoveryHeadId: anyRecoveryHead._id.toString(),
+                recoveryHeadName: anyRecoveryHead.fullName
             });
 
             assignedCount++;
@@ -445,7 +446,6 @@ const assignCustomersToRecoveryPersons = async (req, res) => {
  */
 const getAssignedCustomers = async (req, res) => {
     try {
-        const recoveryHeadId = req.recoveryHead.id;
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 20;
         const search = req.query.search || '';
@@ -455,9 +455,8 @@ const getAssignedCustomers = async (req, res) => {
         const Customer = require('../models/Customer');
         const RecoveryHeadAssignment = require('../models/RecoveryHeadAssignment');
 
-        // Get all active assignments for this recovery head
+        // Get all active assignments (no longer filtered by recoveryHeadId - show all)
         let assignmentQuery = {
-            recoveryHeadId: recoveryHeadId,
             status: 'ACTIVE'
         };
 
@@ -704,35 +703,32 @@ const assignCustomersToRecoveryPerson = async (req, res) => {
         const Customer = require('../models/Customer');
         const RecoveryHeadAssignment = require('../models/RecoveryHeadAssignment');
 
-        // Verify recovery person belongs to this recovery head
+        // Verify recovery person exists and is active (no ownership check)
         const recoveryPerson = await RecoveryPerson.findOne({
             _id: recoveryPersonId,
-            recoveryHeadId: recoveryHeadId,
             isActive: true
         });
 
         if (!recoveryPerson) {
             return res.status(404).json({
                 success: false,
-                message: 'Recovery person not found or does not belong to you',
+                message: 'Recovery person not found or is inactive',
                 error: 'RECOVERY_PERSON_NOT_FOUND'
             });
         }
 
-        // Get recovery head details
+        // Get recovery head details for audit trail
         const recoveryHead = await RecoveryHead.findById(recoveryHeadId);
 
-        // Verify all customers are assigned to this recovery head
+        // Verify all customers exist (no ownership check)
         const customers = await Customer.find({
-            _id: { $in: customerIds },
-            assignedToRecoveryHeadId: recoveryHeadId,
-            assigned: true
+            _id: { $in: customerIds }
         });
 
         if (customers.length !== customerIds.length) {
             return res.status(404).json({
                 success: false,
-                message: 'Some customers not found or not assigned to you',
+                message: 'Some customers not found',
                 error: 'CUSTOMER_NOT_FOUND'
             });
         }
@@ -761,7 +757,7 @@ const assignCustomersToRecoveryPerson = async (req, res) => {
             });
         }
 
-        // Create assignments for all customers
+        // Create assignments for all customers (keep recoveryHeadId for audit trail)
         const assignmentsToCreate = customers.map(customer => ({
             recoveryHeadId: recoveryHeadId,
             recoveryHeadName: recoveryHead.fullName,

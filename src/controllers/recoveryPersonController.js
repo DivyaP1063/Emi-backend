@@ -39,7 +39,6 @@ const createRecoveryPerson = async (req, res) => {
         }
 
         const { fullName, mobileNumber, pinCodes } = req.body;
-        const recoveryHeadId = req.recoveryHead.id; // From authenticateRecoveryHead middleware
 
         // Check if mobile already exists
         const existingMobile = await RecoveryPerson.findOne({ mobileNumber });
@@ -51,19 +50,14 @@ const createRecoveryPerson = async (req, res) => {
             });
         }
 
-        // Create recovery person
+        // Create recovery person (no longer tied to specific recovery head)
         const recoveryPerson = await RecoveryPerson.create({
             fullName,
             mobileNumber,
             pinCodes,
-            recoveryHeadId,
             mobileVerified: true,
             isActive: true
         });
-
-        // Get recovery head details
-        const RecoveryHead = require('../models/RecoveryHead');
-        const recoveryHead = await RecoveryHead.findById(recoveryHeadId);
 
         return res.status(201).json({
             success: true,
@@ -75,11 +69,6 @@ const createRecoveryPerson = async (req, res) => {
                 pinCodes: recoveryPerson.pinCodes,
                 mobileVerified: recoveryPerson.mobileVerified,
                 isActive: recoveryPerson.isActive,
-                recoveryHead: {
-                    recoveryHeadId: recoveryHead._id.toString(),
-                    fullName: recoveryHead.fullName,
-                    mobileNumber: recoveryHead.mobileNumber
-                },
                 assignedCustomersCount: 0,
                 createdAt: recoveryPerson.createdAt
             }
@@ -99,18 +88,16 @@ const createRecoveryPerson = async (req, res) => {
  */
 const getAllRecoveryPersons = async (req, res) => {
     try {
-        const recoveryHeadId = req.recoveryHead.id;
         const { page = 1, limit = 20, search = '' } = req.query;
 
         const pageNum = parseInt(page);
         const limitNum = parseInt(limit);
         const skip = (pageNum - 1) * limitNum;
 
-        // Build search query
-        let searchQuery = { recoveryHeadId };
+        // Build search query (no longer filtered by recoveryHeadId - show all)
+        let searchQuery = {};
         if (search) {
             searchQuery = {
-                recoveryHeadId,
                 $or: [
                     { fullName: { $regex: search, $options: 'i' } },
                     { mobileNumber: { $regex: search, $options: 'i' } }
@@ -172,7 +159,6 @@ const updateRecoveryPersonStatus = async (req, res) => {
     try {
         const { recoveryPersonId } = req.params;
         const { isActive } = req.body;
-        const recoveryHeadId = req.recoveryHead.id;
 
         // Validate required fields
         if (typeof isActive !== 'boolean') {
@@ -192,16 +178,13 @@ const updateRecoveryPersonStatus = async (req, res) => {
             });
         }
 
-        // Find recovery person and verify ownership
-        const recoveryPerson = await RecoveryPerson.findOne({
-            _id: recoveryPersonId,
-            recoveryHeadId
-        });
+        // Find recovery person (no ownership check - all recovery heads can manage all recovery persons)
+        const recoveryPerson = await RecoveryPerson.findById(recoveryPersonId);
 
         if (!recoveryPerson) {
             return res.status(404).json({
                 success: false,
-                message: 'Recovery person not found or not authorized',
+                message: 'Recovery person not found',
                 error: 'RECOVERY_PERSON_NOT_FOUND'
             });
         }

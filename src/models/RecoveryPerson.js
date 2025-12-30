@@ -33,11 +33,6 @@ const recoveryPersonSchema = new mongoose.Schema({
         type: Boolean,
         default: true
     },
-    recoveryHeadId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'RecoveryHead',
-        required: true
-    },
     customers: [{
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Customer'
@@ -48,7 +43,6 @@ const recoveryPersonSchema = new mongoose.Schema({
 
 // Create indexes
 recoveryPersonSchema.index({ mobileNumber: 1 });
-recoveryPersonSchema.index({ recoveryHeadId: 1 });
 recoveryPersonSchema.index({ isActive: 1 });
 recoveryPersonSchema.index({ pinCodes: 1 });
 recoveryPersonSchema.index({ customers: 1 });
