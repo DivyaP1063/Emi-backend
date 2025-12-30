@@ -351,13 +351,12 @@ const authenticateRecoveryPerson = async (req, res, next) => {
       });
     }
 
-    // Attach recovery person to request object
+    // Attach recovery person to request object (no longer include recoveryHeadId)
     req.recoveryPerson = {
       id: recoveryPerson._id.toString(),
       fullName: recoveryPerson.fullName,
       mobileNumber: recoveryPerson.mobileNumber,
-      aadharNumber: recoveryPerson.aadharNumber,
-      recoveryHeadId: recoveryPerson.recoveryHeadId.toString()
+      pinCodes: recoveryPerson.pinCodes
     };
 
     next();
