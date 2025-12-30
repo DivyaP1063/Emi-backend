@@ -587,7 +587,6 @@ const getAssignedCustomers = async (req, res) => {
  */
 const getCustomerLocationByRecoveryHead = async (req, res) => {
     try {
-        const recoveryHeadId = req.recoveryHead.id;
         const { customerId } = req.params;
 
         // Validate customerId format
@@ -601,19 +600,15 @@ const getCustomerLocationByRecoveryHead = async (req, res) => {
 
         const Customer = require('../models/Customer');
 
-        // Find customer and verify assignment
-        const customer = await Customer.findOne({
-            _id: customerId,
-            assignedToRecoveryHeadId: recoveryHeadId,
-            assigned: true
-        })
+        // Find customer (no ownership check - all recovery heads can access)
+        const customer = await Customer.findById(customerId)
             .select('fullName mobileNumber location')
             .lean();
 
         if (!customer) {
             return res.status(404).json({
                 success: false,
-                message: 'Customer not found or not assigned to you',
+                message: 'Customer not found',
                 error: 'CUSTOMER_NOT_FOUND'
             });
         }
@@ -809,7 +804,6 @@ const assignCustomersToRecoveryPerson = async (req, res) => {
  */
 const getRecoveryPersonsWithCustomers = async (req, res) => {
     try {
-        const recoveryHeadId = req.recoveryHead.id;
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 20;
         const search = req.query.search || '';
@@ -818,10 +812,8 @@ const getRecoveryPersonsWithCustomers = async (req, res) => {
 
         const RecoveryPerson = require('../models/RecoveryPerson');
 
-        // Build query
-        let query = {
-            recoveryHeadId: recoveryHeadId
-        };
+        // Build query (no longer filtered by recoveryHeadId - show all)
+        let query = {};
 
         // Add search filter
         if (search) {
@@ -905,7 +897,6 @@ const getRecoveryPersonsWithCustomers = async (req, res) => {
  */
 const getAssignmentDetails = async (req, res) => {
     try {
-        const recoveryHeadId = req.recoveryHead.id;
         const { assignmentId } = req.params;
 
         // Validate assignmentId format
@@ -919,11 +910,8 @@ const getAssignmentDetails = async (req, res) => {
 
         const RecoveryHeadAssignment = require('../models/RecoveryHeadAssignment');
 
-        // Find assignment and verify ownership
-        const assignment = await RecoveryHeadAssignment.findOne({
-            _id: assignmentId,
-            recoveryHeadId: recoveryHeadId
-        })
+        // Find assignment (no ownership check - all recovery heads can view all assignments)
+        const assignment = await RecoveryHeadAssignment.findById(assignmentId)
             .populate('recoveryPersonId', 'fullName mobileNumber isActive')
             .populate('customerId', 'fullName mobileNumber address emiDetails.balanceAmount isLocked')
             .lean();
@@ -931,7 +919,7 @@ const getAssignmentDetails = async (req, res) => {
         if (!assignment) {
             return res.status(404).json({
                 success: false,
-                message: 'Assignment not found or does not belong to you',
+                message: 'Assignment not found',
                 error: 'ASSIGNMENT_NOT_FOUND'
             });
         }
@@ -978,7 +966,6 @@ const getAssignmentDetails = async (req, res) => {
  */
 const unassignCustomerFromRecoveryPerson = async (req, res) => {
     try {
-        const recoveryHeadId = req.recoveryHead.id;
         const { assignmentId } = req.params;
 
         // Validate assignmentId format
@@ -993,17 +980,16 @@ const unassignCustomerFromRecoveryPerson = async (req, res) => {
         const RecoveryHeadAssignment = require('../models/RecoveryHeadAssignment');
         const RecoveryPerson = require('../models/RecoveryPerson');
 
-        // Find assignment and verify ownership
+        // Find assignment (no ownership check - all recovery heads can unassign)
         const assignment = await RecoveryHeadAssignment.findOne({
             _id: assignmentId,
-            recoveryHeadId: recoveryHeadId,
             status: 'ACTIVE'
         });
 
         if (!assignment) {
             return res.status(404).json({
                 success: false,
-                message: 'Active assignment not found or does not belong to you',
+                message: 'Active assignment not found',
                 error: 'ASSIGNMENT_NOT_FOUND'
             });
         }
@@ -1049,26 +1035,22 @@ const unassignCustomerFromRecoveryPerson = async (req, res) => {
  */
 const getRecoveryHeadStatistics = async (req, res) => {
     try {
-        const recoveryHeadId = req.recoveryHead.id;
-
         const Customer = require('../models/Customer');
         const RecoveryPerson = require('../models/RecoveryPerson');
         const RecoveryHeadAssignment = require('../models/RecoveryHeadAssignment');
 
-        // Get all active assignments for this recovery head
+        // Get all active assignments (no longer filtered by recoveryHeadId - show all)
         const assignments = await RecoveryHeadAssignment.find({
-            recoveryHeadId: recoveryHeadId,
             status: 'ACTIVE'
         }).lean();
 
         const customerIds = assignments.map(a => a.customerId);
 
-        // Count total customers assigned to recovery persons under this recovery head
+        // Count total customers assigned to recovery persons
         const totalAssignedCustomers = customerIds.length;
 
-        // Count total active recovery persons under this recovery head
+        // Count total active recovery persons (all of them)
         const totalRecoveryPersons = await RecoveryPerson.countDocuments({
-            recoveryHeadId: recoveryHeadId,
             isActive: true
         });
 
@@ -1112,7 +1094,6 @@ const getRecoveryHeadStatistics = async (req, res) => {
  */
 const getCollectedCustomers = async (req, res) => {
     try {
-        const recoveryHeadId = req.recoveryHead.id;
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 20;
         const search = req.query.search || '';
@@ -1122,9 +1103,8 @@ const getCollectedCustomers = async (req, res) => {
         const Customer = require('../models/Customer');
         const RecoveryHeadAssignment = require('../models/RecoveryHeadAssignment');
 
-        // Get all active assignments for this recovery head
+        // Get all active assignments (no longer filtered by recoveryHeadId - show all)
         const assignments = await RecoveryHeadAssignment.find({
-            recoveryHeadId: recoveryHeadId,
             status: 'ACTIVE'
         }).lean();
 
