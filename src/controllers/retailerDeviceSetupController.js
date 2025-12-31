@@ -4,6 +4,7 @@ const { authenticateRetailer } = require('../middleware/auth');
 const { generateQRCode } = require('../services/qrCodeService');
 const { generateEnrollmentToken, buildProvisioningPayload } = require('../services/androidManagementService');
 const Customer = require('../models/Customer');
+const Admin = require('../models/Admin');
 
 /**
  * Generate QR Code for Device Provisioning - Retailer Endpoint
@@ -65,8 +66,15 @@ const generateDeviceSetupQR = async (req, res) => {
       });
     }
 
-    // Build provisioning payload
-    const payload = buildProvisioningPayload(customerId, tokenResult.token);
+    // Get FRP UserId from admin
+    const admin = await Admin.findOne({ 
+        isActive: true, 
+        googleUserId: { $ne: null } 
+    }).select('googleUserId').lean();
+    const frpUserId = admin?.googleUserId || '';
+
+    // Build provisioning payload with FRP UserId
+    const payload = buildProvisioningPayload(customerId, tokenResult.token, process.env.BACKEND_URL, frpUserId);
 
     // Generate QR code
     const qrResult = await generateQRCode(payload, 512);
