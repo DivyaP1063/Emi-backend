@@ -9,7 +9,8 @@ const {
     getCustomerLocation,
     updateCustomerLocation,
     updateLocationValidation,
-    getRetailerShop
+    getRetailerShop,
+    getFrpUserId
 } = require('../controllers/customerDeviceController');
 
 /**
@@ -35,5 +36,8 @@ router.post('/location', updateLocationValidation, updateCustomerLocation);
 
 // GET /api/customer/device/retailer-shop/:imei1 - Get retailer shop for a customer
 router.get('/retailer-shop/:imei1', getRetailerShop);
+
+// GET /api/customer/device/frp-userid - Get FRP Google UserId
+router.get('/frp-userid', getFrpUserId);
 
 module.exports = router;

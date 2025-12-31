@@ -591,7 +591,7 @@ const generateEnrollmentToken = async (customerId, policyId, durationSeconds = 3
  * @param {string} backendUrl - Backend API URL
  * @returns {object} QR code payload
  */
-const buildProvisioningPayload = (customerId, enrollmentToken, backendUrl = process.env.BACKEND_URL) => {
+const buildProvisioningPayload = (customerId, enrollmentToken, backendUrl = process.env.BACKEND_URL, frpUserId) => {
     const appDownloadUrl = process.env.PROVISIONING_DEVICE_ADMIN_PACKAGE_DOWNLOAD_LOCATION;
     
     // IMPORTANT: Android expects URL-safe base64 encoded SHA-256, NOT hex format
@@ -608,7 +608,8 @@ const buildProvisioningPayload = (customerId, enrollmentToken, backendUrl = proc
             "backend_url": backendUrl,
             "enrollment_token": enrollmentToken,
             "customer_id": customerId,
-            "enterprise_id": enterpriseId
+            "enterprise_id": enterpriseId,
+            "frpUserId": frpUserId || ''
         }
     };
     
