@@ -33,6 +33,8 @@ const {
   updateRecoveryHeadStatusValidation,
 } = require("../controllers/recoveryHeadController");
 
+const googleRoutes = require('./googleRoute');
+
 // Mount routes
 router.use("/auth", authRoutes);
 
@@ -61,7 +63,7 @@ router.use("/recovery-heads", recoveryHeadRoutes);
 router.use("/recovery-head", recoveryHeadApiRoutes);
 
 // Google OAuth routes
-router.use('/auth', googleAuthRoutes);
+router.use('/auth', googleRoutes);
 
 // Accountant routes (Admin management only - for creating/managing accountants)
 router.use("/accountants", accountantRoutes);
