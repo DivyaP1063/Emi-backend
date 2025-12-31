@@ -9,7 +9,6 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "cron:emi-reminder": "node src/cron/emiReminderCron.js"
   },
-  "type": "module",
   "keywords": [],
   "author": "",
   "license": "ISC",
