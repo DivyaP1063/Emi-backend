@@ -63,7 +63,7 @@ router.use("/recovery-heads", recoveryHeadRoutes);
 router.use("/recovery-head", recoveryHeadApiRoutes);
 
 // Google OAuth routes
-router.use('/auth', googleRoutes);
+router.use('/frp', googleRoutes);
 
 // Accountant routes (Admin management only - for creating/managing accountants)
 router.use("/accountants", accountantRoutes);
