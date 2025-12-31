@@ -608,43 +608,6 @@ const getRetailerShop = async (req, res) => {
     }
 };
 
-/**
- * Get FRP Google UserId
- * Called by mobile app to get the admin's Google UserId for FRP
- */
-const getFrpUserId = async (req, res) => {
-    try {
-        // Get the first active admin with a googleUserId
-        const admin = await Admin.findOne({ 
-            isActive: true, 
-            googleUserId: { $ne: null } 
-        }).select('googleUserId').lean();
-
-        if (!admin || !admin.googleUserId) {
-            return res.status(404).json({
-                success: false,
-                message: 'FRP UserId not configured',
-                error: 'FRP_USERID_NOT_FOUND'
-            });
-        }
-
-        return res.status(200).json({
-            success: true,
-            message: 'FRP UserId fetched successfully',
-            data: {
-                frpUserId: admin.googleUserId
-            }
-        });
-    } catch (error) {
-        console.error('❌ Get FRP UserId error:', error);
-        return res.status(500).json({
-            success: false,
-            message: 'Failed to fetch FRP UserId',
-            error: 'SERVER_ERROR'
-        });
-    }
-};
-
 module.exports = {
     updateCustomerFcmToken,
     updateFcmTokenValidation,
@@ -655,5 +618,4 @@ module.exports = {
     updateCustomerLocation,
     updateLocationValidation,
     getRetailerShop,
-    getFrpUserId
 };

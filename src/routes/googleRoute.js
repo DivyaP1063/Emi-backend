@@ -4,7 +4,7 @@ const {
     initiateGoogleAuth,
     googleAuthCallback,
     getAdminGoogleUserId
-} = require('../controllers/googleAuthController');
+} = require('../controllers/googleController');
 
 // GET /auth/google?adminId=xxx - Start OAuth flow
 router.get('/google', initiateGoogleAuth);
