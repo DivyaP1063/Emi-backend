@@ -795,57 +795,23 @@ const markPaymentReceived = async (req, res) => {
 
         // Handle backward compatibility: customers array might be ObjectIds or objects
         console.log('\n🔍 Searching for customer in array...');
-        const customerIndex = recoveryPerson.customers.findIndex(c => {
+
+        // CRITICAL FIX: Access raw MongoDB document to bypass Mongoose wrapping
+        const rawDoc = recoveryPerson.toObject();
+        console.log('   Raw customers from toObject():', JSON.stringify(rawDoc.customers, null, 2));
+
+        const customerIndex = rawDoc.customers.findIndex(c => {
             // New schema: c is an object with customerId field
             if (c.customerId) {
                 const match = c.customerId.toString() === customerId;
-                console.log(`   Checking NEW format: ${c.customerId.toString()} === ${customerId} ? ${match}`);
+                console.log(`   NEW format: ${c.customerId.toString()} === ${customerId} ? ${match}`);
                 return match;
             }
-            // Malformed hybrid: has moneyReceived but missing customerId, has buffer or _id
-            if (c.moneyReceived !== undefined && !c.customerId) {
-                console.log(`   Detected MALFORMED HYBRID format`);
-                console.log(`   Full object:`, JSON.stringify(c, null, 2));
-                console.log(`   Has buffer?`, !!c.buffer);
-                console.log(`   Has _id?`, !!c._id);
 
-                // Try to get ObjectId from buffer or _id field
-                let objectIdStr;
-
-                // Check if c itself is a buffer-like object
-                if (c.buffer) {
-                    console.log(`   Buffer object:`, c.buffer);
-                    console.log(`   Buffer type:`, typeof c.buffer);
-                    console.log(`   Buffer.data exists?`, !!c.buffer.data);
-
-                    if (c.buffer.data && Array.isArray(c.buffer.data)) {
-                        // Buffer with data array
-                        console.log(`   Found buffer.data array:`, c.buffer.data);
-                        const hexStr = Buffer.from(c.buffer.data).toString('hex');
-                        console.log(`   Converted to hex:`, hexStr);
-                        objectIdStr = hexStr;
-                    } else if (Buffer.isBuffer(c.buffer)) {
-                        // Direct buffer object
-                        console.log(`   Found direct Buffer object`);
-                        const hexStr = c.buffer.toString('hex');
-                        console.log(`   Converted to hex:`, hexStr);
-                        objectIdStr = hexStr;
-                    }
-                }
-
-                // Fallback to _id if buffer extraction failed
-                if (!objectIdStr && c._id) {
-                    console.log(`   Falling back to _id field:`, c._id.toString());
-                    objectIdStr = c._id.toString();
-                }
-
-                const match = objectIdStr === customerId;
-                console.log(`   Final comparison: ${objectIdStr} === ${customerId} ? ${match}`);
-                return match;
-            }
-            // Old schema: c is directly an ObjectId
-            const match = c.toString() === customerId;
-            console.log(`   Checking OLD format: ${c.toString()} === ${customerId} ? ${match}`);
+            // Old schema or plain ObjectId: c is the ObjectId itself (as string or object)
+            const cStr = typeof c === 'string' ? c : (c.toString ? c.toString() : String(c));
+            const match = cStr === customerId;
+            console.log(`   OLD/Plain format: ${cStr} === ${customerId} ? ${match}`);
             return match;
         });
 
