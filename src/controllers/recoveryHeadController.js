@@ -381,10 +381,10 @@ const assignCustomersToRecoveryPersons = async (req, res) => {
                 assigned: true
             });
 
-            // Add customer to recovery person's customers array
+            // Add customer to recovery person's customers array with moneyReceived field
             await RecoveryPerson.findByIdAndUpdate(
                 selectedRecoveryPerson._id,
-                { $addToSet: { customers: customer._id } }
+                { $addToSet: { customers: { customerId: customer._id, moneyReceived: false } } }
             );
 
             console.log(`✅ Assigned ${customer.fullName} (${customerPincode}) to ${selectedRecoveryPerson.fullName} (${minCustomerCount} customers)`);
@@ -765,10 +765,12 @@ const assignCustomersToRecoveryPerson = async (req, res) => {
 
         const createdAssignments = await RecoveryHeadAssignment.insertMany(assignmentsToCreate);
 
-        // Add all customers to recovery person's customers array
-        const newCustomerIds = customerIds.filter(id => !recoveryPerson.customers.includes(id));
+        // Add all customers to recovery person's customers array with moneyReceived field
+        const existingCustomerIds = recoveryPerson.customers.map(c => c.customerId.toString());
+        const newCustomerIds = customerIds.filter(id => !existingCustomerIds.includes(id));
         if (newCustomerIds.length > 0) {
-            recoveryPerson.customers.push(...newCustomerIds);
+            const newCustomers = newCustomerIds.map(id => ({ customerId: id, moneyReceived: false }));
+            recoveryPerson.customers.push(...newCustomers);
             await recoveryPerson.save();
         }
 
@@ -999,10 +1001,10 @@ const unassignCustomerFromRecoveryPerson = async (req, res) => {
         assignment.unassignedAt = new Date();
         await assignment.save();
 
-        // Remove customer from recovery person's customers array
+        // Remove customer from recovery person's customers array using customerId field
         await RecoveryPerson.findByIdAndUpdate(
             assignment.recoveryPersonId,
-            { $pull: { customers: assignment.customerId } }
+            { $pull: { customers: { customerId: assignment.customerId } } }
         );
 
         return res.status(200).json({

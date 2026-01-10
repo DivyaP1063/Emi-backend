@@ -709,6 +709,123 @@ const getCustomerLocation = async (req, res) => {
 };
 
 
+/**
+ * Validation rules for mark payment received
+ */
+const markPaymentReceivedValidation = [
+    body('customerId')
+        .trim()
+        .notEmpty()
+        .withMessage('Customer ID is required')
+        .matches(/^[0-9a-fA-F]{24}$/)
+        .withMessage('Invalid customer ID format')
+];
+
+/**
+ * Mark payment as received when customer pays due amount and takes back device
+ * Recovery Person only - requires authentication
+ */
+const markPaymentReceived = async (req, res) => {
+    try {
+        // Check validation errors
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({
+                success: false,
+                message: 'Validation failed',
+                error: 'VALIDATION_ERROR',
+                details: errors.array()
+            });
+        }
+
+        const recoveryPersonId = req.recoveryPerson.id;
+        const { customerId } = req.body;
+
+        const Customer = require('../models/Customer');
+        const RecoveryHeadAssignment = require('../models/RecoveryHeadAssignment');
+
+        // Verify customer is assigned to this recovery person
+        const assignment = await RecoveryHeadAssignment.findOne({
+            customerId: customerId,
+            recoveryPersonId: recoveryPersonId,
+            status: 'ACTIVE'
+        });
+
+        if (!assignment) {
+            return res.status(404).json({
+                success: false,
+                message: 'Customer not found or not assigned to you',
+                error: 'CUSTOMER_NOT_FOUND'
+            });
+        }
+
+        // Get customer
+        const customer = await Customer.findById(customerId);
+
+        if (!customer) {
+            return res.status(404).json({
+                success: false,
+                message: 'Customer not found',
+                error: 'CUSTOMER_NOT_FOUND'
+            });
+        }
+
+        // Update recovery person's customers array - set moneyReceived to true
+        const recoveryPerson = await RecoveryPerson.findById(recoveryPersonId);
+
+        const customerIndex = recoveryPerson.customers.findIndex(
+            c => c.customerId.toString() === customerId
+        );
+
+        if (customerIndex === -1) {
+            return res.status(404).json({
+                success: false,
+                message: 'Customer not found in your assigned list',
+                error: 'CUSTOMER_NOT_IN_LIST'
+            });
+        }
+
+        // Set moneyReceived to true
+        recoveryPerson.customers[customerIndex].moneyReceived = true;
+        await recoveryPerson.save();
+
+        // Update customer status
+        customer.assigned = false;
+        customer.isCollected = false;
+        await customer.save();
+
+        // Update assignment status to INACTIVE
+        assignment.status = 'INACTIVE';
+        assignment.unassignedAt = new Date();
+        await assignment.save();
+
+        return res.status(200).json({
+            success: true,
+            message: 'Payment received and customer status updated successfully',
+            data: {
+                customerId: customer._id.toString(),
+                customerName: customer.fullName,
+                moneyReceived: true,
+                customerStatus: {
+                    assigned: customer.assigned,
+                    isCollected: customer.isCollected
+                },
+                assignmentStatus: assignment.status,
+                updatedAt: new Date()
+            }
+        });
+
+    } catch (error) {
+        console.error('Mark payment received error:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Failed to mark payment as received',
+            error: 'SERVER_ERROR'
+        });
+    }
+};
+
+
 module.exports = {
     createRecoveryPerson,
     getAllRecoveryPersons,
@@ -719,5 +836,7 @@ module.exports = {
     getAssignedCustomers,
     getDashboardStats,
     getCustomerDetails,
-    getCustomerLocation
+    getCustomerLocation,
+    markPaymentReceived,
+    markPaymentReceivedValidation
 };

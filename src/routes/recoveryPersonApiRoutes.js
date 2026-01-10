@@ -41,7 +41,9 @@ const {
     getAssignedCustomers,
     getDashboardStats,
     getCustomerDetails,
-    getCustomerLocation
+    getCustomerLocation,
+    markPaymentReceived,
+    markPaymentReceivedValidation
 } = require('../controllers/recoveryPersonController');
 router.post(
     '/collect-device',
@@ -49,6 +51,18 @@ router.post(
     uploadDeviceImages,
     collectDeviceValidation,
     collectDevice
+);
+
+/**
+ * @route   POST /api/recovery-person/mark-payment-received
+ * @desc    Mark payment as received when customer pays and takes back device
+ * @access  Private (Recovery Person)
+ */
+router.post(
+    '/mark-payment-received',
+    authenticateRecoveryPerson,
+    markPaymentReceivedValidation,
+    markPaymentReceived
 );
 
 /**

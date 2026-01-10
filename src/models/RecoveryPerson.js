@@ -34,8 +34,15 @@ const recoveryPersonSchema = new mongoose.Schema({
         default: true
     },
     customers: [{
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Customer'
+        customerId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Customer',
+            required: true
+        },
+        moneyReceived: {
+            type: Boolean,
+            default: false
+        }
     }]
 }, {
     timestamps: true
