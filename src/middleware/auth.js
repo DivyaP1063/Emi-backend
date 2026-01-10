@@ -314,6 +314,10 @@ const authenticateRecoveryPerson = async (req, res, next) => {
     // Verify token
     const decoded = verifyToken(token);
 
+    console.log('🔍 [AUTH DEBUG] Recovery Person Authentication:');
+    console.log('   Token (first 20 chars):', token.substring(0, 20) + '...');
+    console.log('   Decoded payload:', JSON.stringify(decoded, null, 2));
+
     if (!decoded) {
       return res.status(401).json({
         success: false,
@@ -324,6 +328,7 @@ const authenticateRecoveryPerson = async (req, res, next) => {
 
     // Check if token is for recovery person
     if (decoded.role !== 'RECOVERY_PERSON') {
+      console.log('   ❌ Role mismatch. Expected: RECOVERY_PERSON, Got:', decoded.role);
       return res.status(403).json({
         success: false,
         message: 'Access denied: Recovery Person role required',
@@ -333,9 +338,11 @@ const authenticateRecoveryPerson = async (req, res, next) => {
 
     // Check if recovery person exists and is active
     const RecoveryPerson = require('../models/RecoveryPerson');
+    console.log('   Looking up RecoveryPerson with ID:', decoded.id);
     const recoveryPerson = await RecoveryPerson.findById(decoded.id);
 
     if (!recoveryPerson) {
+      console.log('   ❌ RecoveryPerson not found in database for ID:', decoded.id);
       return res.status(401).json({
         success: false,
         message: 'Recovery person not found',
@@ -343,7 +350,14 @@ const authenticateRecoveryPerson = async (req, res, next) => {
       });
     }
 
+    console.log('   ✅ RecoveryPerson found:');
+    console.log('      ID:', recoveryPerson._id.toString());
+    console.log('      Name:', recoveryPerson.fullName);
+    console.log('      Mobile:', recoveryPerson.mobileNumber);
+    console.log('      Customers count:', recoveryPerson.customers?.length || 0);
+
     if (!recoveryPerson.isActive) {
+      console.log('   ❌ RecoveryPerson is inactive');
       return res.status(403).json({
         success: false,
         message: 'Recovery person account is inactive',
@@ -358,6 +372,8 @@ const authenticateRecoveryPerson = async (req, res, next) => {
       mobileNumber: recoveryPerson.mobileNumber,
       pinCodes: recoveryPerson.pinCodes
     };
+
+    console.log('   ✅ Authentication successful. Attached to req.recoveryPerson:', req.recoveryPerson.id);
 
     next();
   } catch (error) {

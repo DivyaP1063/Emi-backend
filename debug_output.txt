@@ -1,0 +1,30 @@
+✅ Connected to MongoDB
+
+=== Checking RecoveryPerson Collection ===
+
+Checking ALL RecoveryPersons for this customer:
+Total RecoveryPersons: 2
+
+✅ Found in RecoveryPerson: 6952d66e033424f426802972 (sahil recovery 2)
+   Customers array format: OLD (ObjectId)
+   Customers array:
+[
+  "6952d1151709de3521e201cb"
+]
+
+
+=== Checking RecoveryHeadAssignment Collection ===
+Found 1 assignment(s):
+
+  Assignment ID: 6952d68b033424f4268029cb
+  Recovery Person ID: 6952d66e033424f426802972
+  Status: ACTIVE
+  Created: Tue Dec 30 2025 00:59:15 GMT+0530 (India Standard Time)
+
+
+=== Checking Customer Collection ===
+✅ Customer found:
+   Name: Ravi Tiwari
+   Mobile: 9800000008
+   Assigned: true
+   IsCollected: true

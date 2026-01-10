@@ -738,8 +738,20 @@ const markPaymentReceived = async (req, res) => {
             });
         }
 
+        console.log('\n🔍 [MARK PAYMENT DEBUG] ========================================');
+        console.log('Request received at:', new Date().toISOString());
+
         const recoveryPersonId = req.recoveryPerson.id;
         const { customerId } = req.body;
+
+        console.log('📋 Request Details:');
+        console.log('   JWT Decoded Recovery Person ID:', recoveryPersonId);
+        console.log('   Customer ID from request:', customerId);
+        console.log('   Recovery Person Info:', {
+            id: req.recoveryPerson.id,
+            fullName: req.recoveryPerson.fullName,
+            mobileNumber: req.recoveryPerson.mobileNumber
+        });
 
         const Customer = require('../models/Customer');
         const RecoveryHeadAssignment = require('../models/RecoveryHeadAssignment');
@@ -771,25 +783,50 @@ const markPaymentReceived = async (req, res) => {
         }
 
         // Update recovery person's customers array - set moneyReceived to true
+        console.log('\n🔍 Fetching RecoveryPerson document...');
         const recoveryPerson = await RecoveryPerson.findById(recoveryPersonId);
 
+        console.log('📋 RecoveryPerson Details:');
+        console.log('   ID:', recoveryPerson._id.toString());
+        console.log('   Name:', recoveryPerson.fullName);
+        console.log('   Customers array length:', recoveryPerson.customers.length);
+        console.log('   Customers array format:', recoveryPerson.customers[0]?.customerId ? 'NEW (object)' : 'OLD (ObjectId)');
+        console.log('   Customers array:', JSON.stringify(recoveryPerson.customers, null, 2));
+
         // Handle backward compatibility: customers array might be ObjectIds or objects
+        console.log('\n🔍 Searching for customer in array...');
         const customerIndex = recoveryPerson.customers.findIndex(c => {
             // New schema: c is an object with customerId field
             if (c.customerId) {
-                return c.customerId.toString() === customerId;
+                const match = c.customerId.toString() === customerId;
+                console.log(`   Checking NEW format: ${c.customerId.toString()} === ${customerId} ? ${match}`);
+                return match;
             }
             // Old schema: c is directly an ObjectId
-            return c.toString() === customerId;
+            const match = c.toString() === customerId;
+            console.log(`   Checking OLD format: ${c.toString()} === ${customerId} ? ${match}`);
+            return match;
         });
 
+        console.log('   Search result: customerIndex =', customerIndex);
+
         if (customerIndex === -1) {
+            console.log('❌ Customer not found in RecoveryPerson.customers array');
+            console.log('   This is the CRITICAL ISSUE!');
+            console.log('   Expected customer ID:', customerId);
+            console.log('   RecoveryPerson ID:', recoveryPersonId);
+            console.log('   Customers in array:', recoveryPerson.customers.map(c =>
+                c.customerId ? c.customerId.toString() : c.toString()
+            ));
+
             return res.status(404).json({
                 success: false,
                 message: 'Customer not found in your assigned list',
                 error: 'CUSTOMER_NOT_IN_LIST'
             });
         }
+
+        console.log('✅ Customer found at index:', customerIndex);
 
         // Handle backward compatibility for setting moneyReceived
         if (recoveryPerson.customers[customerIndex].customerId) {
@@ -810,11 +847,16 @@ const markPaymentReceived = async (req, res) => {
         customer.assigned = false;
         customer.isCollected = false;
         await customer.save();
+        console.log('✅ Customer status updated');
 
         // Update assignment status to INACTIVE
         assignment.status = 'INACTIVE';
         assignment.unassignedAt = new Date();
         await assignment.save();
+        console.log('✅ Assignment marked as INACTIVE');
+
+        console.log('🎉 Payment marked as received successfully!');
+        console.log('========================================\n');
 
         return res.status(200).json({
             success: true,
