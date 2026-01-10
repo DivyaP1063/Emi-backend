@@ -1,0 +1,35 @@
+🚩 Critical Issues in Your Web Page
+Issue	Location	Impact	Fix
+Incorrect Iframe Path	loadIframe()	Lands user on the Public Search page instead of the Upload page.	Change /search?mode=... to /privateapps?token=...
+Incomplete API Endpoint	API Reference card	Developer confusion/API 404 errors.	Path must include /enterprises/ before the ID.
+Missing "Referrer" Meta	<head>	Google may block the iframe due to missing origin headers.	Add <meta name="referrer" content="no-referrer-when-downgrade">
+Iframe Sandbox Restrictions	<iframe> tag	May prevent popups (needed for Google Login) or file selection.	Add sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+Static parentFrameUrl	API Reference card	Token will fail if you copy-paste from your own UI to a different domain.	Ensure the backend dynamically detects the current origin.
+✅ Recommended Code Corrections
+1. Fix the URL Logic
+In your loadIframe() function, replace the iframeUrl construction:
+javascript
+// OLD (Incorrect for 2026)
+const iframeUrl = `play.google.com{token}&mode=PRIVATE_APPS`;
+
+// NEW (Correct for 2026 Direct Upload)
+const iframeUrl = `play.google.com{token}`;
+Use code with caution.
+
+2. Fix the Iframe Tag
+Update the <iframe> tag to ensure Google's login and file picker work correctly:
+html
+<iframe 
+    id="googlePlayIframe" 
+    src="" 
+    allow="fullscreen" 
+    sandbox="allow-scripts allow-same-origin allow-forms allow-popups">
+</iframe>
+Use code with caution.
+
+3. Update the API Reference Documentation
+Correct the path in your HTML display so users don't get 404 errors:
+html
+<div class="api-info">
+    <strong>POST</strong> <code>androidmanagement.googleapis.com{enterpriseId}/webTokens</code>
+</div>

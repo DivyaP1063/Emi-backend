@@ -6,6 +6,7 @@ const {
   listEnrolledDevices,
   getDeviceDetails,
   factoryResetDevice,
+  createWebToken,
 } = require("../controllers/amapiAdminController");
 
 /**
@@ -24,5 +25,8 @@ router.get("/devices/:imei", authenticate, getDeviceDetails);
 
 // POST /api/admin/amapi/devices/:imei/factory-reset - Factory reset device (DANGEROUS)
 router.post("/devices/:imei/factory-reset", authenticate, factoryResetDevice);
+
+// POST /api/admin/amapi/web-token - Generate web token for private app uploader
+router.post("/web-token", authenticate, createWebToken);
 
 module.exports = router;

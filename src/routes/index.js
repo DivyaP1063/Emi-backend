@@ -6,6 +6,7 @@ const recoveryHeadRoutes = require("./recoveryHeadRoutes");
 const recoveryHeadApiRoutes = require("./recoveryHeadApiRoutes");
 const accountantRoutes = require("./accountantRoutes");
 const amapiAdminRoutes = require("./amapiAdminRoutes");
+const adminOAuthRoutes = require("./adminOAuthRoutes");
 const { authenticate } = require("../middleware/auth");
 const {
   getAllCustomers,
@@ -70,6 +71,9 @@ router.use("/accountants", accountantRoutes);
 
 // Android Management API Admin routes
 router.use("/amapi", amapiAdminRoutes);
+
+// Admin OAuth routes (for Private App Uploader login)
+router.use("/oauth", adminOAuthRoutes);
 
 // Customer routes (Admin only)
 router.get("/customers", authenticate, getAllCustomers);

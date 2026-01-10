@@ -50,13 +50,29 @@ try {
 }
 
 // Middleware
-app.use(helmet()); // Security headers
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      frameSrc: ["'self'", "https://play.google.com"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+      scriptSrcAttr: ["'unsafe-inline'"],  // Allow onclick handlers
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      connectSrc: ["'self'"],
+      imgSrc: ["'self'", "data:", "https:"],
+    },
+  },
+})); // Security headers with iframe support
 app.use(cors()); // Enable CORS
 app.use(express.json()); // Parse JSON bodies
 app.use(express.urlencoded({ extended: true })); // Parse URL-encoded bodies
 
-// Apply rate limiting to all routes
-app.use(apiRateLimiter);
+// Serve static files from public folder
+const path = require('path');
+app.use(express.static(path.join(__dirname, '../public')));
+
+// Apply rate limiting to API routes only
+app.use('/api', apiRateLimiter);
 
 // API Routes
 app.use('/api/admin', adminRoutes);
