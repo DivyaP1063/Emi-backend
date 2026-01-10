@@ -348,8 +348,8 @@
                 return;
             }
 
-            // Build the Google Play URL - Direct to Private Apps upload page
-            const iframeUrl = `https://play.google.com/work/embedded/privateapps?token=${token}`;
+            // Build the Google Play URL - Use search with private apps mode
+            const iframeUrl = `https://play.google.com/work/embedded/search?token=${token}&mode=PRIVATE_APPS`;
             
             // Set iframe source
             document.getElementById('googlePlayIframe').src = iframeUrl;
