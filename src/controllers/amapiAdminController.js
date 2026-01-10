@@ -287,14 +287,19 @@ const createWebToken = async (req, res) => {
         const { parentFrameUrl } = req.body;
         
         // Determine the parent URL - use the request origin if not specified
-        const origin = req.headers.origin || 
-                       req.headers.referer?.replace(/\/$/, '') || 
+        let origin = req.headers.origin || 
+                       req.headers.referer?.split('?')[0] || // Remove query params
                        process.env.BACKEND_URL ||
                        'https://emi-backend-j2qc.onrender.com';
         
+        // Normalize URL - remove trailing slash and ensure clean origin
+        origin = origin.replace(/\/+$/, ''); // Remove trailing slashes
+        
         const frameUrl = parentFrameUrl || origin;
 
-        console.log(`Parent Frame URL: ${frameUrl}`);
+        console.log(`🔗 Request Origin Header: ${req.headers.origin}`);
+        console.log(`🔗 Request Referer Header: ${req.headers.referer}`);
+        console.log(`🔗 Final Parent Frame URL: ${frameUrl}`);
 
         // Generate web token
         const result = await generateWebToken(frameUrl, ['PRIVATE_APPS']);
