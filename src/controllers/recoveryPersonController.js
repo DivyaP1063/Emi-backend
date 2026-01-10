@@ -498,12 +498,29 @@ const getDashboardStats = async (req, res) => {
             isCollected: true
         });
 
+        // Count returned devices (money received)
+        const recoveryPerson = await RecoveryPerson.findById(recoveryPersonId);
+        const rawDoc = recoveryPerson.toObject();
+
+        const totalReturned = rawDoc.customers.filter(c => {
+            // Handle new schema format
+            if (c.customerId && c.moneyReceived === true) {
+                return true;
+            }
+            // Handle buffer format that's been converted
+            if (c.moneyReceived === true) {
+                return true;
+            }
+            return false;
+        }).length;
+
         return res.status(200).json({
             success: true,
             message: 'Dashboard statistics fetched successfully',
             data: {
                 totalAssigned,
-                totalCollected
+                totalCollected,
+                totalReturned
             }
         });
     } catch (error) {
@@ -920,6 +937,121 @@ const markPaymentReceived = async (req, res) => {
 };
 
 
+/**
+ * Get all returned devices (where payment was received)
+ */
+const getReturnedDevices = async (req, res) => {
+    try {
+        const recoveryPersonId = req.recoveryPerson.id;
+        const { page = 1, limit = 20 } = req.query;
+
+        const pageNum = parseInt(page);
+        const limitNum = parseInt(limit);
+        const skip = (pageNum - 1) * limitNum;
+
+        const Customer = require('../models/Customer');
+
+        // Get recovery person and find customers with moneyReceived: true
+        const recoveryPerson = await RecoveryPerson.findById(recoveryPersonId);
+        const rawDoc = recoveryPerson.toObject();
+
+        // Extract customer IDs where moneyReceived is true
+        const returnedCustomerIds = rawDoc.customers
+            .filter(c => c.moneyReceived === true)
+            .map(c => {
+                // Handle new schema format
+                if (c.customerId) {
+                    return c.customerId;
+                }
+                // Handle buffer format (shouldn't happen after conversion, but just in case)
+                if (c.buffer && Buffer.isBuffer(c.buffer)) {
+                    const hexStr = c.buffer.toString('hex');
+                    return hexStr;
+                }
+                return null;
+            })
+            .filter(id => id !== null);
+
+        // Get total count
+        const totalReturned = returnedCustomerIds.length;
+
+        // Fetch customer details with pagination
+        const customers = await Customer.find({
+            _id: { $in: returnedCustomerIds }
+        })
+            .sort({ updatedAt: -1 })
+            .skip(skip)
+            .limit(limitNum)
+            .lean();
+
+        const totalPages = Math.ceil(totalReturned / limitNum);
+
+        return res.status(200).json({
+            success: true,
+            message: 'Returned devices fetched successfully',
+            data: {
+                returnedDevices: customers.map(customer => ({
+                    id: customer._id.toString(),
+                    customerInfo: {
+                        fullName: customer.fullName,
+                        fatherName: customer.fatherName,
+                        mobileNumber: customer.mobileNumber,
+                        aadharNumber: customer.aadharNumber,
+                        address: {
+                            village: customer.address.village,
+                            nearbyLocation: customer.address.nearbyLocation,
+                            post: customer.address.post,
+                            district: customer.address.district,
+                            pincode: customer.address.pincode
+                        }
+                    },
+                    deviceInfo: {
+                        imei1: customer.imei1,
+                        imei2: customer.imei2 || null,
+                        productName: customer.emiDetails.productName,
+                        model: customer.emiDetails.model,
+                        phoneType: customer.emiDetails.phoneType
+                    },
+                    collectionInfo: {
+                        isCollected: customer.isCollected,
+                        collectedAt: customer.collectedAt,
+                        collectedBy: customer.deviceCollection?.collectedByName || null,
+                        deviceFrontImage: customer.deviceCollection?.deviceFrontImage || null,
+                        deviceBackImage: customer.deviceCollection?.deviceBackImage || null,
+                        devicePin: customer.deviceCollection?.devicePin || null,
+                        paymentDeadline: customer.deviceCollection?.paymentDeadline || null,
+                        notes: customer.deviceCollection?.notes || null
+                    },
+                    emiDetails: {
+                        sellPrice: customer.emiDetails.sellPrice,
+                        downPayment: customer.emiDetails.downPayment,
+                        downPaymentPending: customer.emiDetails.downPaymentPending,
+                        emiPerMonth: customer.emiDetails.emiPerMonth,
+                        totalEmiAmount: customer.emiDetails.totalEmiAmount,
+                        balanceAmount: customer.emiDetails.balanceAmount
+                    },
+                    returnedAt: customer.updatedAt // When payment was marked as received
+                })),
+                pagination: {
+                    currentPage: pageNum,
+                    totalPages,
+                    totalItems: totalReturned,
+                    itemsPerPage: limitNum,
+                    hasNextPage: pageNum < totalPages,
+                    hasPrevPage: pageNum > 1
+                }
+            }
+        });
+    } catch (error) {
+        console.error('Get returned devices error:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Failed to fetch returned devices',
+            error: 'SERVER_ERROR'
+        });
+    }
+};
+
 module.exports = {
     createRecoveryPerson,
     getAllRecoveryPersons,
@@ -929,6 +1061,7 @@ module.exports = {
     collectDeviceValidation,
     getAssignedCustomers,
     getDashboardStats,
+    getReturnedDevices,
     getCustomerDetails,
     getCustomerLocation,
     markPaymentReceived,
