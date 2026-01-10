@@ -773,9 +773,15 @@ const markPaymentReceived = async (req, res) => {
         // Update recovery person's customers array - set moneyReceived to true
         const recoveryPerson = await RecoveryPerson.findById(recoveryPersonId);
 
-        const customerIndex = recoveryPerson.customers.findIndex(
-            c => c.customerId.toString() === customerId
-        );
+        // Handle backward compatibility: customers array might be ObjectIds or objects
+        const customerIndex = recoveryPerson.customers.findIndex(c => {
+            // New schema: c is an object with customerId field
+            if (c.customerId) {
+                return c.customerId.toString() === customerId;
+            }
+            // Old schema: c is directly an ObjectId
+            return c.toString() === customerId;
+        });
 
         if (customerIndex === -1) {
             return res.status(404).json({
@@ -785,8 +791,19 @@ const markPaymentReceived = async (req, res) => {
             });
         }
 
-        // Set moneyReceived to true
-        recoveryPerson.customers[customerIndex].moneyReceived = true;
+        // Handle backward compatibility for setting moneyReceived
+        if (recoveryPerson.customers[customerIndex].customerId) {
+            // New schema: object with customerId and moneyReceived fields
+            recoveryPerson.customers[customerIndex].moneyReceived = true;
+        } else {
+            // Old schema: convert ObjectId to new schema format
+            const oldCustomerId = recoveryPerson.customers[customerIndex];
+            recoveryPerson.customers[customerIndex] = {
+                customerId: oldCustomerId,
+                moneyReceived: true
+            };
+        }
+
         await recoveryPerson.save();
 
         // Update customer status
