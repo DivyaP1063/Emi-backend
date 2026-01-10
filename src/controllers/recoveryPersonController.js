@@ -808,6 +808,9 @@ const markPaymentReceived = async (req, res) => {
                 return match;
             }
 
+            console.log(`   Checking buffer: c.buffer =`, c.buffer, `type =`, typeof c.buffer);
+            console.log(`   c.buffer.data =`, c.buffer?.data, `isArray =`, Array.isArray(c.buffer?.data));
+
             // Check if c is an object with buffer.data (the actual ObjectId bytes)
             if (c && typeof c === 'object' && c.buffer && c.buffer.data && Array.isArray(c.buffer.data)) {
                 const hexStr = Buffer.from(c.buffer.data).toString('hex');
