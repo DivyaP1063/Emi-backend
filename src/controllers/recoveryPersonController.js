@@ -808,6 +808,14 @@ const markPaymentReceived = async (req, res) => {
                 return match;
             }
 
+            // Check if c is an object with buffer.data (the actual ObjectId bytes)
+            if (c && typeof c === 'object' && c.buffer && c.buffer.data && Array.isArray(c.buffer.data)) {
+                const hexStr = Buffer.from(c.buffer.data).toString('hex');
+                const match = hexStr === customerId;
+                console.log(`   BUFFER format: ${hexStr} === ${customerId} ? ${match}`);
+                return match;
+            }
+
             // Old schema or plain ObjectId: c is the ObjectId itself (as string or object)
             const cStr = typeof c === 'string' ? c : (c.toString ? c.toString() : String(c));
             const match = cStr === customerId;
@@ -836,32 +844,21 @@ const markPaymentReceived = async (req, res) => {
         console.log('✅ Customer found at index:', customerIndex);
 
         // Handle backward compatibility for setting moneyReceived
-        if (recoveryPerson.customers[customerIndex].customerId) {
+        // Use raw document data to extract the actual ObjectId
+        const rawCustomer = rawDoc.customers[customerIndex];
+
+        if (rawCustomer.customerId) {
             // New schema: object with customerId and moneyReceived fields
             console.log('   Using NEW schema format - updating moneyReceived field');
             recoveryPerson.customers[customerIndex].moneyReceived = true;
-        } else if (recoveryPerson.customers[customerIndex].moneyReceived !== undefined && !recoveryPerson.customers[customerIndex].customerId) {
-            // Malformed hybrid: has moneyReceived but missing customerId
-            console.log('   Using MALFORMED HYBRID format - converting to new format');
+        } else if (rawCustomer.buffer && rawCustomer.buffer.data && Array.isArray(rawCustomer.buffer.data)) {
+            // Buffer format: extract ObjectId from buffer bytes
+            console.log('   Using BUFFER format - converting to new format');
             const mongoose = require('mongoose');
-            let objectId;
+            const hexStr = Buffer.from(rawCustomer.buffer.data).toString('hex');
+            const objectId = new mongoose.Types.ObjectId(hexStr);
+            console.log('   Extracted ObjectId from buffer:', objectId.toString());
 
-            const c = recoveryPerson.customers[customerIndex];
-            if (c.buffer) {
-                if (c.buffer.data && Array.isArray(c.buffer.data)) {
-                    // Buffer with data array
-                    const hexStr = Buffer.from(c.buffer.data).toString('hex');
-                    objectId = new mongoose.Types.ObjectId(hexStr);
-                } else if (Buffer.isBuffer(c.buffer)) {
-                    // Direct buffer object
-                    const hexStr = c.buffer.toString('hex');
-                    objectId = new mongoose.Types.ObjectId(hexStr);
-                }
-            } else if (c._id) {
-                objectId = c._id;
-            }
-
-            console.log('   Extracted ObjectId:', objectId?.toString());
             recoveryPerson.customers[customerIndex] = {
                 customerId: objectId,
                 moneyReceived: true
