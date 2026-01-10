@@ -804,17 +804,43 @@ const markPaymentReceived = async (req, res) => {
             }
             // Malformed hybrid: has moneyReceived but missing customerId, has buffer or _id
             if (c.moneyReceived !== undefined && !c.customerId) {
+                console.log(`   Detected MALFORMED HYBRID format`);
+                console.log(`   Full object:`, JSON.stringify(c, null, 2));
+                console.log(`   Has buffer?`, !!c.buffer);
+                console.log(`   Has _id?`, !!c._id);
+
                 // Try to get ObjectId from buffer or _id field
                 let objectIdStr;
-                if (c.buffer && c.buffer.data) {
-                    // Convert buffer data to hex string
-                    const hexStr = Buffer.from(c.buffer.data).toString('hex');
-                    objectIdStr = hexStr;
-                } else if (c._id) {
+
+                // Check if c itself is a buffer-like object
+                if (c.buffer) {
+                    console.log(`   Buffer object:`, c.buffer);
+                    console.log(`   Buffer type:`, typeof c.buffer);
+                    console.log(`   Buffer.data exists?`, !!c.buffer.data);
+
+                    if (c.buffer.data && Array.isArray(c.buffer.data)) {
+                        // Buffer with data array
+                        console.log(`   Found buffer.data array:`, c.buffer.data);
+                        const hexStr = Buffer.from(c.buffer.data).toString('hex');
+                        console.log(`   Converted to hex:`, hexStr);
+                        objectIdStr = hexStr;
+                    } else if (Buffer.isBuffer(c.buffer)) {
+                        // Direct buffer object
+                        console.log(`   Found direct Buffer object`);
+                        const hexStr = c.buffer.toString('hex');
+                        console.log(`   Converted to hex:`, hexStr);
+                        objectIdStr = hexStr;
+                    }
+                }
+
+                // Fallback to _id if buffer extraction failed
+                if (!objectIdStr && c._id) {
+                    console.log(`   Falling back to _id field:`, c._id.toString());
                     objectIdStr = c._id.toString();
                 }
+
                 const match = objectIdStr === customerId;
-                console.log(`   Checking MALFORMED HYBRID format: ${objectIdStr} === ${customerId} ? ${match}`);
+                console.log(`   Final comparison: ${objectIdStr} === ${customerId} ? ${match}`);
                 return match;
             }
             // Old schema: c is directly an ObjectId
@@ -853,13 +879,23 @@ const markPaymentReceived = async (req, res) => {
             console.log('   Using MALFORMED HYBRID format - converting to new format');
             const mongoose = require('mongoose');
             let objectId;
-            if (recoveryPerson.customers[customerIndex].buffer && recoveryPerson.customers[customerIndex].buffer.data) {
-                // Extract ObjectId from buffer
-                const hexStr = Buffer.from(recoveryPerson.customers[customerIndex].buffer.data).toString('hex');
-                objectId = new mongoose.Types.ObjectId(hexStr);
-            } else if (recoveryPerson.customers[customerIndex]._id) {
-                objectId = recoveryPerson.customers[customerIndex]._id;
+
+            const c = recoveryPerson.customers[customerIndex];
+            if (c.buffer) {
+                if (c.buffer.data && Array.isArray(c.buffer.data)) {
+                    // Buffer with data array
+                    const hexStr = Buffer.from(c.buffer.data).toString('hex');
+                    objectId = new mongoose.Types.ObjectId(hexStr);
+                } else if (Buffer.isBuffer(c.buffer)) {
+                    // Direct buffer object
+                    const hexStr = c.buffer.toString('hex');
+                    objectId = new mongoose.Types.ObjectId(hexStr);
+                }
+            } else if (c._id) {
+                objectId = c._id;
             }
+
+            console.log('   Extracted ObjectId:', objectId?.toString());
             recoveryPerson.customers[customerIndex] = {
                 customerId: objectId,
                 moneyReceived: true
