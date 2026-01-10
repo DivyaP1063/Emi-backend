@@ -802,6 +802,21 @@ const markPaymentReceived = async (req, res) => {
                 console.log(`   Checking NEW format: ${c.customerId.toString()} === ${customerId} ? ${match}`);
                 return match;
             }
+            // Malformed hybrid: has moneyReceived but missing customerId, has buffer or _id
+            if (c.moneyReceived !== undefined && !c.customerId) {
+                // Try to get ObjectId from buffer or _id field
+                let objectIdStr;
+                if (c.buffer && c.buffer.data) {
+                    // Convert buffer data to hex string
+                    const hexStr = Buffer.from(c.buffer.data).toString('hex');
+                    objectIdStr = hexStr;
+                } else if (c._id) {
+                    objectIdStr = c._id.toString();
+                }
+                const match = objectIdStr === customerId;
+                console.log(`   Checking MALFORMED HYBRID format: ${objectIdStr} === ${customerId} ? ${match}`);
+                return match;
+            }
             // Old schema: c is directly an ObjectId
             const match = c.toString() === customerId;
             console.log(`   Checking OLD format: ${c.toString()} === ${customerId} ? ${match}`);
@@ -831,9 +846,27 @@ const markPaymentReceived = async (req, res) => {
         // Handle backward compatibility for setting moneyReceived
         if (recoveryPerson.customers[customerIndex].customerId) {
             // New schema: object with customerId and moneyReceived fields
+            console.log('   Using NEW schema format - updating moneyReceived field');
             recoveryPerson.customers[customerIndex].moneyReceived = true;
+        } else if (recoveryPerson.customers[customerIndex].moneyReceived !== undefined && !recoveryPerson.customers[customerIndex].customerId) {
+            // Malformed hybrid: has moneyReceived but missing customerId
+            console.log('   Using MALFORMED HYBRID format - converting to new format');
+            const mongoose = require('mongoose');
+            let objectId;
+            if (recoveryPerson.customers[customerIndex].buffer && recoveryPerson.customers[customerIndex].buffer.data) {
+                // Extract ObjectId from buffer
+                const hexStr = Buffer.from(recoveryPerson.customers[customerIndex].buffer.data).toString('hex');
+                objectId = new mongoose.Types.ObjectId(hexStr);
+            } else if (recoveryPerson.customers[customerIndex]._id) {
+                objectId = recoveryPerson.customers[customerIndex]._id;
+            }
+            recoveryPerson.customers[customerIndex] = {
+                customerId: objectId,
+                moneyReceived: true
+            };
         } else {
             // Old schema: convert ObjectId to new schema format
+            console.log('   Using OLD schema format - converting to new format');
             const oldCustomerId = recoveryPerson.customers[customerIndex];
             recoveryPerson.customers[customerIndex] = {
                 customerId: oldCustomerId,
