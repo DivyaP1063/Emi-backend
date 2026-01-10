@@ -1,5 +1,5 @@
-const { google } = require('googleapis');
-const path = require('path');
+const { google } = require("googleapis");
+const path = require("path");
 
 /**
  * Android Management API Service
@@ -20,55 +20,76 @@ const initializeAndroidManagement = () => {
 
     try {
         // Check if Android Management is enabled
-        if (process.env.ANDROID_MANAGEMENT_ENABLED !== 'true') {
-            console.log('⚠️  Android Management API is disabled');
+        if (process.env.ANDROID_MANAGEMENT_ENABLED !== "true") {
+            console.log("⚠️  Android Management API is disabled");
             return;
         }
 
         // Load service account credentials
         let auth;
         if (process.env.ANDROID_MANAGEMENT_SERVICE_ACCOUNT_PATH) {
-            const serviceAccountPath = path.resolve(process.cwd(), process.env.ANDROID_MANAGEMENT_SERVICE_ACCOUNT_PATH);
+            const serviceAccountPath = path.resolve(
+                process.cwd(),
+                process.env.ANDROID_MANAGEMENT_SERVICE_ACCOUNT_PATH
+            );
             auth = new google.auth.GoogleAuth({
                 keyFile: serviceAccountPath,
-                scopes: ['https://www.googleapis.com/auth/androidmanagement']
+                scopes: ["https://www.googleapis.com/auth/androidmanagement"],
             });
-            console.log('✅ Android Management API initialized with service account file');
-        } else if (process.env.ANDROID_MANAGEMENT_PROJECT_ID && process.env.ANDROID_MANAGEMENT_PRIVATE_KEY && process.env.ANDROID_MANAGEMENT_CLIENT_EMAIL) {
+            console.log(
+                "✅ Android Management API initialized with service account file"
+            );
+        } else if (
+            process.env.ANDROID_MANAGEMENT_PROJECT_ID &&
+            process.env.ANDROID_MANAGEMENT_PRIVATE_KEY &&
+            process.env.ANDROID_MANAGEMENT_CLIENT_EMAIL
+        ) {
             auth = new google.auth.GoogleAuth({
                 credentials: {
                     project_id: process.env.ANDROID_MANAGEMENT_PROJECT_ID,
-                    private_key: process.env.ANDROID_MANAGEMENT_PRIVATE_KEY.replace(/\\n/g, '\n'),
-                    client_email: process.env.ANDROID_MANAGEMENT_CLIENT_EMAIL
+                    private_key:
+                        process.env.ANDROID_MANAGEMENT_PRIVATE_KEY.replace(
+                            /\\n/g,
+                            "\n"
+                        ),
+                    client_email: process.env.ANDROID_MANAGEMENT_CLIENT_EMAIL,
                 },
-                scopes: ['https://www.googleapis.com/auth/androidmanagement']
+                scopes: ["https://www.googleapis.com/auth/androidmanagement"],
             });
-            console.log('✅ Android Management API initialized with environment variables');
+            console.log(
+                "✅ Android Management API initialized with environment variables"
+            );
         } else {
-            console.warn('⚠️  Android Management API credentials not found');
-            console.warn('Please configure ANDROID_MANAGEMENT_SERVICE_ACCOUNT_PATH or individual env variables');
+            console.warn("⚠️  Android Management API credentials not found");
+            console.warn(
+                "Please configure ANDROID_MANAGEMENT_SERVICE_ACCOUNT_PATH or individual env variables"
+            );
             return;
         }
 
         // Initialize Android Management API client
         androidManagement = google.androidmanagement({
-            version: 'v1',
-            auth
+            version: "v1",
+            auth,
         });
 
         // Get enterprise ID from environment
         enterpriseId = process.env.ANDROID_MANAGEMENT_ENTERPRISE_ID;
         if (!enterpriseId) {
-            console.warn('⚠️  ANDROID_MANAGEMENT_ENTERPRISE_ID not configured');
-            console.warn('Please set your enterprise ID in .env file');
+            console.warn("⚠️  ANDROID_MANAGEMENT_ENTERPRISE_ID not configured");
+            console.warn("Please set your enterprise ID in .env file");
             return;
         }
 
         initialized = true;
-        console.log(`✅ Android Management API ready for enterprise: ${enterpriseId}`);
-
+        console.log(
+            `✅ Android Management API ready for enterprise: ${enterpriseId}`
+        );
     } catch (error) {
-        console.error('❌ Android Management API initialization error:', error.message);
+        console.error(
+            "❌ Android Management API initialization error:",
+            error.message
+        );
         throw error;
     }
 };
@@ -80,7 +101,7 @@ const initializeAndroidManagement = () => {
  */
 const findDeviceByImei = async (imei) => {
     if (!initialized || !androidManagement || !enterpriseId) {
-        throw new Error('Android Management API is not initialized');
+        throw new Error("Android Management API is not initialized");
     }
 
     try {
@@ -88,7 +109,7 @@ const findDeviceByImei = async (imei) => {
 
         // List all devices in the enterprise
         const response = await androidManagement.enterprises.devices.list({
-            parent: enterpriseId
+            parent: enterpriseId,
         });
 
         const devices = response.data.devices || [];
@@ -99,7 +120,9 @@ const findDeviceByImei = async (imei) => {
             const hardwareInfo = device.hardwareInfo || {};
             const deviceImei = hardwareInfo.serialNumber || hardwareInfo.imei;
 
-            console.log(`   Checking device: ${device.name} - IMEI: ${deviceImei}`);
+            console.log(
+                `   Checking device: ${device.name} - IMEI: ${deviceImei}`
+            );
 
             if (deviceImei === imei) {
                 console.log(`✅ Device found: ${device.name}`);
@@ -109,9 +132,8 @@ const findDeviceByImei = async (imei) => {
 
         console.log(`❌ No device found with IMEI: ${imei}`);
         return null;
-
     } catch (error) {
-        console.error('❌ Error finding device by IMEI:', error.message);
+        console.error("❌ Error finding device by IMEI:", error.message);
         throw error;
     }
 };
@@ -120,39 +142,39 @@ const findDeviceByImei = async (imei) => {
  * Lock device via policy update
  * @param {string} deviceName - Full device resource name (enterprises/{enterprise}/devices/{device})
  * @returns {Promise<object>} Result of lock operation
- * 
+ *
  */
 const lockDevice = async (deviceName) => {
     if (!initialized || !androidManagement) {
-        throw new Error('Android Management API is not initialized');
+        throw new Error("Android Management API is not initialized");
     }
 
     try {
         console.log(`🔒 Locking device: ${deviceName}`);
 
         // Issue device lock command
-        const response = await androidManagement.enterprises.devices.issueCommand({
-            name: deviceName,
-            requestBody: {
-                type: 'LOCK',
-                // Creates a lock command that locks the device immediately
-                duration: '0s'
-            }
-        });
+        const response =
+            await androidManagement.enterprises.devices.issueCommand({
+                name: deviceName,
+                requestBody: {
+                    type: "LOCK",
+                    // Creates a lock command that locks the device immediately
+                    duration: "0s",
+                },
+            });
 
         console.log(`✅ Lock command issued successfully`);
         return {
             success: true,
             command: response.data,
-            deviceName
+            deviceName,
         };
-
     } catch (error) {
-        console.error('❌ Error locking device:', error.message);
+        console.error("❌ Error locking device:", error.message);
         return {
             success: false,
             error: error.message,
-            deviceName
+            deviceName,
         };
     }
 };
@@ -164,36 +186,36 @@ const lockDevice = async (deviceName) => {
  */
 const unlockDevice = async (deviceName) => {
     if (!initialized || !androidManagement) {
-        throw new Error('Android Management API is not initialized');
+        throw new Error("Android Management API is not initialized");
     }
 
     try {
         console.log(`🔓 Unlocking device: ${deviceName}`);
 
         // Issue device unlock/reset password command
-        const response = await androidManagement.enterprises.devices.issueCommand({
-            name: deviceName,
-            requestBody: {
-                type: 'RESET_PASSWORD',
-                // Generate a new password to unlock the device
-                resetPasswordFlags: ['REQUIRE_ENTRY']
-            }
-        });
+        const response =
+            await androidManagement.enterprises.devices.issueCommand({
+                name: deviceName,
+                requestBody: {
+                    type: "RESET_PASSWORD",
+                    // Generate a new password to unlock the device
+                    resetPasswordFlags: ["REQUIRE_ENTRY"],
+                },
+            });
 
         console.log(`✅ Unlock command issued successfully`);
         return {
             success: true,
             command: response.data,
             deviceName,
-            newPassword: response.data.newPassword
+            newPassword: response.data.newPassword,
         };
-
     } catch (error) {
-        console.error('❌ Error unlocking device:', error.message);
+        console.error("❌ Error unlocking device:", error.message);
         return {
             success: false,
             error: error.message,
-            deviceName
+            deviceName,
         };
     }
 };
@@ -205,28 +227,32 @@ const unlockDevice = async (deviceName) => {
  */
 const factoryResetDevice = async (deviceName) => {
     if (!initialized || !androidManagement) {
-        throw new Error('Android Management API is not initialized');
+        throw new Error("Android Management API is not initialized");
     }
 
     try {
         console.log(`🔴 FACTORY RESET DEVICE: ${deviceName}`);
-        console.warn('⚠️  WARNING: This will ERASE ALL DATA on the device!');
+        console.warn("⚠️  WARNING: This will ERASE ALL DATA on the device!");
 
         // Issue factory reset command
-        const response = await androidManagement.enterprises.devices.issueCommand({
-            name: deviceName,
-            requestBody: {
-                type: 'REBOOT',
-                // Factory reset on next reboot
-                createTime: new Date().toISOString()
-            }
-        });
+        const response =
+            await androidManagement.enterprises.devices.issueCommand({
+                name: deviceName,
+                requestBody: {
+                    type: "REBOOT",
+                    // Factory reset on next reboot
+                    createTime: new Date().toISOString(),
+                },
+            });
 
         // Note: For full factory reset, use device.delete()
         // But this requires re-enrollment, so we use wipe data command instead
         await androidManagement.enterprises.devices.delete({
             name: deviceName,
-            wipeDataFlags: ['WIPE_EXTERNAL_STORAGE', 'PRESERVE_RESET_PROTECTION_DATA']
+            wipeDataFlags: [
+                "WIPE_EXTERNAL_STORAGE",
+                "PRESERVE_RESET_PROTECTION_DATA",
+            ],
         });
 
         console.log(`✅ Factory reset command issued successfully`);
@@ -234,16 +260,15 @@ const factoryResetDevice = async (deviceName) => {
 
         return {
             success: true,
-            message: 'Factory reset initiated. Device will be wiped.',
-            deviceName
+            message: "Factory reset initiated. Device will be wiped.",
+            deviceName,
         };
-
     } catch (error) {
-        console.error('❌ Error issuing factory reset:', error.message);
+        console.error("❌ Error issuing factory reset:", error.message);
         return {
             success: false,
             error: error.message,
-            deviceName
+            deviceName,
         };
     }
 };
@@ -255,12 +280,12 @@ const factoryResetDevice = async (deviceName) => {
  */
 const getDeviceStatus = async (deviceName) => {
     if (!initialized || !androidManagement) {
-        throw new Error('Android Management API is not initialized');
+        throw new Error("Android Management API is not initialized");
     }
 
     try {
         const response = await androidManagement.enterprises.devices.get({
-            name: deviceName
+            name: deviceName,
         });
 
         const device = response.data;
@@ -274,15 +299,14 @@ const getDeviceStatus = async (deviceName) => {
                 networkInfo: device.networkInfo,
                 hardwareInfo: device.hardwareInfo,
                 lastStatusReportTime: device.lastStatusReportTime,
-                lastPolicySyncTime: device.lastPolicySyncTime
-            }
+                lastPolicySyncTime: device.lastPolicySyncTime,
+            },
         };
-
     } catch (error) {
-        console.error('❌ Error getting device status:', error.message);
+        console.error("❌ Error getting device status:", error.message);
         return {
             success: false,
-            error: error.message
+            error: error.message,
         };
     }
 };
@@ -297,26 +321,26 @@ const sendLockCommand = async (imei, shouldLock) => {
     if (!initialized || !androidManagement || !enterpriseId) {
         return {
             success: false,
-            error: 'ANDROID_MANAGEMENT_NOT_INITIALIZED',
-            message: 'Android Management API is not initialized'
+            error: "ANDROID_MANAGEMENT_NOT_INITIALIZED",
+            message: "Android Management API is not initialized",
         };
     }
 
     try {
         console.log(`\n🔧 ===== ANDROID MANAGEMENT API LOCK COMMAND =====`);
         console.log(`IMEI: ${imei}`);
-        console.log(`Action: ${shouldLock ? 'LOCK' : 'UNLOCK'}`);
+        console.log(`Action: ${shouldLock ? "LOCK" : "UNLOCK"}`);
         console.log(`Timestamp: ${new Date().toISOString()}`);
 
         // Find device by IMEI
         const device = await findDeviceByImei(imei);
 
         if (!device) {
-            console.log('❌ Device not found in Android Management');
+            console.log("❌ Device not found in Android Management");
             return {
                 success: false,
-                error: 'DEVICE_NOT_FOUND',
-                message: 'Device not enrolled in Android Management enterprise'
+                error: "DEVICE_NOT_FOUND",
+                message: "Device not enrolled in Android Management enterprise",
             };
         }
 
@@ -328,17 +352,16 @@ const sendLockCommand = async (imei, shouldLock) => {
             result = await unlockDevice(device.name);
         }
 
-        console.log(`Result: ${result.success ? 'SUCCESS' : 'FAILED'}`);
+        console.log(`Result: ${result.success ? "SUCCESS" : "FAILED"}`);
         console.log(`================================================\n`);
 
         return result;
-
     } catch (error) {
-        console.error('❌ Android Management lock command error:', error);
+        console.error("❌ Android Management lock command error:", error);
         return {
             success: false,
-            error: error.code || 'UNKNOWN_ERROR',
-            message: error.message
+            error: error.code || "UNKNOWN_ERROR",
+            message: error.message,
         };
     }
 };
@@ -351,14 +374,14 @@ const getDefaultPolicyTemplate = () => {
     return {
         applications: [
             {
-                packageName: 'com.androidmanager',
-                installType: 'FORCE_INSTALLED',
-                defaultPermissionPolicy: 'GRANT',
-                lockTaskAllowed: true
-            }
+                packageName: "com.androidmanager",
+                installType: "FORCE_INSTALLED",
+                defaultPermissionPolicy: "GRANT",
+                lockTaskAllowed: true,
+            },
         ],
         // Location tracking required for EMI compliance
-        locationMode: 'LOCATION_USER_CHOICE',
+        locationMode: "LOCATION_USER_CHOICE",
         minimumApiLevel: 21,
         // Factory reset protection
         factoryResetDisabled: false,
@@ -370,13 +393,13 @@ const getDefaultPolicyTemplate = () => {
             memoryInfoEnabled: true,
             networkInfoEnabled: true,
             hardwareStatusEnabled: true,
-            applicationReportsEnabled: true
+            applicationReportsEnabled: true,
         },
         // System update policy
         systemUpdate: {
-            type: 'AUTOMATIC',
+            type: "AUTOMATIC",
             startMinutes: 120,
-            endMinutes: 180
+            endMinutes: 180,
         },
         // Kiosk mode - disabled by default, can be enabled for lockdown
         kioskCustomLauncherEnabled: false,
@@ -386,14 +409,14 @@ const getDefaultPolicyTemplate = () => {
         complianceRules: [
             {
                 nonComplianceDetailCondition: {
-                    settingName: 'LOCATION_MODE',
-                    nonComplianceReason: 'LOCATION_MODE_DISABLED'
+                    settingName: "LOCATION_MODE",
+                    nonComplianceReason: "LOCATION_MODE_DISABLED",
                 },
                 apiLevelCondition: {
-                    minApiLevel: 21
-                }
-            }
-        ]
+                    minApiLevel: 21,
+                },
+            },
+        ],
     };
 };
 
@@ -405,7 +428,7 @@ const getDefaultPolicyTemplate = () => {
  */
 const createPolicy = async (policyId, policyConfig = null) => {
     if (!initialized || !androidManagement || !enterpriseId) {
-        throw new Error('Android Management API is not initialized');
+        throw new Error("Android Management API is not initialized");
     }
 
     try {
@@ -418,7 +441,7 @@ const createPolicy = async (policyId, policyConfig = null) => {
 
         const response = await androidManagement.enterprises.policies.patch({
             name: policyName,
-            requestBody: config
+            requestBody: config,
         });
 
         console.log(`✅ Policy created successfully: ${policyName}`);
@@ -428,15 +451,14 @@ const createPolicy = async (policyId, policyConfig = null) => {
             success: true,
             policy: response.data,
             policyId,
-            policyName
+            policyName,
         };
-
     } catch (error) {
-        console.error('❌ Error creating policy:', error.message);
+        console.error("❌ Error creating policy:", error.message);
         return {
             success: false,
             error: error.message,
-            policyId
+            policyId,
         };
     }
 };
@@ -449,7 +471,7 @@ const createPolicy = async (policyId, policyConfig = null) => {
  */
 const updatePolicy = async (policyId, updates) => {
     if (!initialized || !androidManagement || !enterpriseId) {
-        throw new Error('Android Management API is not initialized');
+        throw new Error("Android Management API is not initialized");
     }
 
     try {
@@ -461,8 +483,8 @@ const updatePolicy = async (policyId, updates) => {
 
         const response = await androidManagement.enterprises.policies.patch({
             name: policyName,
-            updateMask: Object.keys(updates).join(','),
-            requestBody: updates
+            updateMask: Object.keys(updates).join(","),
+            requestBody: updates,
         });
 
         console.log(`✅ Policy updated successfully`);
@@ -472,15 +494,14 @@ const updatePolicy = async (policyId, updates) => {
             success: true,
             policy: response.data,
             policyId,
-            policyName
+            policyName,
         };
-
     } catch (error) {
-        console.error('❌ Error updating policy:', error.message);
+        console.error("❌ Error updating policy:", error.message);
         return {
             success: false,
             error: error.message,
-            policyId
+            policyId,
         };
     }
 };
@@ -492,7 +513,7 @@ const updatePolicy = async (policyId, updates) => {
  */
 const getPolicy = async (policyId) => {
     if (!initialized || !androidManagement || !enterpriseId) {
-        throw new Error('Android Management API is not initialized');
+        throw new Error("Android Management API is not initialized");
     }
 
     try {
@@ -502,7 +523,7 @@ const getPolicy = async (policyId) => {
         const policyName = `${enterpriseId}/policies/${policyId}`;
 
         const response = await androidManagement.enterprises.policies.get({
-            name: policyName
+            name: policyName,
         });
 
         console.log(`✅ Policy retrieved successfully`);
@@ -512,15 +533,14 @@ const getPolicy = async (policyId) => {
             success: true,
             policy: response.data,
             policyId,
-            policyName
+            policyName,
         };
-
     } catch (error) {
-        console.error('❌ Error retrieving policy:', error.message);
+        console.error("❌ Error retrieving policy:", error.message);
         return {
             success: false,
             error: error.message,
-            policyId
+            policyId,
         };
     }
 };
@@ -532,30 +552,40 @@ const getPolicy = async (policyId) => {
  * @param {number} durationSeconds - Token validity duration (default: 1 hour)
  * @returns {Promise<object>} Enrollment token and details
  */
-const generateEnrollmentToken = async (customerId, policyId, durationSeconds = 3600) => {
+const generateEnrollmentToken = async (
+    customerId,
+    policyId,
+    durationSeconds = 3600
+) => {
     if (!initialized || !androidManagement || !enterpriseId) {
-        throw new Error('Android Management API is not initialized');
+        throw new Error("Android Management API is not initialized");
     }
 
     // Use provided policyId or fallback to env var or 'policy1'
-    const effectivePolicyId = policyId || process.env.ANDROID_MANAGEMENT_DEFAULT_POLICY_ID || 'policy1';
+    const effectivePolicyId =
+        policyId ||
+        process.env.ANDROID_MANAGEMENT_DEFAULT_POLICY_ID ||
+        "policy1";
 
     try {
         console.log(`\n🎫 ===== GENERATING ENROLLMENT TOKEN =====`);
         console.log(`Customer ID: ${customerId}`);
         console.log(`Policy ID: ${effectivePolicyId}`);
-        console.log(`Duration: ${durationSeconds}s (${durationSeconds / 3600}h)`);
+        console.log(
+            `Duration: ${durationSeconds}s (${durationSeconds / 3600}h)`
+        );
 
         const policyName = `${enterpriseId}/policies/${effectivePolicyId}`;
 
-        const response = await androidManagement.enterprises.enrollmentTokens.create({
-            parent: enterpriseId,
-            requestBody: {
-                policyName,
-                duration: `${durationSeconds}s`,
-                additionalData: customerId // Store customer ID in token
-            }
-        });
+        const response =
+            await androidManagement.enterprises.enrollmentTokens.create({
+                parent: enterpriseId,
+                requestBody: {
+                    policyName,
+                    duration: `${durationSeconds}s`,
+                    additionalData: customerId, // Store customer ID in token
+                },
+            });
 
         const token = response.data;
         const expirationTime = new Date(token.expirationTimestamp);
@@ -571,15 +601,14 @@ const generateEnrollmentToken = async (customerId, policyId, durationSeconds = 3
             qrCode: token.qrCode,
             expirationTime: expirationTime,
             policyName,
-            customerId
+            customerId,
         };
-
     } catch (error) {
-        console.error('❌ Error generating enrollment token:', error.message);
+        console.error("❌ Error generating enrollment token:", error.message);
         return {
             success: false,
             error: error.message,
-            customerId
+            customerId,
         };
     }
 };
@@ -591,29 +620,88 @@ const generateEnrollmentToken = async (customerId, policyId, durationSeconds = 3
  * @param {string} backendUrl - Backend API URL
  * @returns {object} QR code payload
  */
-const buildProvisioningPayload = (customerId, enrollmentToken, backendUrl = process.env.BACKEND_URL, frpUserId) => {
-    const appDownloadUrl = process.env.PROVISIONING_DEVICE_ADMIN_PACKAGE_DOWNLOAD_LOCATION;
-    
+const buildProvisioningPayload = (
+    customerId,
+    enrollmentToken,
+    backendUrl = process.env.BACKEND_URL,
+    frpUserId
+) => {
+    const appDownloadUrl =
+        process.env.PROVISIONING_DEVICE_ADMIN_PACKAGE_DOWNLOAD_LOCATION;
+
     // IMPORTANT: Android expects URL-safe base64 encoded SHA-256, NOT hex format
     // See: https://developer.android.com/reference/android/app/admin/DevicePolicyManager
-    
+
     const payload = {
-        "android.app.extra.PROVISIONING_DEVICE_ADMIN_COMPONENT_NAME": "com.androidmanager/.receiver.DeviceAdminReceiver",
-        "android.app.extra.PROVISIONING_DEVICE_ADMIN_SIGNATURE_CHECKSUM": process.env.APP_SIGNATURE_CHECKSUM.trim(),
-        "android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_CHECKSUM": process.env.APP_PACKAGE_CHECKSUM.trim(),
-        "android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_DOWNLOAD_LOCATION": appDownloadUrl,
+        "android.app.extra.PROVISIONING_DEVICE_ADMIN_COMPONENT_NAME":
+            "com.androidmanager/.receiver.DeviceAdminReceiver",
+        "android.app.extra.PROVISIONING_DEVICE_ADMIN_SIGNATURE_CHECKSUM":
+            process.env.APP_SIGNATURE_CHECKSUM.trim(),
+        "android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_CHECKSUM":
+            process.env.APP_PACKAGE_CHECKSUM.trim(),
+        "android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_DOWNLOAD_LOCATION":
+            appDownloadUrl,
         "android.app.extra.PROVISIONING_SKIP_ENCRYPTION": false,
         "android.app.extra.PROVISIONING_LEAVE_ALL_SYSTEM_APPS_ENABLED": true,
         "android.app.extra.PROVISIONING_ADMIN_EXTRAS_BUNDLE": {
-            "backend_url": backendUrl,
-            "enrollment_token": enrollmentToken,
-            "customer_id": customerId,
-            "enterprise_id": enterpriseId,
-            "frpUserId": frpUserId || ''
-        }
+            backend_url: backendUrl,
+            enrollment_token: enrollmentToken,
+            customer_id: customerId,
+            enterprise_id: enterpriseId,
+            frpUserId: frpUserId || "",
+        },
     };
-    
+
     return payload;
+};
+
+/**
+ * Generate web token for iframe-based private app management
+ * @param {string} parentFrameUrl - URL of the parent page hosting the iframe
+ * @param {Array} enabledFeatures - Features to enable (e.g., ['PRIVATE_APPS'])
+ * @returns {Promise<object>} Web token and URL
+ */
+const generateWebToken = async (
+    parentFrameUrl,
+    enabledFeatures = ["PRIVATE_APPS"]
+) => {
+    if (!initialized || !androidManagement || !enterpriseId) {
+        throw new Error("Android Management API is not initialized");
+    }
+
+    try {
+        console.log(`\n🌐 ===== GENERATING WEB TOKEN =====`);
+        console.log(`Parent Frame URL: ${parentFrameUrl}`);
+        console.log(`Enabled Features: ${enabledFeatures.join(", ")}`);
+
+        const response = await androidManagement.enterprises.webTokens.create({
+            parent: enterpriseId,
+            requestBody: {
+                parentFrameUrl: parentFrameUrl,
+                enabledFeatures: enabledFeatures,
+            },
+        });
+
+        const token = response.data.value;
+
+        console.log(`✅ Web token generated successfully`);
+        console.log(`Token: ${token.substring(0, 20)}...`);
+        console.log(`=====================================\n`);
+
+        return {
+            success: true,
+            token: token,
+            iframeUrl: `https://play.google.com/work/embedded/privateapps?token=${token}`,
+            parentFrameUrl: parentFrameUrl,
+            enabledFeatures: enabledFeatures,
+        };
+    } catch (error) {
+        console.error("❌ Error generating web token:", error.message);
+        return {
+            success: false,
+            error: error.message,
+        };
+    }
 };
 
 module.exports = {
@@ -629,5 +717,6 @@ module.exports = {
     getPolicy,
     getDefaultPolicyTemplate,
     generateEnrollmentToken,
-    buildProvisioningPayload
+    buildProvisioningPayload,
+    generateWebToken,
 };

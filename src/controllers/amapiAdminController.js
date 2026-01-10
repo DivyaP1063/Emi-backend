@@ -1,4 +1,4 @@
-const { generateEnrollmentToken, buildProvisioningPayload, findDeviceByImei, getDeviceStatus, factoryResetDevice: resetDevice } = require('../services/androidManagementService');
+const { generateEnrollmentToken, buildProvisioningPayload, findDeviceByImei, getDeviceStatus, factoryResetDevice: resetDevice, generateWebToken } = require('../services/androidManagementService');
 const { generateQRCode } = require('../services/qrCodeService');
 const Customer = require('../models/Customer');
 const Admin = require('../models/Admin');
@@ -275,9 +275,63 @@ const factoryResetDevice = async (req, res) => {
     }
 };
 
+/**
+ * Generate Web Token for Private App Uploader iframe
+ * POST /api/admin/amapi/web-token
+ */
+const createWebToken = async (req, res) => {
+    try {
+        console.log('\n🌐 ===== ADMIN: GENERATE WEB TOKEN =====');
+
+        // Get the parent frame URL from request or use defaults
+        const { parentFrameUrl } = req.body;
+        
+        // Determine the parent URL - use the request origin if not specified
+        const origin = req.headers.origin || 
+                       req.headers.referer?.replace(/\/$/, '') || 
+                       process.env.BACKEND_URL ||
+                       'https://emi-backend-j2qc.onrender.com';
+        
+        const frameUrl = parentFrameUrl || origin;
+
+        console.log(`Parent Frame URL: ${frameUrl}`);
+
+        // Generate web token
+        const result = await generateWebToken(frameUrl, ['PRIVATE_APPS']);
+
+        if (!result.success) {
+            return res.status(500).json({
+                success: false,
+                error: 'WEB_TOKEN_GENERATION_FAILED',
+                message: result.error
+            });
+        }
+
+        console.log('✅ Web token generated successfully');
+        console.log('=====================================\n');
+
+        return res.status(200).json({
+            success: true,
+            message: 'Web token generated successfully',
+            token: result.token,
+            iframeUrl: result.iframeUrl,
+            parentFrameUrl: result.parentFrameUrl
+        });
+
+    } catch (error) {
+        console.error('❌ Generate web token error:', error);
+        return res.status(500).json({
+            success: false,
+            error: 'SERVER_ERROR',
+            message: error.message
+        });
+    }
+};
+
 module.exports = {
   generateCustomerQR,
   listEnrolledDevices,
   getDeviceDetails,
-  factoryResetDevice
+  factoryResetDevice,
+  createWebToken
 };

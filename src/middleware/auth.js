@@ -31,6 +31,18 @@ const authenticate = async (req, res, next) => {
       });
     }
 
+    // Handle Google OAuth tokens (for testing)
+    if (decoded.id && decoded.id.toString().startsWith('google_')) {
+      // For Google OAuth testing - allow without DB check
+      req.admin = {
+        id: decoded.id,
+        name: decoded.name || 'Google User',
+        email: decoded.email,
+        role: 'admin'
+      };
+      return next();
+    }
+
     // Check if admin exists and is active
     const admin = await Admin.findById(decoded.id);
 
