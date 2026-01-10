@@ -811,9 +811,9 @@ const markPaymentReceived = async (req, res) => {
             console.log(`   Checking buffer: c.buffer =`, c.buffer, `type =`, typeof c.buffer);
             console.log(`   c.buffer.data =`, c.buffer?.data, `isArray =`, Array.isArray(c.buffer?.data));
 
-            // Check if c is an object with buffer.data (the actual ObjectId bytes)
-            if (c && typeof c === 'object' && c.buffer && c.buffer.data && Array.isArray(c.buffer.data)) {
-                const hexStr = Buffer.from(c.buffer.data).toString('hex');
+            // Check if c.buffer is a Buffer object (the actual ObjectId)
+            if (c && c.buffer && Buffer.isBuffer(c.buffer)) {
+                const hexStr = c.buffer.toString('hex');
                 const match = hexStr === customerId;
                 console.log(`   BUFFER format: ${hexStr} === ${customerId} ? ${match}`);
                 return match;
@@ -854,11 +854,11 @@ const markPaymentReceived = async (req, res) => {
             // New schema: object with customerId and moneyReceived fields
             console.log('   Using NEW schema format - updating moneyReceived field');
             recoveryPerson.customers[customerIndex].moneyReceived = true;
-        } else if (rawCustomer.buffer && rawCustomer.buffer.data && Array.isArray(rawCustomer.buffer.data)) {
-            // Buffer format: extract ObjectId from buffer bytes
+        } else if (rawCustomer.buffer && Buffer.isBuffer(rawCustomer.buffer)) {
+            // Buffer format: extract ObjectId from buffer
             console.log('   Using BUFFER format - converting to new format');
             const mongoose = require('mongoose');
-            const hexStr = Buffer.from(rawCustomer.buffer.data).toString('hex');
+            const hexStr = rawCustomer.buffer.toString('hex');
             const objectId = new mongoose.Types.ObjectId(hexStr);
             console.log('   Extracted ObjectId from buffer:', objectId.toString());
 
