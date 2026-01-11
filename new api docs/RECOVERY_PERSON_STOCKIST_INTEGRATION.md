@@ -332,9 +332,48 @@ export const API_ENDPOINTS = {
   SUBMIT_TO_STOCKIST: '/api/recovery-person/submit-to-stockist',
   
   // EXISTING: Dashboard (no change to endpoint, just response)
-  DASHBOARD_STATS: '/api/recovery-person/dashboard'
+  DASHBOARD_STATS: '/api/recovery-person/dashboard',
+  
+  // EXISTING: Customer list (updated to include submission fields)
+  GET_CUSTOMERS: '/api/recovery-person/customers'
 };
 ```
+
+---
+
+## Customer List Response (UPDATED)
+
+The existing `GET /api/recovery-person/customers` endpoint now includes submission fields:
+
+```json
+{
+  "success": true,
+  "message": "Customers fetched successfully",
+  "data": {
+    "customers": [
+      {
+        "id": "6952d1151709de3521e201a4",
+        "fullName": "Anjali Gupta",
+        "mobileNumber": "9800000005",
+        "aadharNumber": "123456789012",
+        "address": { ... },
+        "imei": "123456789012345",
+        "productName": "Samsung Galaxy A14",
+        "model": "SM-A145F",
+        "isCollected": true,
+        "collectedAt": "2025-12-30T11:59:00.699Z",
+        "submittedToStockist": true,
+        "submittedAt": "2026-01-11T15:30:00.000Z"
+      }
+    ],
+    "pagination": { ... }
+  }
+}
+```
+
+**New Fields**:
+- `submittedToStockist` (boolean): Whether device has been submitted to stockist
+- `submittedAt` (string/null): Timestamp when device was submitted (null if not submitted)
 
 ---
 
