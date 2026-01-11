@@ -691,7 +691,7 @@ const generateWebToken = async (
         return {
             success: true,
             token: token,
-            iframeUrl: `https://play.google.com/work/embedded/privateapps?token=${token}`,
+            iframeUrl: `https://play.google.com/work/embedded/search?token=${token}&mode=PRIVATE_APPS`,
             parentFrameUrl: parentFrameUrl,
             enabledFeatures: enabledFeatures,
         };
