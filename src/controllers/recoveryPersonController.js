@@ -449,7 +449,9 @@ const getAssignedCustomers = async (req, res) => {
                     productName: customer.emiDetails.productName,
                     model: customer.emiDetails.model,
                     isCollected: customer.isCollected,
-                    collectedAt: customer.collectedAt
+                    collectedAt: customer.collectedAt,
+                    submittedToStockist: customer.submittedToStockist || false,
+                    submittedAt: customer.submittedAt || null
                 })),
                 pagination: {
                     currentPage: pageNum,
