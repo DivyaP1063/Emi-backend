@@ -63,7 +63,18 @@ app.use(helmet({
     },
   },
 })); // Security headers with iframe support
-app.use(cors()); // Enable CORS
+
+// Configure CORS to allow both local and production frontend
+const corsOptions = {
+  origin: [
+    'http://localhost:3000',
+    'http://localhost:5173',
+    'https://report-92bj.onrender.com'
+  ],
+  credentials: true,
+  optionsSuccessStatus: 200
+};
+app.use(cors(corsOptions)); // Enable CORS
 app.use(express.json()); // Parse JSON bodies
 app.use(express.urlencoded({ extended: true })); // Parse URL-encoded bodies
 
