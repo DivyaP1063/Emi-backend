@@ -44,7 +44,9 @@ const {
     getCustomerDetails,
     getCustomerLocation,
     markPaymentReceived,
-    markPaymentReceivedValidation
+    markPaymentReceivedValidation,
+    submitDeviceToStockist,
+    submitToStockistValidation
 } = require('../controllers/recoveryPersonController');
 router.post(
     '/collect-device',
@@ -64,6 +66,18 @@ router.post(
     authenticateRecoveryPerson,
     markPaymentReceivedValidation,
     markPaymentReceived
+);
+
+/**
+ * @route   POST /api/recovery-person/submit-to-stockist
+ * @desc    Submit collected device to stockist
+ * @access  Private (Recovery Person)
+ */
+router.post(
+    '/submit-to-stockist',
+    authenticateRecoveryPerson,
+    submitToStockistValidation,
+    submitDeviceToStockist
 );
 
 /**

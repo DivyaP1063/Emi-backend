@@ -398,10 +398,89 @@ const authenticateRecoveryPerson = async (req, res, next) => {
   }
 };
 
+/**
+ * Middleware to verify JWT token and authenticate stockist
+ */
+const authenticateStockist = async (req, res, next) => {
+  try {
+    // Get token from header
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authorization token not found',
+        error: 'INVALID_TOKEN'
+      });
+    }
+
+    const token = authHeader.substring(7); // Remove 'Bearer ' prefix
+
+    // Verify token
+    const decoded = verifyToken(token);
+
+    if (!decoded) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid or expired token',
+        error: 'INVALID_TOKEN'
+      });
+    }
+
+    // Check if token is for stockist
+    if (decoded.role !== 'STOCKIST') {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied: Stockist role required',
+        error: 'FORBIDDEN'
+      });
+    }
+
+    // Check if stockist exists and is active
+    const Stockist = require('../models/Stockist');
+    const stockist = await Stockist.findById(decoded.id);
+
+    if (!stockist) {
+      return res.status(401).json({
+        success: false,
+        message: 'Stockist not found',
+        error: 'UNAUTHORIZED_ACCESS'
+      });
+    }
+
+    if (!stockist.isActive) {
+      return res.status(403).json({
+        success: false,
+        message: 'Stockist account is inactive',
+        error: 'ACCOUNT_INACTIVE'
+      });
+    }
+
+    // Attach stockist to request object
+    req.stockist = {
+      id: stockist._id.toString(),
+      fullName: stockist.fullName,
+      shopName: stockist.shopName,
+      mobileNumber: stockist.mobileNumber,
+      address: stockist.address
+    };
+
+    next();
+  } catch (error) {
+    console.error('Stockist authentication error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Authentication failed',
+      error: 'SERVER_ERROR'
+    });
+  }
+};
+
 module.exports = {
   authenticate,
   authenticateRetailer,
   authenticateAccountant,
   authenticateRecoveryHead,
-  authenticateRecoveryPerson
+  authenticateRecoveryPerson,
+  authenticateStockist
 };

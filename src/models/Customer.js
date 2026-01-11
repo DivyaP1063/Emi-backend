@@ -287,6 +287,21 @@ const customerSchema = new mongoose.Schema({
     }
   },
 
+  // Stockist Submission - Track if device submitted to stockist
+  submittedToStockist: {
+    type: Boolean,
+    default: false
+  },
+  submittedAt: {
+    type: Date,
+    default: null
+  },
+  stockistId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Stockist',
+    default: null
+  },
+
 }, {
   timestamps: true
 });
@@ -300,6 +315,7 @@ customerSchema.index({ isLocked: 1 });
 customerSchema.index({ isCollected: 1 });
 customerSchema.index({ assigned: 1 });
 customerSchema.index({ isLocked: 1, assigned: 1 }); // Compound index for finding unassigned locked customers
+customerSchema.index({ submittedToStockist: 1 }); // Index for stockist submission queries
 
 const Customer = mongoose.model('Customer', customerSchema);
 

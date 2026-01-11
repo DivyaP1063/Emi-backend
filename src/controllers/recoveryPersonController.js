@@ -514,13 +514,20 @@ const getDashboardStats = async (req, res) => {
             return false;
         }).length;
 
+        // Count devices submitted to stockist
+        const totalSubmittedToStockist = await Customer.countDocuments({
+            _id: { $in: customerIds },
+            submittedToStockist: true
+        });
+
         return res.status(200).json({
             success: true,
             message: 'Dashboard statistics fetched successfully',
             data: {
                 totalAssigned,
                 totalCollected,
-                totalReturned
+                totalReturned,
+                totalSubmittedToStockist
             }
         });
     } catch (error) {
@@ -1052,6 +1059,155 @@ const getReturnedDevices = async (req, res) => {
     }
 };
 
+/**
+ * Validation rules for submit device to stockist
+ */
+const submitToStockistValidation = [
+    body('customerId')
+        .trim()
+        .notEmpty()
+        .withMessage('Customer ID is required')
+        .matches(/^[0-9a-fA-F]{24}$/)
+        .withMessage('Invalid customer ID format'),
+    body('notes')
+        .optional()
+        .trim()
+];
+
+/**
+ * Submit collected device to stockist
+ * Recovery Person only - requires authentication
+ * Automatically submits to the single active stockist in the system
+ */
+const submitDeviceToStockist = async (req, res) => {
+    try {
+        // Check validation errors
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({
+                success: false,
+                message: 'Validation failed',
+                error: 'VALIDATION_ERROR',
+                details: errors.array()
+            });
+        }
+
+        const recoveryPersonId = req.recoveryPerson.id;
+        const { customerId, notes } = req.body;
+
+        const Customer = require('../models/Customer');
+        const Stockist = require('../models/Stockist');
+        const DeviceSubmission = require('../models/DeviceSubmission');
+        const RecoveryHeadAssignment = require('../models/RecoveryHeadAssignment');
+
+        // Verify customer is assigned to this recovery person
+        const assignment = await RecoveryHeadAssignment.findOne({
+            customerId: customerId,
+            recoveryPersonId: recoveryPersonId,
+            status: 'ACTIVE'
+        });
+
+        if (!assignment) {
+            return res.status(403).json({
+                success: false,
+                message: 'This customer is not assigned to you',
+                error: 'NOT_AUTHORIZED'
+            });
+        }
+
+        // Get customer
+        const customer = await Customer.findById(customerId);
+
+        if (!customer) {
+            return res.status(404).json({
+                success: false,
+                message: 'Customer not found',
+                error: 'CUSTOMER_NOT_FOUND'
+            });
+        }
+
+        // Check if device is collected
+        if (!customer.isCollected) {
+            return res.status(400).json({
+                success: false,
+                message: 'Device has not been collected yet',
+                error: 'DEVICE_NOT_COLLECTED'
+            });
+        }
+
+        // Check if already submitted to stockist
+        if (customer.submittedToStockist) {
+            return res.status(400).json({
+                success: false,
+                message: 'Device has already been submitted to stockist',
+                error: 'ALREADY_SUBMITTED',
+                data: {
+                    submittedAt: customer.submittedAt
+                }
+            });
+        }
+
+        // Find the active stockist (there should be only one)
+        const stockist = await Stockist.findOne({ isActive: true });
+
+        if (!stockist) {
+            return res.status(404).json({
+                success: false,
+                message: 'No active stockist found in the system',
+                error: 'STOCKIST_NOT_FOUND'
+            });
+        }
+
+        const stockistId = stockist._id;
+
+        // Create device submission record
+        const deviceSubmission = await DeviceSubmission.create({
+            customerId,
+            recoveryPersonId,
+            stockistId,
+            submittedAt: new Date(),
+            paymentDeadline: customer.deviceCollection.paymentDeadline,
+            status: 'PENDING'
+        });
+
+        // Update customer
+        customer.submittedToStockist = true;
+        customer.submittedAt = new Date();
+        customer.stockistId = stockistId;
+        await customer.save();
+
+        return res.status(200).json({
+            success: true,
+            message: 'Device submitted to stockist successfully',
+            data: {
+                submissionId: deviceSubmission._id.toString(),
+                customerId: customer._id.toString(),
+                customerName: customer.fullName,
+                deviceInfo: {
+                    productName: customer.emiDetails.productName,
+                    imei1: customer.imei1
+                },
+                stockist: {
+                    stockistId: stockist._id.toString(),
+                    shopName: stockist.shopName,
+                    mobileNumber: stockist.mobileNumber
+                },
+                submittedAt: deviceSubmission.submittedAt,
+                paymentDeadline: deviceSubmission.paymentDeadline
+            }
+        });
+
+    } catch (error) {
+        console.error('Submit device to stockist error:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Failed to submit device to stockist',
+            error: 'SERVER_ERROR'
+        });
+    }
+};
+
+
 module.exports = {
     createRecoveryPerson,
     getAllRecoveryPersons,
@@ -1065,5 +1221,7 @@ module.exports = {
     getCustomerDetails,
     getCustomerLocation,
     markPaymentReceived,
-    markPaymentReceivedValidation
+    markPaymentReceivedValidation,
+    submitDeviceToStockist,
+    submitToStockistValidation
 };
