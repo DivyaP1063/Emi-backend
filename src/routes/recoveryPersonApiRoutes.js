@@ -40,10 +40,13 @@ const {
     collectDeviceValidation,
     getAssignedCustomers,
     getDashboardStats,
+    getReturnedDevices,
     getCustomerDetails,
     getCustomerLocation,
     markPaymentReceived,
-    markPaymentReceivedValidation
+    markPaymentReceivedValidation,
+    submitDeviceToStockist,
+    submitToStockistValidation
 } = require('../controllers/recoveryPersonController');
 router.post(
     '/collect-device',
@@ -63,6 +66,18 @@ router.post(
     authenticateRecoveryPerson,
     markPaymentReceivedValidation,
     markPaymentReceived
+);
+
+/**
+ * @route   POST /api/recovery-person/submit-to-stockist
+ * @desc    Submit collected device to stockist
+ * @access  Private (Recovery Person)
+ */
+router.post(
+    '/submit-to-stockist',
+    authenticateRecoveryPerson,
+    submitToStockistValidation,
+    submitDeviceToStockist
 );
 
 /**
@@ -100,13 +115,24 @@ router.get(
 
 /**
  * @route   GET /api/recovery-person/dashboard
- * @desc    Get dashboard statistics (assigned and collected counts)
+ * @desc    Get dashboard statistics (assigned, collected, and returned counts)
  * @access  Private (Recovery Person)
  */
 router.get(
     '/dashboard',
     authenticateRecoveryPerson,
     getDashboardStats
+);
+
+/**
+ * @route   GET /api/recovery-person/returned-devices
+ * @desc    Get all returned devices (where payment was received)
+ * @access  Private (Recovery Person)
+ */
+router.get(
+    '/returned-devices',
+    authenticateRecoveryPerson,
+    getReturnedDevices
 );
 
 // Protected routes (require authentication) can be added here

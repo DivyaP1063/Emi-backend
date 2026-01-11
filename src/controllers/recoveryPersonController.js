@@ -498,12 +498,36 @@ const getDashboardStats = async (req, res) => {
             isCollected: true
         });
 
+        // Count returned devices (money received)
+        const recoveryPerson = await RecoveryPerson.findById(recoveryPersonId);
+        const rawDoc = recoveryPerson.toObject();
+
+        const totalReturned = rawDoc.customers.filter(c => {
+            // Handle new schema format
+            if (c.customerId && c.moneyReceived === true) {
+                return true;
+            }
+            // Handle buffer format that's been converted
+            if (c.moneyReceived === true) {
+                return true;
+            }
+            return false;
+        }).length;
+
+        // Count devices submitted to stockist
+        const totalSubmittedToStockist = await Customer.countDocuments({
+            _id: { $in: customerIds },
+            submittedToStockist: true
+        });
+
         return res.status(200).json({
             success: true,
             message: 'Dashboard statistics fetched successfully',
             data: {
                 totalAssigned,
-                totalCollected
+                totalCollected,
+                totalReturned,
+                totalSubmittedToStockist
             }
         });
     } catch (error) {
@@ -920,6 +944,270 @@ const markPaymentReceived = async (req, res) => {
 };
 
 
+/**
+ * Get all returned devices (where payment was received)
+ */
+const getReturnedDevices = async (req, res) => {
+    try {
+        const recoveryPersonId = req.recoveryPerson.id;
+        const { page = 1, limit = 20 } = req.query;
+
+        const pageNum = parseInt(page);
+        const limitNum = parseInt(limit);
+        const skip = (pageNum - 1) * limitNum;
+
+        const Customer = require('../models/Customer');
+
+        // Get recovery person and find customers with moneyReceived: true
+        const recoveryPerson = await RecoveryPerson.findById(recoveryPersonId);
+        const rawDoc = recoveryPerson.toObject();
+
+        // Extract customer IDs where moneyReceived is true
+        const returnedCustomerIds = rawDoc.customers
+            .filter(c => c.moneyReceived === true)
+            .map(c => {
+                // Handle new schema format
+                if (c.customerId) {
+                    return c.customerId;
+                }
+                // Handle buffer format (shouldn't happen after conversion, but just in case)
+                if (c.buffer && Buffer.isBuffer(c.buffer)) {
+                    const hexStr = c.buffer.toString('hex');
+                    return hexStr;
+                }
+                return null;
+            })
+            .filter(id => id !== null);
+
+        // Get total count
+        const totalReturned = returnedCustomerIds.length;
+
+        // Fetch customer details with pagination
+        const customers = await Customer.find({
+            _id: { $in: returnedCustomerIds }
+        })
+            .sort({ updatedAt: -1 })
+            .skip(skip)
+            .limit(limitNum)
+            .lean();
+
+        const totalPages = Math.ceil(totalReturned / limitNum);
+
+        return res.status(200).json({
+            success: true,
+            message: 'Returned devices fetched successfully',
+            data: {
+                returnedDevices: customers.map(customer => ({
+                    id: customer._id.toString(),
+                    customerInfo: {
+                        fullName: customer.fullName,
+                        fatherName: customer.fatherName,
+                        mobileNumber: customer.mobileNumber,
+                        aadharNumber: customer.aadharNumber,
+                        address: {
+                            village: customer.address.village,
+                            nearbyLocation: customer.address.nearbyLocation,
+                            post: customer.address.post,
+                            district: customer.address.district,
+                            pincode: customer.address.pincode
+                        }
+                    },
+                    deviceInfo: {
+                        imei1: customer.imei1,
+                        imei2: customer.imei2 || null,
+                        productName: customer.emiDetails.productName,
+                        model: customer.emiDetails.model,
+                        phoneType: customer.emiDetails.phoneType
+                    },
+                    collectionInfo: {
+                        isCollected: customer.isCollected,
+                        collectedAt: customer.collectedAt,
+                        collectedBy: customer.deviceCollection?.collectedByName || null,
+                        deviceFrontImage: customer.deviceCollection?.deviceFrontImage || null,
+                        deviceBackImage: customer.deviceCollection?.deviceBackImage || null,
+                        devicePin: customer.deviceCollection?.devicePin || null,
+                        paymentDeadline: customer.deviceCollection?.paymentDeadline || null,
+                        notes: customer.deviceCollection?.notes || null
+                    },
+                    emiDetails: {
+                        sellPrice: customer.emiDetails.sellPrice,
+                        downPayment: customer.emiDetails.downPayment,
+                        downPaymentPending: customer.emiDetails.downPaymentPending,
+                        emiPerMonth: customer.emiDetails.emiPerMonth,
+                        totalEmiAmount: customer.emiDetails.totalEmiAmount,
+                        balanceAmount: customer.emiDetails.balanceAmount
+                    },
+                    returnedAt: customer.updatedAt // When payment was marked as received
+                })),
+                pagination: {
+                    currentPage: pageNum,
+                    totalPages,
+                    totalItems: totalReturned,
+                    itemsPerPage: limitNum,
+                    hasNextPage: pageNum < totalPages,
+                    hasPrevPage: pageNum > 1
+                }
+            }
+        });
+    } catch (error) {
+        console.error('Get returned devices error:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Failed to fetch returned devices',
+            error: 'SERVER_ERROR'
+        });
+    }
+};
+
+/**
+ * Validation rules for submit device to stockist
+ */
+const submitToStockistValidation = [
+    body('customerId')
+        .trim()
+        .notEmpty()
+        .withMessage('Customer ID is required')
+        .matches(/^[0-9a-fA-F]{24}$/)
+        .withMessage('Invalid customer ID format'),
+    body('notes')
+        .optional()
+        .trim()
+];
+
+/**
+ * Submit collected device to stockist
+ * Recovery Person only - requires authentication
+ * Automatically submits to the single active stockist in the system
+ */
+const submitDeviceToStockist = async (req, res) => {
+    try {
+        // Check validation errors
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({
+                success: false,
+                message: 'Validation failed',
+                error: 'VALIDATION_ERROR',
+                details: errors.array()
+            });
+        }
+
+        const recoveryPersonId = req.recoveryPerson.id;
+        const { customerId, notes } = req.body;
+
+        const Customer = require('../models/Customer');
+        const Stockist = require('../models/Stockist');
+        const DeviceSubmission = require('../models/DeviceSubmission');
+        const RecoveryHeadAssignment = require('../models/RecoveryHeadAssignment');
+
+        // Verify customer is assigned to this recovery person
+        const assignment = await RecoveryHeadAssignment.findOne({
+            customerId: customerId,
+            recoveryPersonId: recoveryPersonId,
+            status: 'ACTIVE'
+        });
+
+        if (!assignment) {
+            return res.status(403).json({
+                success: false,
+                message: 'This customer is not assigned to you',
+                error: 'NOT_AUTHORIZED'
+            });
+        }
+
+        // Get customer
+        const customer = await Customer.findById(customerId);
+
+        if (!customer) {
+            return res.status(404).json({
+                success: false,
+                message: 'Customer not found',
+                error: 'CUSTOMER_NOT_FOUND'
+            });
+        }
+
+        // Check if device is collected
+        if (!customer.isCollected) {
+            return res.status(400).json({
+                success: false,
+                message: 'Device has not been collected yet',
+                error: 'DEVICE_NOT_COLLECTED'
+            });
+        }
+
+        // Check if already submitted to stockist
+        if (customer.submittedToStockist) {
+            return res.status(400).json({
+                success: false,
+                message: 'Device has already been submitted to stockist',
+                error: 'ALREADY_SUBMITTED',
+                data: {
+                    submittedAt: customer.submittedAt
+                }
+            });
+        }
+
+        // Find the active stockist (there should be only one)
+        const stockist = await Stockist.findOne({ isActive: true });
+
+        if (!stockist) {
+            return res.status(404).json({
+                success: false,
+                message: 'No active stockist found in the system',
+                error: 'STOCKIST_NOT_FOUND'
+            });
+        }
+
+        const stockistId = stockist._id;
+
+        // Create device submission record
+        const deviceSubmission = await DeviceSubmission.create({
+            customerId,
+            recoveryPersonId,
+            stockistId,
+            submittedAt: new Date(),
+            paymentDeadline: customer.deviceCollection.paymentDeadline,
+            status: 'PENDING'
+        });
+
+        // Update customer
+        customer.submittedToStockist = true;
+        customer.submittedAt = new Date();
+        customer.stockistId = stockistId;
+        await customer.save();
+
+        return res.status(200).json({
+            success: true,
+            message: 'Device submitted to stockist successfully',
+            data: {
+                submissionId: deviceSubmission._id.toString(),
+                customerId: customer._id.toString(),
+                customerName: customer.fullName,
+                deviceInfo: {
+                    productName: customer.emiDetails.productName,
+                    imei1: customer.imei1
+                },
+                stockist: {
+                    stockistId: stockist._id.toString(),
+                    shopName: stockist.shopName,
+                    mobileNumber: stockist.mobileNumber
+                },
+                submittedAt: deviceSubmission.submittedAt,
+                paymentDeadline: deviceSubmission.paymentDeadline
+            }
+        });
+
+    } catch (error) {
+        console.error('Submit device to stockist error:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Failed to submit device to stockist',
+            error: 'SERVER_ERROR'
+        });
+    }
+};
+
+
 module.exports = {
     createRecoveryPerson,
     getAllRecoveryPersons,
@@ -929,8 +1217,11 @@ module.exports = {
     collectDeviceValidation,
     getAssignedCustomers,
     getDashboardStats,
+    getReturnedDevices,
     getCustomerDetails,
     getCustomerLocation,
     markPaymentReceived,
-    markPaymentReceivedValidation
+    markPaymentReceivedValidation,
+    submitDeviceToStockist,
+    submitToStockistValidation
 };
