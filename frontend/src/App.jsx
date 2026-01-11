@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
+import DesktopOnly from './components/DesktopOnly';
 import DashboardLayout from './components/DashboardLayout';
 import Login from './pages/Login';
 import Overview from './pages/Overview';
@@ -11,31 +12,33 @@ import DownPaymentReport from './pages/DownPaymentReport';
 
 function App() {
     return (
-        <AuthProvider>
-            <BrowserRouter>
-                <Routes>
-                    <Route path="/login" element={<Login />} />
+        <DesktopOnly>
+            <AuthProvider>
+                <BrowserRouter>
+                    <Routes>
+                        <Route path="/login" element={<Login />} />
 
-                    <Route
-                        path="/dashboard"
-                        element={
-                            <ProtectedRoute>
-                                <DashboardLayout />
-                            </ProtectedRoute>
-                        }
-                    >
-                        <Route index element={<Overview />} />
-                        <Route path="users" element={<UsersReport />} />
-                        <Route path="retailers" element={<RetailersReport />} />
-                        <Route path="overdue-emi" element={<OverdueEMIReport />} />
-                        <Route path="down-payment" element={<DownPaymentReport />} />
-                    </Route>
+                        <Route
+                            path="/dashboard"
+                            element={
+                                <ProtectedRoute>
+                                    <DashboardLayout />
+                                </ProtectedRoute>
+                            }
+                        >
+                            <Route index element={<Overview />} />
+                            <Route path="users" element={<UsersReport />} />
+                            <Route path="retailers" element={<RetailersReport />} />
+                            <Route path="overdue-emi" element={<OverdueEMIReport />} />
+                            <Route path="down-payment" element={<DownPaymentReport />} />
+                        </Route>
 
-                    <Route path="/" element={<Navigate to="/dashboard" replace />} />
-                    <Route path="*" element={<Navigate to="/dashboard" replace />} />
-                </Routes>
-            </BrowserRouter>
-        </AuthProvider>
+                        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+                    </Routes>
+                </BrowserRouter>
+            </AuthProvider>
+        </DesktopOnly>
     );
 }
 
