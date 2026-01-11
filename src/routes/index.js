@@ -5,7 +5,6 @@ const retailerRoutes = require("./retailerRoutes");
 const recoveryHeadRoutes = require("./recoveryHeadRoutes");
 const recoveryHeadApiRoutes = require("./recoveryHeadApiRoutes");
 const stockistRoutes = require("./stockistRoutes");
-const stockistApiRoutes = require("./stockistApiRoutes");
 const accountantRoutes = require("./accountantRoutes");
 const amapiAdminRoutes = require("./amapiAdminRoutes");
 const adminOAuthRoutes = require("./adminOAuthRoutes");
@@ -65,11 +64,8 @@ router.use("/recovery-heads", recoveryHeadRoutes);
 // Recovery Head Authentication routes (Public - for recovery head login)
 router.use("/recovery-head", recoveryHeadApiRoutes);
 
-// Stockist Authentication routes (Public - for stockist login)
+// Stockist routes (Public auth + Protected APIs)
 router.use("/stockist", stockistRoutes);
-
-// Stockist API routes (Protected - requires stockist authentication)
-router.use("/stockist", stockistApiRoutes);
 
 // Google OAuth routes
 router.use('/frp', googleRoutes);
