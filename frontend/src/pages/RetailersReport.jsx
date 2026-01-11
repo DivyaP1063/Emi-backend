@@ -10,8 +10,6 @@ const RetailersReport = () => {
         status: '',
         city: '',
         state: '',
-        startDate: '',
-        endDate: '',
     });
 
     const fetchRetailers = async () => {
@@ -106,32 +104,12 @@ const RetailersReport = () => {
                             className="input-field"
                         />
                     </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Start Date</label>
-                        <input
-                            type="date"
-                            value={filters.startDate}
-                            onChange={(e) => setFilters(prev => ({ ...prev, startDate: e.target.value }))}
-                            className="input-field"
-                        />
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">End Date</label>
-                        <input
-                            type="date"
-                            value={filters.endDate}
-                            onChange={(e) => setFilters(prev => ({ ...prev, endDate: e.target.value }))}
-                            className="input-field"
-                        />
-                    </div>
                 </div>
 
                 <div className="flex gap-3 mt-4">
                     <button onClick={fetchRetailers} className="btn-primary">Apply Filters</button>
                     <button
-                        onClick={() => setFilters({ status: '', city: '', state: '', startDate: '', endDate: '' })}
+                        onClick={() => setFilters({ status: '', city: '', state: '' })}
                         className="btn-secondary"
                     >
                         Reset

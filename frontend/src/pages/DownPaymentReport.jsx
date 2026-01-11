@@ -3,16 +3,25 @@ import { reportsAPI, downloadExcel } from '../services/api';
 
 const DownPaymentReport = () => {
     const [customers, setCustomers] = useState([]);
+    const [retailers, setRetailers] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
 
     const [filters, setFilters] = useState({
         retailerId: '',
+        isLocked: '',
         minAmount: '',
         maxAmount: '',
-        startDate: '',
-        endDate: '',
     });
+
+    const fetchRetailers = async () => {
+        try {
+            const response = await reportsAPI.getAllRetailers({});
+            setRetailers(response.data.data);
+        } catch (err) {
+            console.error('Failed to fetch retailers:', err);
+        }
+    };
 
     const fetchDownPaymentPending = async () => {
         setLoading(true);
@@ -34,6 +43,7 @@ const DownPaymentReport = () => {
     };
 
     useEffect(() => {
+        fetchRetailers();
         fetchDownPaymentPending();
     }, []);
 
@@ -87,6 +97,35 @@ const DownPaymentReport = () => {
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Filters</h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Retailer</label>
+                        <select
+                            value={filters.retailerId}
+                            onChange={(e) => setFilters(prev => ({ ...prev, retailerId: e.target.value }))}
+                            className="input-field"
+                        >
+                            <option value="">All Retailers</option>
+                            {retailers.map((retailer) => (
+                                <option key={retailer._id} value={retailer._id}>
+                                    {retailer.fullName} - {retailer.shopName}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Lock Status</label>
+                        <select
+                            value={filters.isLocked}
+                            onChange={(e) => setFilters(prev => ({ ...prev, isLocked: e.target.value }))}
+                            className="input-field"
+                        >
+                            <option value="">All</option>
+                            <option value="true">Locked</option>
+                            <option value="false">Unlocked</option>
+                        </select>
+                    </div>
+
+                    <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">Min Amount</label>
                         <input
                             type="number"
@@ -107,32 +146,12 @@ const DownPaymentReport = () => {
                             className="input-field"
                         />
                     </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Start Date</label>
-                        <input
-                            type="date"
-                            value={filters.startDate}
-                            onChange={(e) => setFilters(prev => ({ ...prev, startDate: e.target.value }))}
-                            className="input-field"
-                        />
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">End Date</label>
-                        <input
-                            type="date"
-                            value={filters.endDate}
-                            onChange={(e) => setFilters(prev => ({ ...prev, endDate: e.target.value }))}
-                            className="input-field"
-                        />
-                    </div>
                 </div>
 
                 <div className="flex gap-3 mt-4">
                     <button onClick={fetchDownPaymentPending} className="btn-primary">Apply Filters</button>
                     <button
-                        onClick={() => setFilters({ retailerId: '', minAmount: '', maxAmount: '', startDate: '', endDate: '' })}
+                        onClick={() => setFilters({ retailerId: '', isLocked: '', minAmount: '', maxAmount: '' })}
                         className="btn-secondary"
                     >
                         Reset

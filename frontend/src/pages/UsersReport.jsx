@@ -3,6 +3,7 @@ import { reportsAPI, downloadExcel } from '../services/api';
 
 const UsersReport = () => {
     const [users, setUsers] = useState([]);
+    const [retailers, setRetailers] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
 
@@ -11,9 +12,16 @@ const UsersReport = () => {
         retailerId: '',
         isLocked: '',
         isActive: '',
-        startDate: '',
-        endDate: '',
     });
+
+    const fetchRetailers = async () => {
+        try {
+            const response = await reportsAPI.getAllRetailers({});
+            setRetailers(response.data.data);
+        } catch (err) {
+            console.error('Failed to fetch retailers:', err);
+        }
+    };
 
     const fetchUsers = async () => {
         setLoading(true);
@@ -35,6 +43,7 @@ const UsersReport = () => {
     };
 
     useEffect(() => {
+        fetchRetailers();
         fetchUsers();
     }, []);
 
@@ -68,8 +77,6 @@ const UsersReport = () => {
             retailerId: '',
             isLocked: '',
             isActive: '',
-            startDate: '',
-            endDate: '',
         });
     };
 
@@ -95,6 +102,24 @@ const UsersReport = () => {
             <div className="card">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Filters</h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Retailer
+                        </label>
+                        <select
+                            value={filters.retailerId}
+                            onChange={(e) => handleFilterChange('retailerId', e.target.value)}
+                            className="input-field"
+                        >
+                            <option value="">All Retailers</option>
+                            {retailers.map((retailer) => (
+                                <option key={retailer._id} value={retailer._id}>
+                                    {retailer.fullName} - {retailer.shopName}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
                             Lock Status
@@ -123,30 +148,6 @@ const UsersReport = () => {
                             <option value="true">Active</option>
                             <option value="false">Inactive</option>
                         </select>
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Start Date
-                        </label>
-                        <input
-                            type="date"
-                            value={filters.startDate}
-                            onChange={(e) => handleFilterChange('startDate', e.target.value)}
-                            className="input-field"
-                        />
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                            End Date
-                        </label>
-                        <input
-                            type="date"
-                            value={filters.endDate}
-                            onChange={(e) => handleFilterChange('endDate', e.target.value)}
-                            className="input-field"
-                        />
                     </div>
                 </div>
 

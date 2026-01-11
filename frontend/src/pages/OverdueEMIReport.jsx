@@ -3,16 +3,27 @@ import { reportsAPI, downloadExcel } from '../services/api';
 
 const OverdueEMIReport = () => {
     const [overdueCustomers, setOverdueCustomers] = useState([]);
+    const [retailers, setRetailers] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
 
     const [filters, setFilters] = useState({
         retailerId: '',
+        isLocked: '',
         minDaysOverdue: '',
         maxDaysOverdue: '',
         minAmount: '',
         maxAmount: '',
     });
+
+    const fetchRetailers = async () => {
+        try {
+            const response = await reportsAPI.getAllRetailers({});
+            setRetailers(response.data.data);
+        } catch (err) {
+            console.error('Failed to fetch retailers:', err);
+        }
+    };
 
     const fetchOverdueEMI = async () => {
         setLoading(true);
@@ -34,6 +45,7 @@ const OverdueEMIReport = () => {
     };
 
     useEffect(() => {
+        fetchRetailers();
         fetchOverdueEMI();
     }, []);
 
@@ -71,6 +83,35 @@ const OverdueEMIReport = () => {
             <div className="card">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Filters</h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Retailer</label>
+                        <select
+                            value={filters.retailerId}
+                            onChange={(e) => setFilters(prev => ({ ...prev, retailerId: e.target.value }))}
+                            className="input-field"
+                        >
+                            <option value="">All Retailers</option>
+                            {retailers.map((retailer) => (
+                                <option key={retailer._id} value={retailer._id}>
+                                    {retailer.fullName} - {retailer.shopName}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Lock Status</label>
+                        <select
+                            value={filters.isLocked}
+                            onChange={(e) => setFilters(prev => ({ ...prev, isLocked: e.target.value }))}
+                            className="input-field"
+                        >
+                            <option value="">All</option>
+                            <option value="true">Locked</option>
+                            <option value="false">Unlocked</option>
+                        </select>
+                    </div>
+
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">Min Days Overdue</label>
                         <input
@@ -119,7 +160,7 @@ const OverdueEMIReport = () => {
                 <div className="flex gap-3 mt-4">
                     <button onClick={fetchOverdueEMI} className="btn-primary">Apply Filters</button>
                     <button
-                        onClick={() => setFilters({ retailerId: '', minDaysOverdue: '', maxDaysOverdue: '', minAmount: '', maxAmount: '' })}
+                        onClick={() => setFilters({ retailerId: '', isLocked: '', minDaysOverdue: '', maxDaysOverdue: '', minAmount: '', maxAmount: '' })}
                         className="btn-secondary"
                     >
                         Reset

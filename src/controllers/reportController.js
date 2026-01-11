@@ -9,22 +9,17 @@ const excelService = require('../services/excelService');
 
 /**
  * Get all users report with filters
- * Query params: retailerId, isLocked, isActive, startDate, endDate, export
+ * Query params: retailerId, isLocked, isActive, export
  */
 exports.getAllUsersReport = async (req, res) => {
     try {
-        const { retailerId, isLocked, isActive, startDate, endDate, export: exportFormat } = req.query;
+        const { retailerId, isLocked, isActive, export: exportFormat } = req.query;
 
         // Build filter query
         const filter = {};
         if (retailerId) filter.retailerId = retailerId;
         if (isLocked !== undefined) filter.isLocked = isLocked === 'true';
         if (isActive !== undefined) filter.isActive = isActive === 'true';
-        if (startDate || endDate) {
-            filter.createdAt = {};
-            if (startDate) filter.createdAt.$gte = new Date(startDate);
-            if (endDate) filter.createdAt.$lte = new Date(endDate);
-        }
 
         // Fetch users with retailer details
         const users = await Customer.find(filter)
@@ -106,22 +101,17 @@ exports.getIndividualUserReport = async (req, res) => {
 
 /**
  * Get all retailers report with filters
- * Query params: status, city, state, startDate, endDate, export
+ * Query params: status, city, state, export
  */
 exports.getAllRetailersReport = async (req, res) => {
     try {
-        const { status, city, state, startDate, endDate, export: exportFormat } = req.query;
+        const { status, city, state, export: exportFormat } = req.query;
 
         // Build filter query
         const filter = {};
         if (status) filter.status = status;
         if (city) filter['address.city'] = new RegExp(city, 'i');
         if (state) filter['address.state'] = new RegExp(state, 'i');
-        if (startDate || endDate) {
-            filter.createdAt = {};
-            if (startDate) filter.createdAt.$gte = new Date(startDate);
-            if (endDate) filter.createdAt.$lte = new Date(endDate);
-        }
 
         const retailers = await Retailer.find(filter)
             .sort({ createdAt: -1 })
@@ -203,15 +193,16 @@ exports.getIndividualRetailerReport = async (req, res) => {
 
 /**
  * Get overdue EMI report
- * Query params: retailerId, minDaysOverdue, maxDaysOverdue, minAmount, maxAmount, export
+ * Query params: retailerId, isLocked, minDaysOverdue, maxDaysOverdue, minAmount, maxAmount, export
  */
 exports.getOverdueEmiReport = async (req, res) => {
     try {
-        const { retailerId, minDaysOverdue, maxDaysOverdue, minAmount, maxAmount, export: exportFormat } = req.query;
+        const { retailerId, isLocked, minDaysOverdue, maxDaysOverdue, minAmount, maxAmount, export: exportFormat } = req.query;
 
         // Build filter query
         const filter = {};
         if (retailerId) filter.retailerId = retailerId;
+        if (isLocked !== undefined) filter.isLocked = isLocked === 'true';
 
         // Fetch all customers with their EMI details
         const customers = await Customer.find(filter)
@@ -356,11 +347,11 @@ exports.getIndividualOverdueEmiReport = async (req, res) => {
 
 /**
  * Get down payment pending report
- * Query params: retailerId, minAmount, maxAmount, startDate, endDate, export
+ * Query params: retailerId, isLocked, minAmount, maxAmount, export
  */
 exports.getDownPaymentPendingReport = async (req, res) => {
     try {
-        const { retailerId, minAmount, maxAmount, startDate, endDate, export: exportFormat } = req.query;
+        const { retailerId, isLocked, minAmount, maxAmount, export: exportFormat } = req.query;
 
         // Build filter query
         const filter = {
@@ -368,14 +359,9 @@ exports.getDownPaymentPendingReport = async (req, res) => {
         };
 
         if (retailerId) filter.retailerId = retailerId;
+        if (isLocked !== undefined) filter.isLocked = isLocked === 'true';
         if (minAmount) filter['emiDetails.downPaymentPending'].$gte = parseFloat(minAmount);
         if (maxAmount) filter['emiDetails.downPaymentPending'].$lte = parseFloat(maxAmount);
-
-        if (startDate || endDate) {
-            filter.createdAt = {};
-            if (startDate) filter.createdAt.$gte = new Date(startDate);
-            if (endDate) filter.createdAt.$lte = new Date(endDate);
-        }
 
         const customers = await Customer.find(filter)
             .populate('retailerId', 'fullName shopName')
