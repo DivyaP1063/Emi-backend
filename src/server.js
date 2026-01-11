@@ -9,6 +9,7 @@ const retailerApiRoutes = require('./routes/retailerApiRoutes');
 const accountantApiRoutes = require('./routes/accountantApiRoutes');
 const recoveryHeadApiRoutes = require('./routes/recoveryHeadApiRoutes');
 const recoveryPersonApiRoutes = require('./routes/recoveryPersonApiRoutes');
+const stockistRoutes = require('./routes/stockistRoutes');
 const customerDeviceRoutes = require('./routes/customerDeviceRoutes');
 const webhookRoutes = require('./routes/webhookRoutes');
 const { initializeFirebase } = require('./services/firebaseService');
@@ -91,12 +92,14 @@ app.use('/api/retailer', retailerApiRoutes);
 app.use('/api/accountant', accountantApiRoutes);
 app.use('/api/recovery-head', recoveryHeadApiRoutes);
 app.use('/api/recovery-person', recoveryPersonApiRoutes);
+app.use('/api/stockist', stockistRoutes);
 app.use('/api/customer/device', customerDeviceRoutes);
 app.use('/api/webhooks', webhookRoutes); // AMAPI webhooks
 
 console.log('✅ Accountant routes mounted at /api/accountant');
 console.log('✅ Recovery head routes mounted at /api/recovery-head');
 console.log('✅ Recovery person routes mounted at /api/recovery-person');
+console.log('✅ Stockist routes mounted at /api/stockist');
 console.log('✅ Customer device routes mounted at /api/customer/device');
 
 // Root endpoint
