@@ -36,7 +36,7 @@ const generateCustomerQR = async (req, res) => {
       });
     }
 
-    // Generate enrollment token - AMAPI returns QR code directly
+    // Generate enrollment token
     const tokenResult = await generateEnrollmentToken(
       customerId,
       policyId,
@@ -50,16 +50,20 @@ const generateCustomerQR = async (req, res) => {
       });
     }
 
-    // Use AMAPI's native QR code (Google DPC provisioning)
-    if (!tokenResult.qrCode) {
+    // AMAPI returns qrCode as a string - we need to generate the actual QR image
+    // The qrCode string is what needs to be encoded into a QR image
+    const qrData = tokenResult.qrCode || tokenResult.token;
+    
+    const qrResult = await generateQRCode(qrData, 512);
+    if (!qrResult.success) {
       return res.status(500).json({
         success: false,
-        error: "QR_NOT_AVAILABLE",
-        message: "AMAPI did not return a QR code",
+        error: "QR_GENERATION_FAILED",
+        message: qrResult.error,
       });
     }
 
-    console.log("✅ QR Code generated successfully (Google DPC)");
+    console.log("✅ QR Code image generated successfully (Google DPC)");
     console.log("====================================\n");
 
     return res.status(200).json({
@@ -68,7 +72,7 @@ const generateCustomerQR = async (req, res) => {
       data: {
         customerId,
         customerName: customer.fullName,
-        qrCode: tokenResult.qrCode, // Native AMAPI QR code
+        qrCode: qrResult.qrCode,  // Base64 data URL of the QR image
         enrollmentToken: tokenResult.token,
         expiresAt: tokenResult.expirationTime,
         policyId,
