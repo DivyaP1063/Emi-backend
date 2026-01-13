@@ -1,8 +1,14 @@
-const { generateEnrollmentToken, buildProvisioningPayload, findDeviceByImei, getDeviceStatus, factoryResetDevice: resetDevice, generateWebToken } = require('../services/androidManagementService');
-const { generateQRCode } = require('../services/qrCodeService');
-const Customer = require('../models/Customer');
-const Admin = require('../models/Admin');
-
+const {
+  generateEnrollmentToken,
+  buildProvisioningPayload,
+  findDeviceByImei,
+  getDeviceStatus,
+  factoryResetDevice: resetDevice,
+  generateWebToken,
+} = require("../services/androidManagementService");
+const { generateQRCode } = require("../services/qrCodeService");
+const Customer = require("../models/Customer");
+const Admin = require("../models/Admin");
 
 /**
  * Generate QR Code for Customer Device Provisioning
@@ -11,10 +17,10 @@ const Admin = require('../models/Admin');
 const generateCustomerQR = async (req, res) => {
   try {
     const { customerId } = req.params;
-    const { 
-      policyId = process.env.ANDROID_MANAGEMENT_DEFAULT_POLICY_ID || 'policy1', 
-      duration = 3600 
-    } = req.body;
+    const { duration = 3600 } = req.body;
+
+    // Use customer-specific policy
+    const policyId = `policy_${customerId}`;
 
     console.log("\n🎫 ===== ADMIN: GENERATE QR CODE =====");
     console.log(`Customer ID: ${customerId}`);
@@ -44,18 +50,11 @@ const generateCustomerQR = async (req, res) => {
       });
     }
 
-    // Get FRP UserId from admin
-    const admin = await Admin.findOne({ 
-        isActive: true, 
-        googleUserId: { $ne: null } 
-    }).select('googleUserId').lean();
-    const frpUserId = admin?.googleUserId || '';
-
-    // Build provisioning payload with FRP UserId
-    const payload = buildProvisioningPayload(customerId, tokenResult.token, process.env.BACKEND_URL, frpUserId);
-
-    // Generate QR code
-    const qrResult = await generateQRCode(payload, 512);
+    // AMAPI returns qrCode as a string - we need to generate the actual QR image
+    // The qrCode string is what needs to be encoded into a QR image
+    const qrData = tokenResult.qrCode || tokenResult.token;
+    
+    const qrResult = await generateQRCode(qrData, 512);
     if (!qrResult.success) {
       return res.status(500).json({
         success: false,
@@ -64,20 +63,19 @@ const generateCustomerQR = async (req, res) => {
       });
     }
 
-    console.log("✅ QR Code generated successfully");
+    console.log("✅ QR Code image generated successfully (Google DPC)");
     console.log("====================================\n");
 
     return res.status(200).json({
       success: true,
-      message: "QR code generated successfully",
+      message: "QR code generated successfully (Google DPC)",
       data: {
         customerId,
         customerName: customer.fullName,
-        qrCode: qrResult.qrCode,
+        qrCode: qrResult.qrCode,  // Base64 data URL of the QR image
         enrollmentToken: tokenResult.token,
         expiresAt: tokenResult.expirationTime,
         policyId,
-        payload,
       },
     });
   } catch (error) {
@@ -194,85 +192,85 @@ const getDeviceDetails = async (req, res) => {
  * POST /api/admin/amapi/devices/:imei/factory-reset
  */
 const factoryResetDevice = async (req, res) => {
-    try {
-        const { imei } = req.params;
-        const { confirm } = req.body;
+  try {
+    const { imei } = req.params;
+    const { confirm } = req.body;
 
-        console.log('\n🔴 ===== ADMIN: FACTORY RESET REQUEST =====');
-        console.log(`IMEI: ${imei}`);
-        console.warn('⚠️  DESTRUCTIVE OPERATION - WIPES ALL DATA');
+    console.log("\n🔴 ===== ADMIN: FACTORY RESET REQUEST =====");
+    console.log(`IMEI: ${imei}`);
+    console.warn("⚠️  DESTRUCTIVE OPERATION - WIPES ALL DATA");
 
-        // Require explicit confirmation
-        if (confirm !== 'FACTORY_RESET_CONFIRMED') {
-            return res.status(400).json({
-                success: false,
-                error: 'CONFIRMATION_REQUIRED',
-                message: 'You must confirm factory reset by sending: { "confirm": "FACTORY_RESET_CONFIRMED" }'
-            });
-        }
-
-        // Find customer by IMEI
-        const customer = await Customer.findOne({ imei1: imei });
-        if (!customer) {
-            return res.status(404).json({
-                success: false,
-                error: 'CUSTOMER_NOT_FOUND',
-                message: 'No customer found with this IMEI'
-            });
-        }
-
-        // Find device in AMAPI
-        // findDeviceByImei and factoryResetDevice are already imported at the top
-        
-        const device = await findDeviceByImei(imei);
-        if (!device) {
-            return res.status(404).json({
-                success: false,
-                error: 'DEVICE_NOT_ENROLLED',
-                message: 'Device not enrolled in Android Management'
-            });
-        }
-
-        // Issue factory reset (using renamed import to avoid conflict)
-        const result = await resetDevice(device.name);
-
-        if (!result.success) {
-            return res.status(500).json({
-                success: false,
-                error: 'FACTORY_RESET_FAILED',
-                message: result.error
-            });
-        }
-
-        // Update customer record
-        customer.amapiEnrollment.enrolled = false;
-        customer.amapiEnrollment.deviceName = null;
-        await customer.save();
-
-        console.log('✅ Factory reset initiated');
-        console.log('Device will be wiped and removed from enterprise');
-        console.log('===========================================\n');
-
-        return res.status(200).json({
-            success: true,
-            message: 'Factory reset initiated successfully. Device will be wiped.',
-            data: {
-                customerId: customer._id,
-                customerName: customer.fullName,
-                imei,
-                action: 'FACTORY_RESET',
-                timestamp: new Date().toISOString()
-            }
-        });
-
-    } catch (error) {
-        console.error('❌ Factory reset error:', error);
-        return res.status(500).json({
-            success: false,
-            error: 'SERVER_ERROR',
-            message: error.message
-        });
+    // Require explicit confirmation
+    if (confirm !== "FACTORY_RESET_CONFIRMED") {
+      return res.status(400).json({
+        success: false,
+        error: "CONFIRMATION_REQUIRED",
+        message:
+          'You must confirm factory reset by sending: { "confirm": "FACTORY_RESET_CONFIRMED" }',
+      });
     }
+
+    // Find customer by IMEI
+    const customer = await Customer.findOne({ imei1: imei });
+    if (!customer) {
+      return res.status(404).json({
+        success: false,
+        error: "CUSTOMER_NOT_FOUND",
+        message: "No customer found with this IMEI",
+      });
+    }
+
+    // Find device in AMAPI
+    // findDeviceByImei and factoryResetDevice are already imported at the top
+
+    const device = await findDeviceByImei(imei);
+    if (!device) {
+      return res.status(404).json({
+        success: false,
+        error: "DEVICE_NOT_ENROLLED",
+        message: "Device not enrolled in Android Management",
+      });
+    }
+
+    // Issue factory reset (using renamed import to avoid conflict)
+    const result = await resetDevice(device.name);
+
+    if (!result.success) {
+      return res.status(500).json({
+        success: false,
+        error: "FACTORY_RESET_FAILED",
+        message: result.error,
+      });
+    }
+
+    // Update customer record
+    customer.amapiEnrollment.enrolled = false;
+    customer.amapiEnrollment.deviceName = null;
+    await customer.save();
+
+    console.log("✅ Factory reset initiated");
+    console.log("Device will be wiped and removed from enterprise");
+    console.log("===========================================\n");
+
+    return res.status(200).json({
+      success: true,
+      message: "Factory reset initiated successfully. Device will be wiped.",
+      data: {
+        customerId: customer._id,
+        customerName: customer.fullName,
+        imei,
+        action: "FACTORY_RESET",
+        timestamp: new Date().toISOString(),
+      },
+    });
+  } catch (error) {
+    console.error("❌ Factory reset error:", error);
+    return res.status(500).json({
+      success: false,
+      error: "SERVER_ERROR",
+      message: error.message,
+    });
+  }
 };
 
 /**
@@ -280,57 +278,167 @@ const factoryResetDevice = async (req, res) => {
  * POST /api/admin/amapi/web-token
  */
 const createWebToken = async (req, res) => {
-    try {
-        console.log('\n🌐 ===== ADMIN: GENERATE WEB TOKEN =====');
+  try {
+    console.log("\n🌐 ===== ADMIN: GENERATE WEB TOKEN =====");
 
-        // Get the parent frame URL from request or use defaults
-        const { parentFrameUrl } = req.body;
-        
-        // Determine the parent URL - use the request origin if not specified
-        let origin = req.headers.origin || 
-                       req.headers.referer?.split('?')[0] || // Remove query params
-                       process.env.BACKEND_URL ||
-                       'https://emi-backend-j2qc.onrender.com';
-        
-        // Normalize URL - remove trailing slash and ensure clean origin
-        origin = origin.replace(/\/+$/, ''); // Remove trailing slashes
-        
-        const frameUrl = parentFrameUrl || origin;
+    // Get the parent frame URL from request or use defaults
+    const { parentFrameUrl } = req.body;
 
-        console.log(`🔗 Request Origin Header: ${req.headers.origin}`);
-        console.log(`🔗 Request Referer Header: ${req.headers.referer}`);
-        console.log(`🔗 Final Parent Frame URL: ${frameUrl}`);
+    // Determine the parent URL - use the request origin if not specified
+    let origin =
+      req.headers.origin ||
+      req.headers.referer?.split("?")[0] || // Remove query params
+      process.env.BACKEND_URL ||
+      "https://emi-backend-j2qc.onrender.com";
 
-        // Generate web token
-        const result = await generateWebToken(frameUrl, ['PRIVATE_APPS']);
+    // Normalize URL - remove trailing slash and ensure clean origin
+    origin = origin.replace(/\/+$/, ""); // Remove trailing slashes
 
-        if (!result.success) {
-            return res.status(500).json({
-                success: false,
-                error: 'WEB_TOKEN_GENERATION_FAILED',
-                message: result.error
-            });
-        }
+    const frameUrl = parentFrameUrl || origin;
 
-        console.log('✅ Web token generated successfully');
-        console.log('=====================================\n');
+    console.log(`🔗 Request Origin Header: ${req.headers.origin}`);
+    console.log(`🔗 Request Referer Header: ${req.headers.referer}`);
+    console.log(`🔗 Final Parent Frame URL: ${frameUrl}`);
 
-        return res.status(200).json({
-            success: true,
-            message: 'Web token generated successfully',
-            token: result.token,
-            iframeUrl: result.iframeUrl,
-            parentFrameUrl: result.parentFrameUrl
-        });
+    // Generate web token
+    const result = await generateWebToken(frameUrl, ["PRIVATE_APPS"]);
 
-    } catch (error) {
-        console.error('❌ Generate web token error:', error);
-        return res.status(500).json({
-            success: false,
-            error: 'SERVER_ERROR',
-            message: error.message
-        });
+    if (!result.success) {
+      return res.status(500).json({
+        success: false,
+        error: "WEB_TOKEN_GENERATION_FAILED",
+        message: result.error,
+      });
     }
+
+    console.log("✅ Web token generated successfully");
+    console.log("=====================================\n");
+
+    return res.status(200).json({
+      success: true,
+      message: "Web token generated successfully",
+      token: result.token,
+      iframeUrl: result.iframeUrl,
+      parentFrameUrl: result.parentFrameUrl,
+    });
+  } catch (error) {
+    console.error("❌ Generate web token error:", error);
+    return res.status(500).json({
+      success: false,
+      error: "SERVER_ERROR",
+      message: error.message,
+    });
+  }
+};
+
+/**
+ * Disconnect Device - Send FCM command and clear device data
+ * POST /api/admin/amapi/devices/:customerId/disconnect
+ */
+const disconnectDevice = async (req, res) => {
+  try {
+    const { customerId } = req.params;
+    const { confirm } = req.body;
+
+    console.log("\n🔌 ===== ADMIN: DISCONNECT DEVICE =====");
+    console.log(`Customer ID: ${customerId}`);
+
+    // Require explicit confirmation
+    if (confirm !== "DISCONNECT_CONFIRMED") {
+      return res.status(400).json({
+        success: false,
+        error: "CONFIRMATION_REQUIRED",
+        message:
+          'You must confirm disconnect by sending: { "confirm": "DISCONNECT_CONFIRMED" }',
+      });
+    }
+
+    // Find customer
+    const customer = await Customer.findById(customerId);
+    if (!customer) {
+      return res.status(404).json({
+        success: false,
+        error: "CUSTOMER_NOT_FOUND",
+        message: "Customer not found",
+      });
+    }
+
+    // Send FCM disconnect command BEFORE clearing the token
+    let fcmResult = { success: false, message: "No FCM token" };
+    if (customer.fcmToken) {
+      try {
+        const { sendNotification } = require("../services/firebaseService");
+        fcmResult = await sendNotification(
+          customer.fcmToken,
+          "Device Disconnected",
+          "This device has been disconnected. The app will now uninstall.",
+          {
+            command: "DISCONNECT_UNINSTALL",
+            action: "UNINSTALL_APP",
+            customerId: customerId,
+            timestamp: new Date().toISOString(),
+          }
+        );
+        console.log(
+          `📱 FCM disconnect command sent: ${
+            fcmResult.success ? "SUCCESS" : "FAILED"
+          }`
+        );
+      } catch (fcmError) {
+        console.error("❌ FCM error:", fcmError.message);
+        fcmResult = { success: false, message: fcmError.message };
+      }
+    }
+
+    // Clear device data
+    customer.fcmToken = null;
+    customer.location = {
+      latitude: null,
+      longitude: null,
+      lastUpdated: null,
+    };
+    customer.amapiEnrollment = {
+      enrolled: false,
+      deviceName: null,
+      enrollmentToken: null,
+      enrolledAt: null,
+      lastPolicySync: null,
+      complianceStatus: "UNKNOWN",
+    };
+    customer.isActive = false;
+    customer.enterpriseId = null;
+
+    await customer.save();
+
+    console.log("✅ Device disconnected and data cleared");
+    console.log("=====================================\n");
+
+    return res.status(200).json({
+      success: true,
+      message: "Device disconnected successfully",
+      data: {
+        customerId,
+        customerName: customer.fullName,
+        fcmCommandSent: fcmResult.success,
+        fcmMessage: fcmResult.message,
+        clearedFields: [
+          "fcmToken",
+          "location",
+          "amapiEnrollment",
+          "enterpriseId",
+        ],
+        isActive: false,
+        timestamp: new Date().toISOString(),
+      },
+    });
+  } catch (error) {
+    console.error("❌ Disconnect device error:", error);
+    return res.status(500).json({
+      success: false,
+      error: "SERVER_ERROR",
+      message: error.message,
+    });
+  }
 };
 
 module.exports = {
@@ -338,5 +446,6 @@ module.exports = {
   listEnrolledDevices,
   getDeviceDetails,
   factoryResetDevice,
-  createWebToken
+  createWebToken,
+  disconnectDevice,
 };

@@ -14,10 +14,11 @@ const QRCode = require('qrcode');
 const generateQRCode = async (payload, size = 512) => {
     try {
         console.log('\n📱 ===== GENERATING QR CODE =====');
-        console.log('Payload:', JSON.stringify(payload, null, 2));
-
-        // Convert payload to JSON string
-        const payloadString = JSON.stringify(payload);
+        
+        // If payload is already a string, use it directly; otherwise stringify it
+        const payloadString = typeof payload === 'string' ? payload : JSON.stringify(payload);
+        
+        console.log('Payload:', payloadString.substring(0, 100) + '...');
 
         // Generate QR code as data URL
         const qrDataUrl = await QRCode.toDataURL(payloadString, {
