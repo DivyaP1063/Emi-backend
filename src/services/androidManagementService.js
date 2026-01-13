@@ -376,56 +376,40 @@ const getDefaultPolicyTemplate = (customerId = '') => {
     return {
         applications: [
             {
-                packageName: "com.mdmandroid",
+                packageName: "com.androidmanager",
                 installType: "FORCE_INSTALLED",
                 lockTaskAllowed: true,
                 defaultPermissionPolicy: "GRANT",
-                
-                // Explicitly grant required permissions
                 permissionGrants: [
-                    { permission: "android.permission.ACCESS_FINE_LOCATION", policy: "GRANT" },
-                    { permission: "android.permission.ACCESS_COARSE_LOCATION", policy: "GRANT" },
-                    { permission: "android.permission.READ_PHONE_STATE", policy: "GRANT" },
-                    { permission: "android.permission.CAMERA", policy: "GRANT" },
-                    { permission: "android.permission.RECORD_AUDIO", policy: "GRANT" }
+                    { permission: "android.permission.READ_PHONE_STATE", policy: "GRANT" }
                 ],
-                
-                // Delegated scopes for device management
                 delegatedScopes: [
                     "CERT_INSTALL",
                     "MANAGED_CONFIGURATIONS"
-                ],
-                
-                // Managed configurations passed to the app
-                managedConfigurations: {
-                    backend_url: process.env.BACKEND_URL || "https://emi-backend-j2qc.onrender.com",
-                    customer_id: customerId,
-                    kiosk_mode: false  // Default: not in kiosk mode
-                }
-            },
+                ]
+            }
         ],
         
-        // Factory reset protection
         factoryResetDisabled: true,
         
-        // Password requirements
-        passwordRequirements: {
-            passwordQuality: "NUMERIC",
-            passwordMinimumLength: 4
-        },
-        
-        // Security overrides
-        advancedSecurityOverrides: {
-            developerSettings: "DEVELOPER_SETTINGS_DISABLED"
-        },
-        
-        // Status reporting
         statusReportingSettings: {
             applicationReportsEnabled: true,
             deviceSettingsEnabled: true,
             networkInfoEnabled: true,
             displayInfoEnabled: true,
+            powerManagementEventsEnabled: true,
             hardwareStatusEnabled: true
+        },
+        
+        passwordRequirements: {
+            passwordMinimumLength: 4,
+            passwordQuality: "NUMERIC"
+        },
+        
+        stayOnPluggedModes: ["AC"],
+        
+        advancedSecurityOverrides: {
+            developerSettings: "DEVELOPER_SETTINGS_DISABLED"
         }
     };
 };
@@ -747,65 +731,49 @@ const getLockdownPolicyTemplate = (customerId = '') => {
     return {
         applications: [
             {
-                packageName: "com.mdmandroid",
+                packageName: "com.androidmanager",
                 installType: "FORCE_INSTALLED",
                 lockTaskAllowed: true,
                 defaultPermissionPolicy: "GRANT",
-                
-                // Explicitly grant required permissions
                 permissionGrants: [
-                    { permission: "android.permission.ACCESS_FINE_LOCATION", policy: "GRANT" },
-                    { permission: "android.permission.ACCESS_COARSE_LOCATION", policy: "GRANT" },
-                    { permission: "android.permission.READ_PHONE_STATE", policy: "GRANT" },
-                    { permission: "android.permission.CAMERA", policy: "GRANT" },
-                    { permission: "android.permission.RECORD_AUDIO", policy: "GRANT" }
+                    { permission: "android.permission.READ_PHONE_STATE", policy: "GRANT" }
                 ],
-                
-                // Delegated scopes for device management
                 delegatedScopes: [
                     "CERT_INSTALL",
                     "MANAGED_CONFIGURATIONS"
-                ],
-                
-                // Managed configurations passed to the app - KIOSK MODE ENABLED
-                managedConfigurations: {
-                    backend_url: process.env.BACKEND_URL || "https://emi-backend-j2qc.onrender.com",
-                    customer_id: customerId,
-                    kiosk_mode: true  // LOCKDOWN: kiosk mode enabled
-                }
-            },
+                ]
+            }
         ],
         
-        // Factory reset protection - DISABLED for lockdown
         factoryResetDisabled: true,
         
-        // Kiosk mode - ENABLED for lockdown
+        // LOCKDOWN: Kiosk mode enabled
         kioskCustomLauncherEnabled: true,
         
-        // Prevent app uninstallation
+        // LOCKDOWN: Prevent app uninstallation
         uninstallAppsDisabled: true,
         
-        // Disable account modifications
+        // LOCKDOWN: Disable account modifications
         modifyAccountsDisabled: true,
         
-        // Password requirements
-        passwordRequirements: {
-            passwordQuality: "NUMERIC",
-            passwordMinimumLength: 4
-        },
-        
-        // Security overrides - stricter for lockdown
-        advancedSecurityOverrides: {
-            developerSettings: "DEVELOPER_SETTINGS_DISABLED"
-        },
-        
-        // Status reporting
         statusReportingSettings: {
             applicationReportsEnabled: true,
             deviceSettingsEnabled: true,
             networkInfoEnabled: true,
             displayInfoEnabled: true,
+            powerManagementEventsEnabled: true,
             hardwareStatusEnabled: true
+        },
+        
+        passwordRequirements: {
+            passwordMinimumLength: 4,
+            passwordQuality: "NUMERIC"
+        },
+        
+        stayOnPluggedModes: ["AC"],
+        
+        advancedSecurityOverrides: {
+            developerSettings: "DEVELOPER_SETTINGS_DISABLED"
         }
     };
 };
