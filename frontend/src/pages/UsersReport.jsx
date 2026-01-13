@@ -9,9 +9,13 @@ const UsersReport = () => {
 
     // Filters
     const [filters, setFilters] = useState({
+        search: '',
         retailerId: '',
-        isLocked: '',
-        isActive: '',
+        status: '', // Combined locked/active status
+        appInstallStatus: '',
+        dateRange: 'all', // all, today, week, month, year, custom
+        startDate: '',
+        endDate: '',
     });
 
     const fetchRetailers = async () => {
@@ -30,8 +34,68 @@ const UsersReport = () => {
         try {
             const params = {};
             Object.keys(filters).forEach(key => {
-                if (filters[key]) params[key] = filters[key];
+                if (filters[key]) {
+                    // Convert status filter
+                    if (key === 'status') {
+                        if (filters[key] === 'locked') {
+                            params.isLocked = 'true';
+                        } else if (filters[key] === 'unlocked') {
+                            params.isLocked = 'false';
+                        } else if (filters[key] === 'active') {
+                            params.isActive = 'true';
+                        } else if (filters[key] === 'inactive') {
+                            params.isActive = 'false';
+                        }
+                    }
+                    // Handle date range
+                    else if (key === 'dateRange') {
+                        // Skip if 'all' - no date filter
+                        if (filters[key] !== 'all') {
+                            const now = new Date();
+                            let startDate, endDate;
+
+                            if (filters[key] === 'today') {
+                                startDate = new Date(now.setHours(0, 0, 0, 0));
+                                endDate = new Date(now.setHours(23, 59, 59, 999));
+                            } else if (filters[key] === 'week') {
+                                const dayOfWeek = now.getDay();
+                                const diff = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Monday as start
+                                startDate = new Date(now);
+                                startDate.setDate(now.getDate() - diff);
+                                startDate.setHours(0, 0, 0, 0);
+                                endDate = new Date();
+                                endDate.setHours(23, 59, 59, 999);
+                            } else if (filters[key] === 'month') {
+                                startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+                                endDate = new Date();
+                                endDate.setHours(23, 59, 59, 999);
+                            } else if (filters[key] === 'year') {
+                                startDate = new Date(now.getFullYear(), 0, 1);
+                                endDate = new Date();
+                                endDate.setHours(23, 59, 59, 999);
+                            } else if (filters[key] === 'custom') {
+                                if (filters.startDate) {
+                                    startDate = new Date(filters.startDate);
+                                    startDate.setHours(0, 0, 0, 0);
+                                }
+                                if (filters.endDate) {
+                                    endDate = new Date(filters.endDate);
+                                    endDate.setHours(23, 59, 59, 999);
+                                }
+                            }
+
+                            if (startDate) params.startDate = startDate.toISOString();
+                            if (endDate) params.endDate = endDate.toISOString();
+                        }
+                    }
+                    // Skip startDate and endDate as they're handled in dateRange
+                    else if (key !== 'startDate' && key !== 'endDate') {
+                        params[key] = filters[key];
+                    }
+                }
             });
+
+            console.log('Sending params to API:', params);
 
             const response = await reportsAPI.getAllUsers(params);
             setUsers(response.data.data);
@@ -51,7 +115,63 @@ const UsersReport = () => {
         try {
             const params = new URLSearchParams();
             Object.keys(filters).forEach(key => {
-                if (filters[key]) params.append(key, filters[key]);
+                if (filters[key]) {
+                    // Convert status filter
+                    if (key === 'status') {
+                        if (filters[key] === 'locked') {
+                            params.append('isLocked', 'true');
+                        } else if (filters[key] === 'unlocked') {
+                            params.append('isLocked', 'false');
+                        } else if (filters[key] === 'active') {
+                            params.append('isActive', 'true');
+                        } else if (filters[key] === 'inactive') {
+                            params.append('isActive', 'false');
+                        }
+                    }
+                    // Handle date range
+                    else if (key === 'dateRange') {
+                        if (filters[key] !== 'all') {
+                            const now = new Date();
+                            let startDate, endDate;
+
+                            if (filters[key] === 'today') {
+                                startDate = new Date(now.setHours(0, 0, 0, 0));
+                                endDate = new Date(now.setHours(23, 59, 59, 999));
+                            } else if (filters[key] === 'week') {
+                                const dayOfWeek = now.getDay();
+                                const diff = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+                                startDate = new Date(now);
+                                startDate.setDate(now.getDate() - diff);
+                                startDate.setHours(0, 0, 0, 0);
+                                endDate = new Date();
+                                endDate.setHours(23, 59, 59, 999);
+                            } else if (filters[key] === 'month') {
+                                startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+                                endDate = new Date();
+                                endDate.setHours(23, 59, 59, 999);
+                            } else if (filters[key] === 'year') {
+                                startDate = new Date(now.getFullYear(), 0, 1);
+                                endDate = new Date();
+                                endDate.setHours(23, 59, 59, 999);
+                            } else if (filters[key] === 'custom') {
+                                if (filters.startDate) {
+                                    startDate = new Date(filters.startDate);
+                                    startDate.setHours(0, 0, 0, 0);
+                                }
+                                if (filters.endDate) {
+                                    endDate = new Date(filters.endDate);
+                                    endDate.setHours(23, 59, 59, 999);
+                                }
+                            }
+
+                            if (startDate) params.append('startDate', startDate.toISOString());
+                            if (endDate) params.append('endDate', endDate.toISOString());
+                        }
+                    }
+                    else if (key !== 'startDate' && key !== 'endDate') {
+                        params.append(key, filters[key]);
+                    }
+                }
             });
             params.append('export', 'excel');
 
@@ -74,9 +194,13 @@ const UsersReport = () => {
 
     const handleResetFilters = () => {
         setFilters({
+            search: '',
             retailerId: '',
-            isLocked: '',
-            isActive: '',
+            status: '',
+            appInstallStatus: '',
+            dateRange: 'all',
+            startDate: '',
+            endDate: '',
         });
     };
 
@@ -104,6 +228,19 @@ const UsersReport = () => {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Search Retailer
+                        </label>
+                        <input
+                            type="text"
+                            placeholder="Search by retailer name or shop..."
+                            value={filters.search}
+                            onChange={(e) => handleFilterChange('search', e.target.value)}
+                            className="input-field"
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
                             Retailer
                         </label>
                         <select
@@ -122,33 +259,82 @@ const UsersReport = () => {
 
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Lock Status
+                            Status
                         </label>
                         <select
-                            value={filters.isLocked}
-                            onChange={(e) => handleFilterChange('isLocked', e.target.value)}
+                            value={filters.status}
+                            onChange={(e) => handleFilterChange('status', e.target.value)}
                             className="input-field"
                         >
                             <option value="">All</option>
-                            <option value="true">Locked</option>
-                            <option value="false">Unlocked</option>
+                            <option value="locked">Locked</option>
+                            <option value="unlocked">Unlocked</option>
+                            <option value="active">Active</option>
+                            <option value="inactive">Inactive</option>
                         </select>
                     </div>
 
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Active Status
+                            App Installation Status
                         </label>
                         <select
-                            value={filters.isActive}
-                            onChange={(e) => handleFilterChange('isActive', e.target.value)}
+                            value={filters.appInstallStatus}
+                            onChange={(e) => handleFilterChange('appInstallStatus', e.target.value)}
                             className="input-field"
                         >
                             <option value="">All</option>
-                            <option value="true">Active</option>
-                            <option value="false">Inactive</option>
+                            <option value="installed">App Installed</option>
+                            <option value="uninstalled">App Uninstalled</option>
+                            <option value="not_installed">App Not Installed</option>
                         </select>
                     </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Date Range
+                        </label>
+                        <select
+                            value={filters.dateRange}
+                            onChange={(e) => handleFilterChange('dateRange', e.target.value)}
+                            className="input-field"
+                        >
+                            <option value="all">All Time</option>
+                            <option value="today">Today</option>
+                            <option value="week">This Week</option>
+                            <option value="month">This Month</option>
+                            <option value="year">This Year</option>
+                            <option value="custom">Custom Range</option>
+                        </select>
+                    </div>
+
+                    {filters.dateRange === 'custom' && (
+                        <>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Start Date
+                                </label>
+                                <input
+                                    type="date"
+                                    value={filters.startDate}
+                                    onChange={(e) => handleFilterChange('startDate', e.target.value)}
+                                    className="input-field"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    End Date
+                                </label>
+                                <input
+                                    type="date"
+                                    value={filters.endDate}
+                                    onChange={(e) => handleFilterChange('endDate', e.target.value)}
+                                    className="input-field"
+                                />
+                            </div>
+                        </>
+                    )}
                 </div>
 
                 <div className="flex gap-3 mt-4">
@@ -190,14 +376,15 @@ const UsersReport = () => {
                                     <th className="table-header-cell">Sell Price</th>
                                     <th className="table-header-cell">EMI/Month</th>
                                     <th className="table-header-cell">Balance</th>
-                                    <th className="table-header-cell">Status</th>
+                                    <th className="table-header-cell">Lock Status</th>
+                                    <th className="table-header-cell">Active Status</th>
                                     <th className="table-header-cell">Retailer</th>
                                 </tr>
                             </thead>
                             <tbody className="table-body">
                                 {users.length === 0 ? (
                                     <tr>
-                                        <td colSpan="8" className="table-cell text-center text-gray-500 py-8">
+                                        <td colSpan="9" className="table-cell text-center text-gray-500 py-8">
                                             No users found
                                         </td>
                                     </tr>
@@ -212,10 +399,18 @@ const UsersReport = () => {
                                             <td className="table-cell">₹{user.emiDetails.balanceAmount.toLocaleString()}</td>
                                             <td className="table-cell">
                                                 <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${user.isLocked
-                                                        ? 'bg-red-100 text-red-800'
-                                                        : 'bg-green-100 text-green-800'
+                                                    ? 'bg-red-100 text-red-800'
+                                                    : 'bg-green-100 text-green-800'
                                                     }`}>
-                                                    {user.isLocked ? 'Locked' : 'Active'}
+                                                    {user.isLocked ? 'Locked' : 'Unlocked'}
+                                                </span>
+                                            </td>
+                                            <td className="table-cell">
+                                                <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${user.isActive
+                                                    ? 'bg-blue-100 text-blue-800'
+                                                    : 'bg-gray-100 text-gray-800'
+                                                    }`}>
+                                                    {user.isActive ? 'Active' : 'Inactive'}
                                                 </span>
                                             </td>
                                             <td className="table-cell">{user.retailerId?.fullName || 'N/A'}</td>

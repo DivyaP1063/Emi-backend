@@ -9,23 +9,69 @@ const excelService = require('../services/excelService');
 
 /**
  * Get all users report with filters
- * Query params: retailerId, isLocked, isActive, export
+ * Query params: search, retailerId, isLocked, isActive, appInstallStatus, date, export
  */
 exports.getAllUsersReport = async (req, res) => {
     try {
-        const { retailerId, isLocked, isActive, export: exportFormat } = req.query;
+        const { search, retailerId, isLocked, isActive, appInstallStatus, startDate, endDate, export: exportFormat } = req.query;
 
         // Build filter query
         const filter = {};
         if (retailerId) filter.retailerId = retailerId;
-        if (isLocked !== undefined) filter.isLocked = isLocked === 'true';
-        if (isActive !== undefined) filter.isActive = isActive === 'true';
+        if (isLocked !== undefined && isLocked !== '') filter.isLocked = isLocked === 'true';
+
+        // Track if user explicitly set isActive
+        const userSetIsActive = isActive !== undefined && isActive !== '';
+        if (userSetIsActive) filter.isActive = isActive === 'true';
+
+        // Date range filter - filter by creation date
+        if (startDate || endDate) {
+            filter.createdAt = {};
+            if (startDate) {
+                filter.createdAt.$gte = new Date(startDate);
+            }
+            if (endDate) {
+                filter.createdAt.$lte = new Date(endDate);
+            }
+        }
+
+        // App installation status filter
+        // This filter overrides isActive if set
+        if (appInstallStatus) {
+            if (appInstallStatus === 'installed') {
+                // FCM token exists and isActive is true
+                filter.fcmToken = { $ne: null };
+                filter.isActive = true;
+            } else if (appInstallStatus === 'uninstalled') {
+                // FCM token exists but isActive is false
+                filter.fcmToken = { $ne: null };
+                filter.isActive = false;
+            } else if (appInstallStatus === 'not_installed') {
+                // FCM token is null
+                filter.fcmToken = null;
+            }
+        }
+
+        console.log('=== USER REPORT FILTER DEBUG ===');
+        console.log('Query params:', { search, retailerId, isLocked, isActive, appInstallStatus, startDate, endDate });
+        console.log('Built filter:', JSON.stringify(filter, null, 2));
+        console.log('================================');
 
         // Fetch users with retailer details
-        const users = await Customer.find(filter)
+        let users = await Customer.find(filter)
             .populate('retailerId', 'fullName shopName')
             .sort({ createdAt: -1 })
             .lean();
+
+        // Apply search filter on retailer name or shop name (post-query filtering)
+        if (search && search.trim()) {
+            const searchLower = search.toLowerCase().trim();
+            users = users.filter(user => {
+                const retailerName = user.retailerId?.fullName?.toLowerCase() || '';
+                const shopName = user.retailerId?.shopName?.toLowerCase() || '';
+                return retailerName.includes(searchLower) || shopName.includes(searchLower);
+            });
+        }
 
         // Export to Excel if requested
         if (exportFormat === 'excel') {
@@ -347,21 +393,50 @@ exports.getIndividualOverdueEmiReport = async (req, res) => {
 
 /**
  * Get down payment pending report
- * Query params: retailerId, isLocked, minAmount, maxAmount, export
+ * Query params: retailerId, isLocked, minAmount, maxAmount, paymentStatus, startDate, endDate, export
  */
 exports.getDownPaymentPendingReport = async (req, res) => {
     try {
-        const { retailerId, isLocked, minAmount, maxAmount, export: exportFormat } = req.query;
+        const { retailerId, isLocked, minAmount, maxAmount, paymentStatus, startDate, endDate, export: exportFormat } = req.query;
 
         // Build filter query
-        const filter = {
-            'emiDetails.downPaymentPending': { $gt: 0 }
-        };
+        const filter = {};
+
+        // Payment status filter
+        if (paymentStatus === 'pending') {
+            filter['emiDetails.downPaymentPending'] = { $gt: 0 };
+        } else if (paymentStatus === 'paid') {
+            filter['emiDetails.downPaymentPending'] = 0;
+        }
+        // If 'all', don't filter by payment status
 
         if (retailerId) filter.retailerId = retailerId;
         if (isLocked !== undefined) filter.isLocked = isLocked === 'true';
-        if (minAmount) filter['emiDetails.downPaymentPending'].$gte = parseFloat(minAmount);
-        if (maxAmount) filter['emiDetails.downPaymentPending'].$lte = parseFloat(maxAmount);
+
+        // Amount range filter (only for pending payments)
+        if (minAmount && paymentStatus !== 'paid') {
+            if (!filter['emiDetails.downPaymentPending']) {
+                filter['emiDetails.downPaymentPending'] = {};
+            }
+            filter['emiDetails.downPaymentPending'].$gte = parseFloat(minAmount);
+        }
+        if (maxAmount && paymentStatus !== 'paid') {
+            if (!filter['emiDetails.downPaymentPending']) {
+                filter['emiDetails.downPaymentPending'] = {};
+            }
+            filter['emiDetails.downPaymentPending'].$lte = parseFloat(maxAmount);
+        }
+
+        // Date range filter - filter by creation date
+        if (startDate || endDate) {
+            filter.createdAt = {};
+            if (startDate) {
+                filter.createdAt.$gte = new Date(startDate);
+            }
+            if (endDate) {
+                filter.createdAt.$lte = new Date(endDate);
+            }
+        }
 
         const customers = await Customer.find(filter)
             .populate('retailerId', 'fullName shopName')

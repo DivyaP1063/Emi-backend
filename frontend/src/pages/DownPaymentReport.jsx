@@ -12,6 +12,10 @@ const DownPaymentReport = () => {
         isLocked: '',
         minAmount: '',
         maxAmount: '',
+        paymentStatus: 'pending', // pending, paid, all
+        dateRange: 'all',
+        startDate: '',
+        endDate: '',
     });
 
     const fetchRetailers = async () => {
@@ -30,7 +34,52 @@ const DownPaymentReport = () => {
         try {
             const params = {};
             Object.keys(filters).forEach(key => {
-                if (filters[key]) params[key] = filters[key];
+                if (filters[key]) {
+                    // Handle date range
+                    if (key === 'dateRange') {
+                        if (filters[key] !== 'all') {
+                            const now = new Date();
+                            let startDate, endDate;
+
+                            if (filters[key] === 'today') {
+                                startDate = new Date(now.setHours(0, 0, 0, 0));
+                                endDate = new Date(now.setHours(23, 59, 59, 999));
+                            } else if (filters[key] === 'week') {
+                                const dayOfWeek = now.getDay();
+                                const diff = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+                                startDate = new Date(now);
+                                startDate.setDate(now.getDate() - diff);
+                                startDate.setHours(0, 0, 0, 0);
+                                endDate = new Date();
+                                endDate.setHours(23, 59, 59, 999);
+                            } else if (filters[key] === 'month') {
+                                startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+                                endDate = new Date();
+                                endDate.setHours(23, 59, 59, 999);
+                            } else if (filters[key] === 'year') {
+                                startDate = new Date(now.getFullYear(), 0, 1);
+                                endDate = new Date();
+                                endDate.setHours(23, 59, 59, 999);
+                            } else if (filters[key] === 'custom') {
+                                if (filters.startDate) {
+                                    startDate = new Date(filters.startDate);
+                                    startDate.setHours(0, 0, 0, 0);
+                                }
+                                if (filters.endDate) {
+                                    endDate = new Date(filters.endDate);
+                                    endDate.setHours(23, 59, 59, 999);
+                                }
+                            }
+
+                            if (startDate) params.startDate = startDate.toISOString();
+                            if (endDate) params.endDate = endDate.toISOString();
+                        }
+                    }
+                    // Skip startDate and endDate as they're handled in dateRange
+                    else if (key !== 'startDate' && key !== 'endDate') {
+                        params[key] = filters[key];
+                    }
+                }
             });
 
             const response = await reportsAPI.getDownPaymentPending(params);
@@ -51,7 +100,51 @@ const DownPaymentReport = () => {
         try {
             const params = new URLSearchParams();
             Object.keys(filters).forEach(key => {
-                if (filters[key]) params.append(key, filters[key]);
+                if (filters[key]) {
+                    // Handle date range
+                    if (key === 'dateRange') {
+                        if (filters[key] !== 'all') {
+                            const now = new Date();
+                            let startDate, endDate;
+
+                            if (filters[key] === 'today') {
+                                startDate = new Date(now.setHours(0, 0, 0, 0));
+                                endDate = new Date(now.setHours(23, 59, 59, 999));
+                            } else if (filters[key] === 'week') {
+                                const dayOfWeek = now.getDay();
+                                const diff = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+                                startDate = new Date(now);
+                                startDate.setDate(now.getDate() - diff);
+                                startDate.setHours(0, 0, 0, 0);
+                                endDate = new Date();
+                                endDate.setHours(23, 59, 59, 999);
+                            } else if (filters[key] === 'month') {
+                                startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+                                endDate = new Date();
+                                endDate.setHours(23, 59, 59, 999);
+                            } else if (filters[key] === 'year') {
+                                startDate = new Date(now.getFullYear(), 0, 1);
+                                endDate = new Date();
+                                endDate.setHours(23, 59, 59, 999);
+                            } else if (filters[key] === 'custom') {
+                                if (filters.startDate) {
+                                    startDate = new Date(filters.startDate);
+                                    startDate.setHours(0, 0, 0, 0);
+                                }
+                                if (filters.endDate) {
+                                    endDate = new Date(filters.endDate);
+                                    endDate.setHours(23, 59, 59, 999);
+                                }
+                            }
+
+                            if (startDate) params.append('startDate', startDate.toISOString());
+                            if (endDate) params.append('endDate', endDate.toISOString());
+                        }
+                    }
+                    else if (key !== 'startDate' && key !== 'endDate') {
+                        params.append(key, filters[key]);
+                    }
+                }
             });
             params.append('export', 'excel');
 
@@ -146,12 +239,74 @@ const DownPaymentReport = () => {
                             className="input-field"
                         />
                     </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Payment Status</label>
+                        <select
+                            value={filters.paymentStatus}
+                            onChange={(e) => setFilters(prev => ({ ...prev, paymentStatus: e.target.value }))}
+                            className="input-field"
+                        >
+                            <option value="all">All</option>
+                            <option value="pending">Pending</option>
+                            <option value="paid">Paid</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Date Range</label>
+                        <select
+                            value={filters.dateRange}
+                            onChange={(e) => setFilters(prev => ({ ...prev, dateRange: e.target.value }))}
+                            className="input-field"
+                        >
+                            <option value="all">All Time</option>
+                            <option value="today">Today</option>
+                            <option value="week">This Week</option>
+                            <option value="month">This Month</option>
+                            <option value="year">This Year</option>
+                            <option value="custom">Custom Range</option>
+                        </select>
+                    </div>
+
+                    {filters.dateRange === 'custom' && (
+                        <>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Start Date</label>
+                                <input
+                                    type="date"
+                                    value={filters.startDate}
+                                    onChange={(e) => setFilters(prev => ({ ...prev, startDate: e.target.value }))}
+                                    className="input-field"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">End Date</label>
+                                <input
+                                    type="date"
+                                    value={filters.endDate}
+                                    onChange={(e) => setFilters(prev => ({ ...prev, endDate: e.target.value }))}
+                                    className="input-field"
+                                />
+                            </div>
+                        </>
+                    )}
                 </div>
 
                 <div className="flex gap-3 mt-4">
                     <button onClick={fetchDownPaymentPending} className="btn-primary">Apply Filters</button>
                     <button
-                        onClick={() => setFilters({ retailerId: '', isLocked: '', minAmount: '', maxAmount: '' })}
+                        onClick={() => setFilters({
+                            retailerId: '',
+                            isLocked: '',
+                            minAmount: '',
+                            maxAmount: '',
+                            paymentStatus: 'pending',
+                            dateRange: 'all',
+                            startDate: '',
+                            endDate: '',
+                        })}
                         className="btn-secondary"
                     >
                         Reset
@@ -182,43 +337,71 @@ const DownPaymentReport = () => {
                         <table className="table">
                             <thead className="table-header">
                                 <tr>
+                                    <th className="table-header-cell">Customer ID</th>
                                     <th className="table-header-cell">Customer Name</th>
+                                    <th className="table-header-cell">Father Name</th>
                                     <th className="table-header-cell">Mobile</th>
                                     <th className="table-header-cell">Product</th>
+                                    <th className="table-header-cell">Model</th>
                                     <th className="table-header-cell">Retailer</th>
                                     <th className="table-header-cell">Total Down Payment</th>
-                                    <th className="table-header-cell">Pending Amount</th>
+                                    <th className="table-header-cell">Paid Amount</th>
+                                    <th className="table-header-cell">Unpaid Amount</th>
+                                    <th className="table-header-cell">Paid Date</th>
+                                    <th className="table-header-cell">Sell Price</th>
+                                    <th className="table-header-cell">District</th>
+                                    <th className="table-header-cell">Pincode</th>
+                                    <th className="table-header-cell">Created At</th>
                                     <th className="table-header-cell">Status</th>
                                 </tr>
                             </thead>
                             <tbody className="table-body">
                                 {customers.length === 0 ? (
                                     <tr>
-                                        <td colSpan="7" className="table-cell text-center text-gray-500 py-8">
-                                            No pending down payments found
+                                        <td colSpan="17" className="table-cell text-center text-gray-500 py-8">
+                                            No data found
                                         </td>
                                     </tr>
                                 ) : (
-                                    customers.map((customer) => (
-                                        <tr key={customer._id} className="hover:bg-gray-50">
-                                            <td className="table-cell font-medium">{customer.fullName}</td>
-                                            <td className="table-cell">{customer.mobileNumber}</td>
-                                            <td className="table-cell">{customer.emiDetails.productName}</td>
-                                            <td className="table-cell">{customer.retailerId?.fullName || 'N/A'}</td>
-                                            <td className="table-cell">₹{customer.emiDetails.downPayment.toLocaleString()}</td>
-                                            <td className="table-cell font-semibold text-yellow-600">
-                                                ₹{customer.emiDetails.downPaymentPending.toLocaleString()}
-                                            </td>
-                                            <td className="table-cell">
-                                                <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${customer.isLocked
+                                    customers.map((customer) => {
+                                        const paidAmount = customer.emiDetails.downPayment - customer.emiDetails.downPaymentPending;
+
+                                        return (
+                                            <tr key={customer._id} className="hover:bg-gray-50">
+                                                <td className="table-cell font-mono text-xs">{customer._id}</td>
+                                                <td className="table-cell font-medium">{customer.fullName}</td>
+                                                <td className="table-cell">{customer.fatherName || 'N/A'}</td>
+                                                <td className="table-cell">{customer.mobileNumber}</td>
+                                                <td className="table-cell">{customer.emiDetails.productName}</td>
+                                                <td className="table-cell">{customer.emiDetails.model}</td>
+                                                <td className="table-cell">{customer.retailerId?.fullName || 'N/A'}</td>
+                                                <td className="table-cell">₹{customer.emiDetails.downPayment.toLocaleString()}</td>
+                                                <td className="table-cell font-semibold text-green-600">
+                                                    ₹{paidAmount.toLocaleString()}
+                                                </td>
+                                                <td className="table-cell font-semibold text-yellow-600">
+                                                    ₹{customer.emiDetails.downPaymentPending.toLocaleString()}
+                                                </td>
+                                                <td className="table-cell">
+                                                    {paidAmount > 0 && customer.emiDetails.downPaymentPending === 0
+                                                        ? new Date(customer.createdAt).toLocaleDateString()
+                                                        : 'Pending'}
+                                                </td>
+                                                <td className="table-cell">₹{customer.emiDetails.sellPrice.toLocaleString()}</td>
+                                                <td className="table-cell">{customer.address.district}</td>
+                                                <td className="table-cell">{customer.address.pincode}</td>
+                                                <td className="table-cell">{new Date(customer.createdAt).toLocaleDateString()}</td>
+                                                <td className="table-cell">
+                                                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${customer.isLocked
                                                         ? 'bg-red-100 text-red-800'
                                                         : 'bg-green-100 text-green-800'
-                                                    }`}>
-                                                    {customer.isLocked ? 'Locked' : 'Active'}
-                                                </span>
-                                            </td>
-                                        </tr>
-                                    ))
+                                                        }`}>
+                                                        {customer.isLocked ? 'Locked' : 'Unlocked'}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })
                                 )}
                             </tbody>
                         </table>

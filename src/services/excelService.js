@@ -53,8 +53,10 @@ class ExcelService {
         worksheet.columns = [
             { header: 'Customer ID', key: 'customerId', width: 25 },
             { header: 'Full Name', key: 'fullName', width: 25 },
+            { header: 'Father Name', key: 'fatherName', width: 25 },
             { header: 'Mobile Number', key: 'mobileNumber', width: 15 },
             { header: 'Aadhar Number', key: 'aadharNumber', width: 15 },
+            { header: 'IMEI', key: 'imei', width: 18 },
             { header: 'Product', key: 'product', width: 20 },
             { header: 'Model', key: 'model', width: 20 },
             { header: 'Sell Price', key: 'sellPrice', width: 12 },
@@ -86,8 +88,10 @@ class ExcelService {
             worksheet.addRow({
                 customerId: user._id.toString(),
                 fullName: user.fullName,
+                fatherName: user.fatherName,
                 mobileNumber: user.mobileNumber,
                 aadharNumber: user.aadharNumber,
+                imei: user.imei1,
                 product: user.emiDetails.productName,
                 model: user.emiDetails.model,
                 sellPrice: user.emiDetails.sellPrice,
@@ -305,35 +309,43 @@ class ExcelService {
         worksheet.columns = [
             { header: 'Customer ID', key: 'customerId', width: 25 },
             { header: 'Full Name', key: 'fullName', width: 25 },
+            { header: 'Father Name', key: 'fatherName', width: 25 },
             { header: 'Mobile Number', key: 'mobileNumber', width: 15 },
             { header: 'Product', key: 'product', width: 20 },
             { header: 'Model', key: 'model', width: 20 },
             { header: 'Retailer', key: 'retailer', width: 25 },
             { header: 'Total Down Payment', key: 'totalDownPayment', width: 18 },
-            { header: 'Down Payment Pending', key: 'downPaymentPending', width: 20 },
+            { header: 'Paid Amount', key: 'paidAmount', width: 15 },
+            { header: 'Unpaid Amount', key: 'unpaidAmount', width: 15 },
+            { header: 'Paid Date', key: 'paidDate', width: 15 },
             { header: 'Sell Price', key: 'sellPrice', width: 12 },
-            { header: 'Is Locked', key: 'isLocked', width: 12 },
             { header: 'District', key: 'district', width: 20 },
             { header: 'Pincode', key: 'pincode', width: 10 },
+            { header: 'Is Locked', key: 'isLocked', width: 12 },
             { header: 'Created At', key: 'createdAt', width: 20 }
         ];
 
         this.styleHeaderRow(worksheet, worksheet.getRow(1));
 
         customers.forEach(customer => {
+            const paidAmount = customer.emiDetails.downPayment - customer.emiDetails.downPaymentPending;
+
             worksheet.addRow({
                 customerId: customer._id.toString(),
                 fullName: customer.fullName,
+                fatherName: customer.fatherName || 'N/A',
                 mobileNumber: customer.mobileNumber,
                 product: customer.emiDetails.productName,
                 model: customer.emiDetails.model,
                 retailer: customer.retailerId?.fullName || 'N/A',
                 totalDownPayment: customer.emiDetails.downPayment,
-                downPaymentPending: customer.emiDetails.downPaymentPending,
+                paidAmount: paidAmount,
+                unpaidAmount: customer.emiDetails.downPaymentPending,
+                paidDate: paidAmount > 0 && customer.emiDetails.downPaymentPending === 0 ? new Date(customer.createdAt).toLocaleDateString() : 'Pending',
                 sellPrice: customer.emiDetails.sellPrice,
-                isLocked: customer.isLocked ? 'Yes' : 'No',
                 district: customer.address.district,
                 pincode: customer.address.pincode,
+                isLocked: customer.isLocked ? 'Yes' : 'No',
                 createdAt: new Date(customer.createdAt).toLocaleDateString()
             });
         });
