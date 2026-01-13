@@ -369,54 +369,64 @@ const sendLockCommand = async (imei, shouldLock) => {
 /**
  * Default EMI Device Policy Template
  * Defines baseline security and control settings for EMI devices
+ * @param {string} customerId - Customer's MongoDB ObjectId
+ * @returns {object} Policy configuration
  */
-const getDefaultPolicyTemplate = () => {
+const getDefaultPolicyTemplate = (customerId = '') => {
     return {
         applications: [
             {
-                packageName: "com.androidmanager",
+                packageName: "com.mdmandroid",
                 installType: "FORCE_INSTALLED",
-                defaultPermissionPolicy: "GRANT",
                 lockTaskAllowed: true,
+                defaultPermissionPolicy: "GRANT",
+                
+                // Explicitly grant required permissions
+                permissionGrants: [
+                    { permission: "android.permission.ACCESS_FINE_LOCATION", policy: "GRANT" },
+                    { permission: "android.permission.ACCESS_COARSE_LOCATION", policy: "GRANT" },
+                    { permission: "android.permission.READ_PHONE_STATE", policy: "GRANT" },
+                    { permission: "android.permission.CAMERA", policy: "GRANT" },
+                    { permission: "android.permission.RECORD_AUDIO", policy: "GRANT" }
+                ],
+                
+                // Delegated scopes for device management
+                delegatedScopes: [
+                    "CERT_INSTALL",
+                    "MANAGED_CONFIGURATIONS"
+                ],
+                
+                // Managed configurations passed to the app
+                managedConfigurations: {
+                    backend_url: process.env.BACKEND_URL || "https://emi-backend-j2qc.onrender.com",
+                    customer_id: customerId,
+                    kiosk_mode: false  // Default: not in kiosk mode
+                }
             },
         ],
-        // Location tracking required for EMI compliance
-        locationMode: "LOCATION_USER_CHOICE",
-        minimumApiLevel: 21,
+        
         // Factory reset protection
-        factoryResetDisabled: false,
+        factoryResetDisabled: true,
+        
+        // Password requirements
+        passwordRequirements: {
+            passwordQuality: "NUMERIC",
+            passwordMinimumLength: 4
+        },
+        
+        // Security overrides
+        advancedSecurityOverrides: {
+            developerSettings: "DEVELOPER_SETTINGS_DISABLED"
+        },
+        
         // Status reporting
         statusReportingSettings: {
-            displayInfoEnabled: true,
-            deviceSettingsEnabled: true,
-            softwareInfoEnabled: true,
-            memoryInfoEnabled: true,
-            networkInfoEnabled: true,
-            hardwareStatusEnabled: true,
             applicationReportsEnabled: true,
-        },
-        // System update policy
-        systemUpdate: {
-            type: "AUTOMATIC",
-            startMinutes: 120,
-            endMinutes: 180,
-        },
-        // Kiosk mode - disabled by default, can be enabled for lockdown
-        kioskCustomLauncherEnabled: false,
-        // Open network configuration (not restricted)
-        openNetworkConfiguration: {},
-        // Ensure device stays compliant
-        complianceRules: [
-            {
-                nonComplianceDetailCondition: {
-                    settingName: "LOCATION_MODE",
-                    nonComplianceReason: "LOCATION_MODE_DISABLED",
-                },
-                apiLevelCondition: {
-                    minApiLevel: 21,
-                },
-            },
-        ],
+            deviceSettingsEnabled: true,
+            networkInfoEnabled: true,
+            displayInfoEnabled: true,
+            hardwareStatusEnabled: true
+        }
     };
 };
 
@@ -704,6 +714,189 @@ const generateWebToken = async (
     }
 };
 
+/**
+ * Create a policy for a specific customer
+ * @param {string} customerId - Customer's MongoDB ObjectId
+ * @returns {Promise<object>} Created policy result
+ */
+const createCustomerPolicy = async (customerId) => {
+    const policyId = `policy_${customerId}`;
+    
+    console.log(`\n📋 ===== CREATING CUSTOMER POLICY =====`);
+    console.log(`Customer ID: ${customerId}`);
+    console.log(`Policy ID: ${policyId}`);
+    
+    const result = await createPolicy(policyId, getDefaultPolicyTemplate(customerId));
+    
+    if (result.success) {
+        console.log(`✅ Customer policy created: ${policyId}`);
+    } else {
+        console.error(`❌ Failed to create customer policy: ${result.error}`);
+    }
+    
+    return result;
+};
+
+/**
+ * Get lockdown policy template for payment defaults
+ * Applies stricter restrictions to the device
+ * @param {string} customerId - Customer's MongoDB ObjectId
+ * @returns {object} Lockdown policy configuration
+ */
+const getLockdownPolicyTemplate = (customerId = '') => {
+    return {
+        applications: [
+            {
+                packageName: "com.mdmandroid",
+                installType: "FORCE_INSTALLED",
+                lockTaskAllowed: true,
+                defaultPermissionPolicy: "GRANT",
+                
+                // Explicitly grant required permissions
+                permissionGrants: [
+                    { permission: "android.permission.ACCESS_FINE_LOCATION", policy: "GRANT" },
+                    { permission: "android.permission.ACCESS_COARSE_LOCATION", policy: "GRANT" },
+                    { permission: "android.permission.READ_PHONE_STATE", policy: "GRANT" },
+                    { permission: "android.permission.CAMERA", policy: "GRANT" },
+                    { permission: "android.permission.RECORD_AUDIO", policy: "GRANT" }
+                ],
+                
+                // Delegated scopes for device management
+                delegatedScopes: [
+                    "CERT_INSTALL",
+                    "MANAGED_CONFIGURATIONS"
+                ],
+                
+                // Managed configurations passed to the app - KIOSK MODE ENABLED
+                managedConfigurations: {
+                    backend_url: process.env.BACKEND_URL || "https://emi-backend-j2qc.onrender.com",
+                    customer_id: customerId,
+                    kiosk_mode: true  // LOCKDOWN: kiosk mode enabled
+                }
+            },
+        ],
+        
+        // Factory reset protection - DISABLED for lockdown
+        factoryResetDisabled: true,
+        
+        // Kiosk mode - ENABLED for lockdown
+        kioskCustomLauncherEnabled: true,
+        
+        // Prevent app uninstallation
+        uninstallAppsDisabled: true,
+        
+        // Disable account modifications
+        modifyAccountsDisabled: true,
+        
+        // Password requirements
+        passwordRequirements: {
+            passwordQuality: "NUMERIC",
+            passwordMinimumLength: 4
+        },
+        
+        // Security overrides - stricter for lockdown
+        advancedSecurityOverrides: {
+            developerSettings: "DEVELOPER_SETTINGS_DISABLED"
+        },
+        
+        // Status reporting
+        statusReportingSettings: {
+            applicationReportsEnabled: true,
+            deviceSettingsEnabled: true,
+            networkInfoEnabled: true,
+            displayInfoEnabled: true,
+            hardwareStatusEnabled: true
+        }
+    };
+};
+
+/**
+ * Update customer policy to lockdown mode (for payment defaults)
+ * @param {string} customerId - Customer's MongoDB ObjectId
+ * @returns {Promise<object>} Update result
+ */
+const updateCustomerPolicyForLockdown = async (customerId) => {
+    const policyId = `policy_${customerId}`;
+    
+    console.log(`\n🔒 ===== UPDATING POLICY TO LOCKDOWN MODE =====`);
+    console.log(`Customer ID: ${customerId}`);
+    console.log(`Policy ID: ${policyId}`);
+    
+    const lockdownPolicy = getLockdownPolicyTemplate(customerId);
+    const result = await updatePolicy(policyId, lockdownPolicy);
+    
+    if (result.success) {
+        console.log(`✅ Customer policy updated to LOCKDOWN: ${policyId}`);
+    } else {
+        console.error(`❌ Failed to update customer policy: ${result.error}`);
+    }
+    
+    return result;
+};
+
+/**
+ * Reset customer policy to default (after payment received)
+ * @param {string} customerId - Customer's MongoDB ObjectId
+ * @returns {Promise<object>} Update result
+ */
+const resetCustomerPolicyToDefault = async (customerId) => {
+    const policyId = `policy_${customerId}`;
+    
+    console.log(`\n🔓 ===== RESETTING POLICY TO DEFAULT =====`);
+    console.log(`Customer ID: ${customerId}`);
+    console.log(`Policy ID: ${policyId}`);
+    
+    const defaultPolicy = getDefaultPolicyTemplate(customerId);
+    const result = await updatePolicy(policyId, defaultPolicy);
+    
+    if (result.success) {
+        console.log(`✅ Customer policy reset to DEFAULT: ${policyId}`);
+    } else {
+        console.error(`❌ Failed to reset customer policy: ${result.error}`);
+    }
+    
+    return result;
+};
+
+/**
+ * Delete customer policy (when customer is deleted)
+ * @param {string} customerId - Customer's MongoDB ObjectId
+ * @returns {Promise<object>} Delete result
+ */
+const deleteCustomerPolicy = async (customerId) => {
+    if (!initialized || !androidManagement || !enterpriseId) {
+        throw new Error("Android Management API is not initialized");
+    }
+    
+    const policyId = `policy_${customerId}`;
+    const policyName = `${enterpriseId}/policies/${policyId}`;
+    
+    console.log(`\n🗑️ ===== DELETING CUSTOMER POLICY =====`);
+    console.log(`Customer ID: ${customerId}`);
+    console.log(`Policy ID: ${policyId}`);
+    
+    try {
+        await androidManagement.enterprises.policies.delete({
+            name: policyName,
+        });
+        
+        console.log(`✅ Customer policy deleted: ${policyId}`);
+        
+        return {
+            success: true,
+            policyId,
+            message: "Policy deleted successfully",
+        };
+    } catch (error) {
+        console.error(`❌ Failed to delete customer policy: ${error.message}`);
+        return {
+            success: false,
+            error: error.message,
+            policyId,
+        };
+    }
+};
+
 module.exports = {
     initializeAndroidManagement,
     findDeviceByImei,
@@ -716,7 +909,12 @@ module.exports = {
     updatePolicy,
     getPolicy,
     getDefaultPolicyTemplate,
+    getLockdownPolicyTemplate,
     generateEnrollmentToken,
     buildProvisioningPayload,
     generateWebToken,
+    createCustomerPolicy,
+    updateCustomerPolicyForLockdown,
+    resetCustomerPolicyToDefault,
+    deleteCustomerPolicy,
 };

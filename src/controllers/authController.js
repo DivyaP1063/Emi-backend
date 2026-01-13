@@ -7,6 +7,7 @@ const {
     sendOTP,
 } = require("../utils/otpService");
 const { generateToken } = require("../utils/jwt");
+const { updateCustomerPolicyForLockdown, resetCustomerPolicyToDefault } = require("../services/androidManagementService");
 
 /**
  * Validation rules for send OTP
@@ -489,6 +490,26 @@ const toggleCustomerLock = async (req, res) => {
 
         console.log("Notification Sent:", notificationSent);
         console.log("Current DB Lock Status:", customer.isLocked);
+
+        // Update AMAPI policy for lockdown/unlock (async, don't block response)
+        if (notificationSent) {
+            const policyUpdateFn = isLocked 
+                ? updateCustomerPolicyForLockdown 
+                : resetCustomerPolicyToDefault;
+            
+            policyUpdateFn(customerId)
+                .then(result => {
+                    if (result.success) {
+                        console.log(`✅ AMAPI policy ${isLocked ? 'locked down' : 'reset'} for customer ${customerId}`);
+                    } else {
+                        console.error(`⚠️ Failed to update AMAPI policy: ${result.error}`);
+                    }
+                })
+                .catch(err => {
+                    console.error(`⚠️ AMAPI policy update error:`, err.message);
+                });
+        }
+
         console.log("=========================================\n");
 
         // Return response

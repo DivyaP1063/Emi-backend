@@ -7,6 +7,7 @@ const {
   getDeviceDetails,
   factoryResetDevice,
   createWebToken,
+  disconnectDevice,
 } = require("../controllers/amapiAdminController");
 
 /**
@@ -28,5 +29,8 @@ router.post("/devices/:imei/factory-reset", authenticate, factoryResetDevice);
 
 // POST /api/admin/amapi/web-token - Generate web token for private app uploader
 router.post("/web-token", authenticate, createWebToken);
+
+// POST /api/admin/amapi/devices/:customerId/disconnect - Disconnect device and send uninstall command
+router.post("/devices/:customerId/disconnect", authenticate, disconnectDevice);
 
 module.exports = router;

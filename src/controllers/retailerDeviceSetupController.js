@@ -1,10 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const { authenticateRetailer } = require('../middleware/auth');
-const { generateQRCode } = require('../services/qrCodeService');
-const { generateEnrollmentToken, buildProvisioningPayload } = require('../services/androidManagementService');
+const { generateEnrollmentToken } = require('../services/androidManagementService');
 const Customer = require('../models/Customer');
-const Admin = require('../models/Admin');
 
 /**
  * Generate QR Code for Device Provisioning - Retailer Endpoint
@@ -51,10 +49,13 @@ const generateDeviceSetupQR = async (req, res) => {
       });
     }
 
+    // Use customer-specific policy
+    const policyId = `policy_${customerId}`;
+
     // Generate enrollment token
     const tokenResult = await generateEnrollmentToken(
       customerId,
-      process.env.ANDROID_MANAGEMENT_DEFAULT_POLICY_ID || 'policy1',  // Use env var or fallback
+      policyId,
       3600  // 1 hour validity
     );
 
@@ -66,24 +67,12 @@ const generateDeviceSetupQR = async (req, res) => {
       });
     }
 
-    // Get FRP UserId from admin
-    const admin = await Admin.findOne({ 
-        isActive: true, 
-        googleUserId: { $ne: null } 
-    }).select('googleUserId').lean();
-    const frpUserId = admin?.googleUserId || '';
-
-    // Build provisioning payload with FRP UserId
-    const payload = buildProvisioningPayload(customerId, tokenResult.token, process.env.BACKEND_URL, frpUserId);
-
-    // Generate QR code
-    const qrResult = await generateQRCode(payload, 512);
-
-    if (!qrResult.success) {
+    // Use AMAPI's native QR code (Google DPC provisioning)
+    if (!tokenResult.qrCode) {
       return res.status(500).json({
         success: false,
-        error: 'QR_GENERATION_FAILED',
-        message: qrResult.error
+        error: 'QR_NOT_AVAILABLE',
+        message: 'AMAPI did not return a QR code'
       });
     }
 
@@ -94,25 +83,25 @@ const generateDeviceSetupQR = async (req, res) => {
     };
     await customer.save();
 
-    console.log('✅ QR Code generated successfully');
+    console.log('✅ QR Code generated successfully (Google DPC)');
     console.log(`Valid until: ${tokenResult.expirationTime}`);
     console.log('===============================================\n');
 
     return res.status(200).json({
       success: true,
-      message: 'QR code generated successfully',
+      message: 'QR code generated successfully (Google DPC)',
       data: {
         customerId,
         customerName: customer.fullName,
         mobileNumber: customer.mobileNumber,
-        qrCode: qrResult.qrCode,
+        qrCode: tokenResult.qrCode,  // Native AMAPI QR code
         expiresAt: tokenResult.expirationTime,
         instructions: {
           step1: 'Factory reset the device',
           step2: 'Start setup wizard',
           step3: 'Tap screen 6 times to open camera',
           step4: 'Scan this QR code',
-          step5: 'Device will auto-configure'
+          step5: 'Device will auto-configure with Google DPC'
         }
       }
     });

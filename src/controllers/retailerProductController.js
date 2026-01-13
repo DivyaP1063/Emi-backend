@@ -6,6 +6,7 @@ const Product = require('../models/Product');
 const Transaction = require('../models/Transaction');
 const { sendOTP, verifyOTP } = require('../utils/otpService');
 const { uploadToCloudinary, deleteFromCloudinary } = require('../config/cloudinary');
+const { createCustomerPolicy } = require('../services/androidManagementService');
 
 /**
  * Send OTP to customer mobile number
@@ -306,6 +307,19 @@ const createCustomer = async (req, res) => {
       },
       retailerId
     });
+
+    // Create AMAPI policy for this customer (async, don't block response)
+    createCustomerPolicy(customer._id.toString())
+      .then(result => {
+        if (result.success) {
+          console.log(`✅ AMAPI policy created for customer ${customer._id}`);
+        } else {
+          console.error(`⚠️ Failed to create AMAPI policy for customer ${customer._id}: ${result.error}`);
+        }
+      })
+      .catch(err => {
+        console.error(`⚠️ AMAPI policy creation error for customer ${customer._id}:`, err.message);
+      });
 
     return res.status(201).json({
       success: true,
