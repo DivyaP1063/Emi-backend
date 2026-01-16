@@ -24,4 +24,13 @@ router.get('/overdue-emi/:customerId', authenticate, reportController.getIndivid
 router.get('/down-payment-pending', authenticate, reportController.getDownPaymentPendingReport);
 router.get('/down-payment-pending/:customerId', authenticate, reportController.getIndividualDownPaymentPendingReport);
 
+// EMI Details Report
+router.get('/emi-details', authenticate, reportController.getEMIDetailsReport);
+
+// Recovery Report
+router.get('/recovery', authenticate, reportController.getRecoveryReport);
+
+// Retailer Full Report
+router.get('/retailer-full/:retailerId', authenticate, reportController.getRetailerFullReport);
+
 module.exports = router;

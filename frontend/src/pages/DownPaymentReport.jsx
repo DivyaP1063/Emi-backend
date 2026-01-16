@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { reportsAPI, downloadExcel } from '../services/api';
 
 const DownPaymentReport = () => {
@@ -6,8 +6,13 @@ const DownPaymentReport = () => {
     const [retailers, setRetailers] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const [retailerSearchOpen, setRetailerSearchOpen] = useState(false);
+    const [retailerSearchTerm, setRetailerSearchTerm] = useState('');
+    const retailerDropdownRef = useRef(null);
 
     const [filters, setFilters] = useState({
+        customerName: '',
+        retailerName: '',
         retailerId: '',
         isLocked: '',
         minAmount: '',
@@ -17,6 +22,17 @@ const DownPaymentReport = () => {
         startDate: '',
         endDate: '',
     });
+
+    // Close dropdown when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (retailerDropdownRef.current && !retailerDropdownRef.current.contains(event.target)) {
+                setRetailerSearchOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
 
     const fetchRetailers = async () => {
         try {
@@ -76,7 +92,7 @@ const DownPaymentReport = () => {
                         }
                     }
                     // Skip startDate and endDate as they're handled in dateRange
-                    else if (key !== 'startDate' && key !== 'endDate') {
+                    else if (key !== 'startDate' && key !== 'endDate' && key !== 'retailerName') {
                         params[key] = filters[key];
                     }
                 }
@@ -141,7 +157,7 @@ const DownPaymentReport = () => {
                             if (endDate) params.append('endDate', endDate.toISOString());
                         }
                     }
-                    else if (key !== 'startDate' && key !== 'endDate') {
+                    else if (key !== 'startDate' && key !== 'endDate' && key !== 'retailerName') {
                         params.append(key, filters[key]);
                     }
                 }
@@ -158,6 +174,15 @@ const DownPaymentReport = () => {
     };
 
     const totalPending = customers.reduce((sum, c) => sum + c.emiDetails.downPaymentPending, 0);
+
+    const filteredRetailers = retailers.filter(retailer => {
+        if (!retailerSearchTerm) return true;
+        const searchLower = retailerSearchTerm.toLowerCase();
+        return retailer.fullName.toLowerCase().includes(searchLower) ||
+            retailer.shopName.toLowerCase().includes(searchLower);
+    });
+
+    const selectedRetailer = retailers.find(r => r._id === filters.retailerId);
 
     return (
         <div className="space-y-6">
@@ -190,19 +215,79 @@ const DownPaymentReport = () => {
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Filters</h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Retailer</label>
-                        <select
-                            value={filters.retailerId}
-                            onChange={(e) => setFilters(prev => ({ ...prev, retailerId: e.target.value }))}
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Customer Name</label>
+                        <input
+                            type="text"
+                            value={filters.customerName}
+                            onChange={(e) => setFilters(prev => ({ ...prev, customerName: e.target.value }))}
+                            placeholder="Search by customer name"
                             className="input-field"
-                        >
-                            <option value="">All Retailers</option>
-                            {retailers.map((retailer) => (
-                                <option key={retailer._id} value={retailer._id}>
-                                    {retailer.fullName} - {retailer.shopName}
-                                </option>
-                            ))}
-                        </select>
+                        />
+                    </div>
+
+                    <div ref={retailerDropdownRef}>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Retailer</label>
+                        <div className="relative">
+                            <div
+                                className="input-field cursor-pointer flex items-center justify-between"
+                                onClick={() => setRetailerSearchOpen(!retailerSearchOpen)}
+                            >
+                                <span className={selectedRetailer ? 'text-gray-900' : 'text-gray-500'}>
+                                    {selectedRetailer ? `${selectedRetailer.fullName} - ${selectedRetailer.shopName}` : 'All Retailers'}
+                                </span>
+                                <span className="text-gray-400">▼</span>
+                            </div>
+
+                            {retailerSearchOpen && (
+                                <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-64 overflow-hidden">
+                                    <div className="p-2 border-b border-gray-200">
+                                        <input
+                                            type="text"
+                                            value={retailerSearchTerm}
+                                            onChange={(e) => setRetailerSearchTerm(e.target.value)}
+                                            placeholder="Search retailers..."
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
+                                            onClick={(e) => e.stopPropagation()}
+                                        />
+                                    </div>
+                                    <div className="overflow-y-auto max-h-48">
+                                        <div
+                                            className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
+                                            onClick={() => {
+                                                setFilters(prev => ({ ...prev, retailerId: '', retailerName: '' }));
+                                                setRetailerSearchOpen(false);
+                                                setRetailerSearchTerm('');
+                                            }}
+                                        >
+                                            All Retailers
+                                        </div>
+                                        {filteredRetailers.map((retailer) => (
+                                            <div
+                                                key={retailer._id}
+                                                className={`px-4 py-2 hover:bg-gray-100 cursor-pointer ${filters.retailerId === retailer._id ? 'bg-primary-50 text-primary-700' : ''
+                                                    }`}
+                                                onClick={() => {
+                                                    setFilters(prev => ({
+                                                        ...prev,
+                                                        retailerId: retailer._id,
+                                                        retailerName: `${retailer.fullName} - ${retailer.shopName}`
+                                                    }));
+                                                    setRetailerSearchOpen(false);
+                                                    setRetailerSearchTerm('');
+                                                }}
+                                            >
+                                                {retailer.fullName} - {retailer.shopName}
+                                            </div>
+                                        ))}
+                                        {filteredRetailers.length === 0 && (
+                                            <div className="px-4 py-2 text-gray-500 text-center">
+                                                No retailers found
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                     </div>
 
                     <div>
@@ -298,6 +383,8 @@ const DownPaymentReport = () => {
                     <button onClick={fetchDownPaymentPending} className="btn-primary">Apply Filters</button>
                     <button
                         onClick={() => setFilters({
+                            customerName: '',
+                            retailerName: '',
                             retailerId: '',
                             isLocked: '',
                             minAmount: '',
@@ -326,14 +413,14 @@ const DownPaymentReport = () => {
                     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
                 </div>
             ) : (
-                <div className="card">
+                <div className="card max-w-full">
                     <div className="flex items-center justify-between mb-4">
                         <h3 className="text-lg font-semibold text-gray-900">
                             Results ({customers.length} customers)
                         </h3>
                     </div>
 
-                    <div className="table-container">
+                    <div className="overflow-x-auto border border-gray-200 rounded-lg">
                         <table className="table">
                             <thead className="table-header">
                                 <tr>

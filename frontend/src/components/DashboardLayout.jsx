@@ -16,6 +16,9 @@ const DashboardLayout = () => {
         { path: '/dashboard/retailers', label: 'Retailers Report', icon: '🏪' },
         { path: '/dashboard/overdue-emi', label: 'Overdue EMI', icon: '⚠️' },
         { path: '/dashboard/down-payment', label: 'Down Payment Pending', icon: '💰' },
+        { path: '/dashboard/emi-details', label: 'EMI Details', icon: '📋' },
+        { path: '/dashboard/recovery', label: 'Recovery Report', icon: '🔄' },
+        { path: '/dashboard/retailer-full', label: 'Retailer Full Report', icon: '📈' },
     ];
 
     return (
@@ -44,7 +47,7 @@ const DashboardLayout = () => {
                 </div>
             </header>
 
-            <div className="flex">
+            <div className="flex overflow-x-hidden">
                 {/* Sidebar */}
                 <aside className="w-64 bg-white border-r border-gray-200 min-h-[calc(100vh-73px)] sticky top-[73px]">
                     <nav className="p-4 space-y-2">
@@ -68,7 +71,7 @@ const DashboardLayout = () => {
                 </aside>
 
                 {/* Main Content */}
-                <main className="flex-1 p-6">
+                <main className="flex-1 p-6 max-w-full overflow-x-hidden">
                     <Outlet />
                 </main>
             </div>

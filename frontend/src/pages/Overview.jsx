@@ -62,17 +62,7 @@ const Overview = () => {
                 ))}
             </div>
 
-            <div className="card bg-primary-50 border-primary-200">
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                    📋 Quick Guide
-                </h3>
-                <ul className="space-y-2 text-sm text-gray-700">
-                    <li>• Use filters to narrow down report data</li>
-                    <li>• Click "Export to Excel" to download reports</li>
-                    <li>• Click on individual records for detailed views</li>
-                    <li>• All reports support date range filtering</li>
-                </ul>
-            </div>
+
         </div>
     );
 };

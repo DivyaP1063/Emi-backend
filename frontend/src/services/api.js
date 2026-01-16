@@ -75,6 +75,18 @@ export const reportsAPI = {
 
     getCustomerDownPaymentPending: (customerId, params) =>
         api.get(`/admin/reports/down-payment-pending/${customerId}`, { params }),
+
+    // EMI Details Report
+    getEMIDetails: (params) =>
+        api.get('/admin/reports/emi-details', { params }),
+
+    // Recovery Report
+    getRecoveryReport: (params) =>
+        api.get('/admin/reports/recovery', { params }),
+
+    // Retailer Full Report
+    getRetailerFullReport: (retailerId, params) =>
+        api.get(`/admin/reports/retailer-full/${retailerId}`, { params }),
 };
 
 // Helper function to download Excel

@@ -9,6 +9,9 @@ import UsersReport from './pages/UsersReport';
 import RetailersReport from './pages/RetailersReport';
 import OverdueEMIReport from './pages/OverdueEMIReport';
 import DownPaymentReport from './pages/DownPaymentReport';
+import EMIReport from './pages/EMIReport';
+import RecoveryReport from './pages/RecoveryReport';
+import RetailerFullReport from './pages/RetailerFullReport';
 
 function App() {
     return (
@@ -31,6 +34,9 @@ function App() {
                             <Route path="retailers" element={<RetailersReport />} />
                             <Route path="overdue-emi" element={<OverdueEMIReport />} />
                             <Route path="down-payment" element={<DownPaymentReport />} />
+                            <Route path="emi-details" element={<EMIReport />} />
+                            <Route path="recovery" element={<RecoveryReport />} />
+                            <Route path="retailer-full" element={<RetailerFullReport />} />
                         </Route>
 
                         <Route path="/" element={<Navigate to="/dashboard" replace />} />

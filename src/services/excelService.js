@@ -257,6 +257,7 @@ class ExcelService {
         worksheet.columns = [
             { header: 'Customer ID', key: 'customerId', width: 25 },
             { header: 'Full Name', key: 'fullName', width: 25 },
+            { header: 'Father Name', key: 'fatherName', width: 25 },
             { header: 'Mobile Number', key: 'mobileNumber', width: 15 },
             { header: 'Product', key: 'product', width: 20 },
             { header: 'Retailer', key: 'retailer', width: 25 },
@@ -267,6 +268,9 @@ class ExcelService {
             { header: 'Total Overdue EMIs', key: 'totalOverdueEmis', width: 15 },
             { header: 'Total Overdue Amount', key: 'totalOverdueAmount', width: 18 },
             { header: 'Is Locked', key: 'isLocked', width: 12 },
+            { header: 'Village', key: 'village', width: 20 },
+            { header: 'Nearby Location', key: 'nearbyLocation', width: 20 },
+            { header: 'Post', key: 'post', width: 15 },
             { header: 'District', key: 'district', width: 20 },
             { header: 'Pincode', key: 'pincode', width: 10 }
         ];
@@ -278,6 +282,7 @@ class ExcelService {
                 worksheet.addRow({
                     customerId: customer._id.toString(),
                     fullName: customer.fullName,
+                    fatherName: customer.fatherName || 'N/A',
                     mobileNumber: customer.mobileNumber,
                     product: customer.emiDetails.productName,
                     retailer: customer.retailerId?.fullName || 'N/A',
@@ -288,6 +293,9 @@ class ExcelService {
                     totalOverdueEmis: customer.totalOverdueEmis,
                     totalOverdueAmount: customer.totalOverdueAmount,
                     isLocked: customer.isLocked ? 'Yes' : 'No',
+                    village: customer.address.village,
+                    nearbyLocation: customer.address.nearbyLocation,
+                    post: customer.address.post,
                     district: customer.address.district,
                     pincode: customer.address.pincode
                 });
@@ -351,6 +359,235 @@ class ExcelService {
         });
 
         this.autoFitColumns(worksheet);
+
+        return workbook;
+    }
+
+    /**
+     * Generate EMI Details Report Excel
+     */
+    async generateEMIDetailsReport(emiDetails) {
+        const workbook = this.createWorkbook();
+        const worksheet = workbook.addWorksheet('EMI Details Report');
+
+        // Find max EMI months to determine column count
+        const maxEmiMonths = Math.max(...emiDetails.map(c => c.emiMonths?.length || 0));
+
+        // Build dynamic columns
+        const columns = [
+            { header: 'Customer ID', key: 'customerId', width: 25 },
+            { header: 'Full Name', key: 'fullName', width: 25 },
+            { header: 'Father Name', key: 'fatherName', width: 25 },
+            { header: 'Mobile Number', key: 'mobileNumber', width: 15 },
+            { header: 'Product', key: 'product', width: 20 },
+            { header: 'Model', key: 'model', width: 20 },
+            { header: 'Sell Price', key: 'sellPrice', width: 12 },
+            { header: 'Down Payment', key: 'downPayment', width: 15 },
+            { header: 'DP Pending', key: 'dpPending', width: 12 },
+            { header: 'Total EMI Amount', key: 'totalEmiAmount', width: 15 },
+            { header: 'Balance Amount', key: 'balanceAmount', width: 15 },
+            { header: 'Retailer', key: 'retailer', width: 25 },
+            { header: 'District', key: 'district', width: 20 },
+            { header: 'Pincode', key: 'pincode', width: 10 }
+        ];
+
+        // Add EMI month columns dynamically
+        for (let i = 1; i <= maxEmiMonths; i++) {
+            columns.push({ header: `EMI ${i} Status`, key: `emi${i}Status`, width: 12 });
+            columns.push({ header: `EMI ${i} Paid Date`, key: `emi${i}PaidDate`, width: 15 });
+        }
+
+        worksheet.columns = columns;
+        this.styleHeaderRow(worksheet, worksheet.getRow(1));
+
+        emiDetails.forEach(customer => {
+            const rowData = {
+                customerId: customer._id.toString(),
+                fullName: customer.fullName,
+                fatherName: customer.fatherName || 'N/A',
+                mobileNumber: customer.mobileNumber,
+                product: customer.productName,
+                model: customer.model,
+                sellPrice: customer.sellPrice,
+                downPayment: customer.downPayment,
+                dpPending: customer.downPaymentPending,
+                totalEmiAmount: customer.totalEmiAmount,
+                balanceAmount: customer.balanceAmount,
+                retailer: customer.retailerId?.fullName || 'N/A',
+                district: customer.address.district,
+                pincode: customer.address.pincode
+            };
+
+            // Add EMI month data
+            if (customer.emiMonths) {
+                customer.emiMonths.forEach((emi, index) => {
+                    const emiNum = index + 1;
+                    rowData[`emi${emiNum}Status`] = emi.paid ? 'Paid' : 'Pending';
+                    rowData[`emi${emiNum}PaidDate`] = emi.paidDate ? new Date(emi.paidDate).toLocaleDateString() : 'N/A';
+                });
+            }
+
+            worksheet.addRow(rowData);
+        });
+
+        this.autoFitColumns(worksheet);
+
+        return workbook;
+    }
+
+    /**
+     * Generate Recovery Report Excel
+     */
+    async generateRecoveryReport(recoveryData) {
+        const workbook = this.createWorkbook();
+        const worksheet = workbook.addWorksheet('Recovery Report');
+
+        worksheet.columns = [
+            { header: 'Recovery Person', key: 'recoveryPerson', width: 25 },
+            { header: 'Recovery Person Mobile', key: 'recoveryPersonMobile', width: 15 },
+            { header: 'Recovery Head', key: 'recoveryHead', width: 25 },
+            { header: 'Customer ID', key: 'customerId', width: 25 },
+            { header: 'Customer Name', key: 'customerName', width: 25 },
+            { header: 'Father Name', key: 'fatherName', width: 25 },
+            { header: 'Mobile', key: 'mobile', width: 15 },
+            { header: 'IMEI', key: 'imei', width: 18 },
+            { header: 'Product', key: 'product', width: 20 },
+            { header: 'Device Collected', key: 'deviceCollected', width: 15 },
+            { header: 'Collection Date', key: 'collectionDate', width: 15 },
+            { header: 'Device PIN', key: 'devicePin', width: 12 },
+            { header: 'Payment Deadline', key: 'paymentDeadline', width: 15 },
+            { header: 'Money Received', key: 'moneyReceived', width: 15 },
+            { header: 'Balance Amount', key: 'balanceAmount', width: 15 },
+            { header: 'District', key: 'district', width: 20 },
+            { header: 'Pincode', key: 'pincode', width: 10 },
+            { header: 'Assigned Date', key: 'assignedDate', width: 15 }
+        ];
+
+        this.styleHeaderRow(worksheet, worksheet.getRow(1));
+
+        recoveryData.forEach(data => {
+            worksheet.addRow({
+                recoveryPerson: data.recoveryPersonName,
+                recoveryPersonMobile: data.recoveryPersonMobile,
+                recoveryHead: data.recoveryHeadName,
+                customerId: data.customerId.toString(),
+                customerName: data.customerName,
+                fatherName: data.fatherName || 'N/A',
+                mobile: data.mobile,
+                imei: data.imei,
+                product: data.product,
+                deviceCollected: data.isCollected ? 'Yes' : 'No',
+                collectionDate: data.collectionDate ? new Date(data.collectionDate).toLocaleDateString() : 'N/A',
+                devicePin: data.devicePin || 'N/A',
+                paymentDeadline: data.paymentDeadline ? new Date(data.paymentDeadline).toLocaleDateString() : 'N/A',
+                moneyReceived: data.moneyReceived ? 'Yes' : 'No',
+                balanceAmount: data.balanceAmount,
+                district: data.district,
+                pincode: data.pincode,
+                assignedDate: data.assignedDate ? new Date(data.assignedDate).toLocaleDateString() : 'N/A'
+            });
+        });
+
+        this.autoFitColumns(worksheet);
+
+        return workbook;
+    }
+
+    /**
+     * Generate Retailer Full Report Excel
+     */
+    async generateRetailerFullReport(retailer, customers, summary) {
+        const workbook = this.createWorkbook();
+
+        // Sheet 1: Retailer Details and Summary
+        const detailsSheet = workbook.addWorksheet('Retailer Details');
+        detailsSheet.columns = [
+            { header: 'Field', key: 'field', width: 30 },
+            { header: 'Value', key: 'value', width: 40 }
+        ];
+        this.styleHeaderRow(detailsSheet, detailsSheet.getRow(1));
+
+        detailsSheet.addRows([
+            { field: 'Retailer ID', value: retailer._id.toString() },
+            { field: 'Full Name', value: retailer.fullName },
+            { field: 'Email', value: retailer.email },
+            { field: 'Mobile Number', value: retailer.mobileNumber },
+            { field: 'Shop Name', value: retailer.shopName },
+            { field: 'City', value: retailer.address.city },
+            { field: 'State', value: retailer.address.state },
+            { field: 'Country', value: retailer.address.country },
+            { field: 'Status', value: retailer.status },
+            { field: '', value: '' }, // Empty row
+            { field: 'SUMMARY STATISTICS', value: '' },
+            { field: 'Total Customers', value: summary.totalCustomers },
+            { field: 'Total EMI Amount', value: summary.totalEMIAmount },
+            { field: 'Total Pending Amount', value: summary.totalPendingAmount },
+            { field: 'Total Down Payment Pending', value: summary.totalDownPaymentPending },
+            { field: 'Locked Customers', value: summary.lockedCustomers },
+            { field: 'Active Customers', value: summary.activeCustomers }
+        ]);
+
+        // Sheet 2: Customers
+        const customersSheet = workbook.addWorksheet('Customers');
+        customersSheet.columns = [
+            { header: 'Customer ID', key: 'customerId', width: 25 },
+            { header: 'Full Name', key: 'fullName', width: 25 },
+            { header: 'Father Name', key: 'fatherName', width: 25 },
+            { header: 'Mobile Number', key: 'mobileNumber', width: 15 },
+            { header: 'Aadhar Number', key: 'aadharNumber', width: 15 },
+            { header: 'IMEI', key: 'imei', width: 18 },
+            { header: 'Product', key: 'product', width: 20 },
+            { header: 'Model', key: 'model', width: 20 },
+            { header: 'Sell Price', key: 'sellPrice', width: 12 },
+            { header: 'Down Payment', key: 'downPayment', width: 15 },
+            { header: 'DP Pending', key: 'dpPending', width: 12 },
+            { header: 'EMI Per Month', key: 'emiPerMonth', width: 15 },
+            { header: 'Total EMI Amount', key: 'totalEmiAmount', width: 15 },
+            { header: 'Balance Amount', key: 'balanceAmount', width: 15 },
+            { header: 'EMI Months', key: 'emiMonths', width: 12 },
+            { header: 'Paid EMIs', key: 'paidEmis', width: 12 },
+            { header: 'Pending EMIs', key: 'pendingEmis', width: 12 },
+            { header: 'Is Locked', key: 'isLocked', width: 12 },
+            { header: 'Is Active', key: 'isActive', width: 12 },
+            { header: 'District', key: 'district', width: 20 },
+            { header: 'Pincode', key: 'pincode', width: 10 },
+            { header: 'Created At', key: 'createdAt', width: 20 }
+        ];
+
+        this.styleHeaderRow(customersSheet, customersSheet.getRow(1));
+
+        customers.forEach(customer => {
+            const paidEmis = customer.emiDetails.emiMonths.filter(e => e.paid).length;
+            const totalEmis = customer.emiDetails.emiMonths.length;
+
+            customersSheet.addRow({
+                customerId: customer._id.toString(),
+                fullName: customer.fullName,
+                fatherName: customer.fatherName || 'N/A',
+                mobileNumber: customer.mobileNumber,
+                aadharNumber: customer.aadharNumber,
+                imei: customer.imei1,
+                product: customer.emiDetails.productName,
+                model: customer.emiDetails.model,
+                sellPrice: customer.emiDetails.sellPrice,
+                downPayment: customer.emiDetails.downPayment,
+                dpPending: customer.emiDetails.downPaymentPending,
+                emiPerMonth: customer.emiDetails.emiPerMonth,
+                totalEmiAmount: customer.emiDetails.totalEmiAmount,
+                balanceAmount: customer.emiDetails.balanceAmount,
+                emiMonths: totalEmis,
+                paidEmis: paidEmis,
+                pendingEmis: totalEmis - paidEmis,
+                isLocked: customer.isLocked ? 'Yes' : 'No',
+                isActive: customer.isActive ? 'Yes' : 'No',
+                district: customer.address.district,
+                pincode: customer.address.pincode,
+                createdAt: new Date(customer.createdAt).toLocaleDateString()
+            });
+        });
+
+        this.autoFitColumns(detailsSheet);
+        this.autoFitColumns(customersSheet);
 
         return workbook;
     }

@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { reportsAPI, downloadExcel } from '../services/api';
 
-const UsersReport = () => {
-    const [users, setUsers] = useState([]);
+const EMIReport = () => {
+    const [emiDetails, setEmiDetails] = useState([]);
     const [retailers, setRetailers] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
@@ -10,13 +10,12 @@ const UsersReport = () => {
     const [retailerSearchTerm, setRetailerSearchTerm] = useState('');
     const retailerDropdownRef = useRef(null);
 
-    // Filters
     const [filters, setFilters] = useState({
-        search: '',
         retailerId: '',
-        status: '', // Combined locked/active status
-        appInstallStatus: '',
-        dateRange: 'all', // all, today, week, month, year, custom
+        customerId: '',
+        customerSearch: '',
+        emiStatus: '',
+        dateRange: 'all',
         startDate: '',
         endDate: '',
     });
@@ -35,13 +34,17 @@ const UsersReport = () => {
     const fetchRetailers = async () => {
         try {
             const response = await reportsAPI.getAllRetailers({});
-            setRetailers(response.data.data);
+            setRetailers(response.data.data || []);
         } catch (err) {
-            console.error('Failed to fetch retailers:', err);
+            console.error('Error fetching retailers:', err);
         }
     };
 
-    const fetchUsers = async () => {
+    useEffect(() => {
+        fetchRetailers();
+    }, []);
+
+    const fetchEMIDetails = async () => {
         setLoading(true);
         setError('');
 
@@ -49,21 +52,8 @@ const UsersReport = () => {
             const params = {};
             Object.keys(filters).forEach(key => {
                 if (filters[key]) {
-                    // Convert status filter
-                    if (key === 'status') {
-                        if (filters[key] === 'locked') {
-                            params.isLocked = 'true';
-                        } else if (filters[key] === 'unlocked') {
-                            params.isLocked = 'false';
-                        } else if (filters[key] === 'active') {
-                            params.isActive = 'true';
-                        } else if (filters[key] === 'inactive') {
-                            params.isActive = 'false';
-                        }
-                    }
                     // Handle date range
-                    else if (key === 'dateRange') {
-                        // Skip if 'all' - no date filter
+                    if (key === 'dateRange') {
                         if (filters[key] !== 'all') {
                             const now = new Date();
                             let startDate, endDate;
@@ -73,7 +63,7 @@ const UsersReport = () => {
                                 endDate = new Date(now.setHours(23, 59, 59, 999));
                             } else if (filters[key] === 'week') {
                                 const dayOfWeek = now.getDay();
-                                const diff = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Monday as start
+                                const diff = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
                                 startDate = new Date(now);
                                 startDate.setDate(now.getDate() - diff);
                                 startDate.setHours(0, 0, 0, 0);
@@ -102,48 +92,27 @@ const UsersReport = () => {
                             if (endDate) params.endDate = endDate.toISOString();
                         }
                     }
-                    // Skip startDate and endDate as they're handled in dateRange
                     else if (key !== 'startDate' && key !== 'endDate') {
                         params[key] = filters[key];
                     }
                 }
             });
 
-            console.log('Sending params to API:', params);
-
-            const response = await reportsAPI.getAllUsers(params);
-            setUsers(response.data.data);
+            const response = await reportsAPI.getEMIDetails(params);
+            setEmiDetails(response.data.data);
         } catch (err) {
-            setError(err.response?.data?.message || 'Failed to fetch users');
+            setError(err.response?.data?.message || 'Failed to fetch EMI details');
         } finally {
             setLoading(false);
         }
     };
-
-    useEffect(() => {
-        fetchRetailers();
-        fetchUsers();
-    }, []);
 
     const handleExport = async () => {
         try {
             const params = new URLSearchParams();
             Object.keys(filters).forEach(key => {
                 if (filters[key]) {
-                    // Convert status filter
-                    if (key === 'status') {
-                        if (filters[key] === 'locked') {
-                            params.append('isLocked', 'true');
-                        } else if (filters[key] === 'unlocked') {
-                            params.append('isLocked', 'false');
-                        } else if (filters[key] === 'active') {
-                            params.append('isActive', 'true');
-                        } else if (filters[key] === 'inactive') {
-                            params.append('isActive', 'false');
-                        }
-                    }
-                    // Handle date range
-                    else if (key === 'dateRange') {
+                    if (key === 'dateRange') {
                         if (filters[key] !== 'all') {
                             const now = new Date();
                             let startDate, endDate;
@@ -190,32 +159,12 @@ const UsersReport = () => {
             params.append('export', 'excel');
 
             await downloadExcel(
-                `/admin/reports/users?${params.toString()}`,
-                `users-report-${new Date().toISOString().split('T')[0]}.xlsx`
+                `/admin/reports/emi-details?${params.toString()}`,
+                `emi-details-report-${new Date().toISOString().split('T')[0]}.xlsx`
             );
         } catch (err) {
             alert('Failed to export Excel file');
         }
-    };
-
-    const handleFilterChange = (key, value) => {
-        setFilters(prev => ({ ...prev, [key]: value }));
-    };
-
-    const handleApplyFilters = () => {
-        fetchUsers();
-    };
-
-    const handleResetFilters = () => {
-        setFilters({
-            search: '',
-            retailerId: '',
-            status: '',
-            appInstallStatus: '',
-            dateRange: 'all',
-            startDate: '',
-            endDate: '',
-        });
     };
 
     const filteredRetailers = retailers.filter(retailer => {
@@ -231,15 +180,10 @@ const UsersReport = () => {
         <div className="space-y-6">
             <div className="flex items-center justify-between">
                 <div>
-                    <h2 className="text-2xl font-bold text-gray-900">Users Report</h2>
-                    <p className="text-gray-600 mt-1">
-                        View all customers with EMI details
-                    </p>
+                    <h2 className="text-2xl font-bold text-gray-900">EMI Details Report</h2>
+                    <p className="text-gray-600 mt-1">Month-by-month EMI breakdown for all customers</p>
                 </div>
-                <button
-                    onClick={handleExport}
-                    className="btn-primary flex items-center gap-2"
-                >
+                <button onClick={handleExport} className="btn-primary flex items-center gap-2">
                     <span>📥</span>
                     Export to Excel
                 </button>
@@ -250,9 +194,7 @@ const UsersReport = () => {
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Filters</h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div ref={retailerDropdownRef}>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Retailer
-                        </label>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Retailer</label>
                         <div className="relative">
                             <div
                                 className="input-field cursor-pointer flex items-center justify-between"
@@ -280,7 +222,7 @@ const UsersReport = () => {
                                         <div
                                             className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
                                             onClick={() => {
-                                                handleFilterChange('retailerId', '');
+                                                setFilters(prev => ({ ...prev, retailerId: '' }));
                                                 setRetailerSearchOpen(false);
                                                 setRetailerSearchTerm('');
                                             }}
@@ -293,7 +235,7 @@ const UsersReport = () => {
                                                 className={`px-4 py-2 hover:bg-gray-100 cursor-pointer ${filters.retailerId === retailer._id ? 'bg-primary-50 text-primary-700' : ''
                                                     }`}
                                                 onClick={() => {
-                                                    handleFilterChange('retailerId', retailer._id);
+                                                    setFilters(prev => ({ ...prev, retailerId: retailer._id }));
                                                     setRetailerSearchOpen(false);
                                                     setRetailerSearchTerm('');
                                                 }}
@@ -313,45 +255,35 @@ const UsersReport = () => {
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Status
-                        </label>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Customer Search</label>
+                        <input
+                            type="text"
+                            value={filters.customerSearch}
+                            onChange={(e) => setFilters(prev => ({ ...prev, customerSearch: e.target.value }))}
+                            placeholder="Search by name, mobile, or IMEI..."
+                            className="input-field"
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">EMI Status</label>
                         <select
-                            value={filters.status}
-                            onChange={(e) => handleFilterChange('status', e.target.value)}
+                            value={filters.emiStatus}
+                            onChange={(e) => setFilters(prev => ({ ...prev, emiStatus: e.target.value }))}
                             className="input-field"
                         >
                             <option value="">All</option>
-                            <option value="locked">Locked</option>
-                            <option value="unlocked">Unlocked</option>
-                            <option value="active">Active</option>
-                            <option value="inactive">Inactive</option>
+                            <option value="paid">Paid</option>
+                            <option value="pending">Pending</option>
+                            <option value="overdue">Overdue</option>
                         </select>
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                            App Installation Status
-                        </label>
-                        <select
-                            value={filters.appInstallStatus}
-                            onChange={(e) => handleFilterChange('appInstallStatus', e.target.value)}
-                            className="input-field"
-                        >
-                            <option value="">All</option>
-                            <option value="installed">App Installed</option>
-                            <option value="uninstalled">App Uninstalled</option>
-                            <option value="not_installed">App Not Installed</option>
-                        </select>
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Date Range
-                        </label>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Date Range</label>
                         <select
                             value={filters.dateRange}
-                            onChange={(e) => handleFilterChange('dateRange', e.target.value)}
+                            onChange={(e) => setFilters(prev => ({ ...prev, dateRange: e.target.value }))}
                             className="input-field"
                         >
                             <option value="all">All Time</option>
@@ -366,25 +298,21 @@ const UsersReport = () => {
                     {filters.dateRange === 'custom' && (
                         <>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Start Date
-                                </label>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Start Date</label>
                                 <input
                                     type="date"
                                     value={filters.startDate}
-                                    onChange={(e) => handleFilterChange('startDate', e.target.value)}
+                                    onChange={(e) => setFilters(prev => ({ ...prev, startDate: e.target.value }))}
                                     className="input-field"
                                 />
                             </div>
 
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    End Date
-                                </label>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">End Date</label>
                                 <input
                                     type="date"
                                     value={filters.endDate}
-                                    onChange={(e) => handleFilterChange('endDate', e.target.value)}
+                                    onChange={(e) => setFilters(prev => ({ ...prev, endDate: e.target.value }))}
                                     className="input-field"
                                 />
                             </div>
@@ -393,10 +321,14 @@ const UsersReport = () => {
                 </div>
 
                 <div className="flex gap-3 mt-4">
-                    <button onClick={handleApplyFilters} className="btn-primary">
-                        Apply Filters
-                    </button>
-                    <button onClick={handleResetFilters} className="btn-secondary">
+                    <button onClick={fetchEMIDetails} className="btn-primary">Apply Filters</button>
+                    <button
+                        onClick={() => {
+                            setFilters({ retailerId: '', customerId: '', customerSearch: '', emiStatus: '', dateRange: 'all', startDate: '', endDate: '' });
+                            setRetailerSearchTerm('');
+                        }}
+                        className="btn-secondary"
+                    >
                         Reset
                     </button>
                 </div>
@@ -417,7 +349,7 @@ const UsersReport = () => {
                 <div className="card">
                     <div className="flex items-center justify-between mb-4">
                         <h3 className="text-lg font-semibold text-gray-900">
-                            Results ({users.length})
+                            Results ({emiDetails.length} customers)
                         </h3>
                     </div>
 
@@ -425,81 +357,52 @@ const UsersReport = () => {
                         <table className="table">
                             <thead className="table-header">
                                 <tr>
-                                    <th className="table-header-cell">Customer ID</th>
                                     <th className="table-header-cell">Customer Name</th>
-                                    <th className="table-header-cell">Father Name</th>
                                     <th className="table-header-cell">Mobile</th>
-                                    <th className="table-header-cell">Aadhar</th>
-                                    <th className="table-header-cell">IMEI</th>
                                     <th className="table-header-cell">Product</th>
-                                    <th className="table-header-cell">Model</th>
                                     <th className="table-header-cell">Sell Price</th>
-                                    <th className="table-header-cell">Down Payment</th>
-                                    <th className="table-header-cell">DP Pending</th>
-                                    <th className="table-header-cell">EMI/Month</th>
                                     <th className="table-header-cell">Balance</th>
-                                    <th className="table-header-cell">EMI Months</th>
-                                    <th className="table-header-cell">Paid EMIs</th>
-                                    <th className="table-header-cell">Pending EMIs</th>
-                                    <th className="table-header-cell">Lock Status</th>
-                                    <th className="table-header-cell">Active Status</th>
                                     <th className="table-header-cell">Retailer</th>
-                                    <th className="table-header-cell">District</th>
-                                    <th className="table-header-cell">Pincode</th>
+                                    {emiDetails.length > 0 && emiDetails[0].emiMonths && emiDetails[0].emiMonths.map((_, index) => (
+                                        <th key={index} className="table-header-cell">EMI {index + 1}</th>
+                                    ))}
                                 </tr>
                             </thead>
                             <tbody className="table-body">
-                                {users.length === 0 ? (
+                                {emiDetails.length === 0 ? (
                                     <tr>
-                                        <td colSpan="21" className="table-cell text-center text-gray-500 py-8">
-                                            No users found
+                                        <td colSpan="20" className="table-cell text-center text-gray-500 py-8">
+                                            No EMI details found
                                         </td>
                                     </tr>
                                 ) : (
-                                    users.map((user) => {
-                                        const paidEmis = user.emiDetails.emiMonths.filter(e => e.paid).length;
-                                        const totalEmis = user.emiDetails.emiMonths.length;
-
-                                        return (
-                                            <tr key={user._id} className="hover:bg-gray-50">
-                                                <td className="table-cell font-mono text-xs">{user._id}</td>
-                                                <td className="table-cell font-medium">{user.fullName}</td>
-                                                <td className="table-cell">{user.fatherName || 'N/A'}</td>
-                                                <td className="table-cell">{user.mobileNumber}</td>
-                                                <td className="table-cell">{user.aadharNumber}</td>
-                                                <td className="table-cell font-mono text-xs">{user.imei1}</td>
-                                                <td className="table-cell">{user.emiDetails.productName}</td>
-                                                <td className="table-cell">{user.emiDetails.model}</td>
-                                                <td className="table-cell">₹{user.emiDetails.sellPrice.toLocaleString()}</td>
-                                                <td className="table-cell">₹{user.emiDetails.downPayment.toLocaleString()}</td>
-                                                <td className="table-cell text-yellow-600 font-semibold">₹{user.emiDetails.downPaymentPending.toLocaleString()}</td>
-                                                <td className="table-cell">₹{user.emiDetails.emiPerMonth.toLocaleString()}</td>
-                                                <td className="table-cell">₹{user.emiDetails.balanceAmount.toLocaleString()}</td>
-                                                <td className="table-cell">{totalEmis}</td>
-                                                <td className="table-cell text-green-600">{paidEmis}</td>
-                                                <td className="table-cell text-red-600">{totalEmis - paidEmis}</td>
-                                                <td className="table-cell">
-                                                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${user.isLocked
-                                                        ? 'bg-red-100 text-red-800'
-                                                        : 'bg-green-100 text-green-800'
-                                                        }`}>
-                                                        {user.isLocked ? 'Locked' : 'Unlocked'}
-                                                    </span>
+                                    emiDetails.map((customer, index) => (
+                                        <tr key={index} className="hover:bg-gray-50">
+                                            <td className="table-cell font-medium">{customer.fullName}</td>
+                                            <td className="table-cell">{customer.mobileNumber}</td>
+                                            <td className="table-cell">{customer.productName}</td>
+                                            <td className="table-cell">₹{customer.sellPrice?.toLocaleString()}</td>
+                                            <td className="table-cell">₹{customer.balanceAmount?.toLocaleString()}</td>
+                                            <td className="table-cell">{customer.retailerId?.fullName || 'N/A'}</td>
+                                            {customer.emiMonths && customer.emiMonths.map((emi, emiIndex) => (
+                                                <td key={emiIndex} className="table-cell">
+                                                    <div className="flex flex-col gap-1">
+                                                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${emi.paid
+                                                            ? 'bg-green-100 text-green-800'
+                                                            : 'bg-yellow-100 text-yellow-800'
+                                                            }`}>
+                                                            {emi.paid ? 'Paid' : 'Pending'}
+                                                        </span>
+                                                        {emi.paidDate && (
+                                                            <span className="text-xs text-gray-500">
+                                                                {new Date(emi.paidDate).toLocaleDateString()}
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                 </td>
-                                                <td className="table-cell">
-                                                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${user.isActive
-                                                        ? 'bg-blue-100 text-blue-800'
-                                                        : 'bg-gray-100 text-gray-800'
-                                                        }`}>
-                                                        {user.isActive ? 'Active' : 'Inactive'}
-                                                    </span>
-                                                </td>
-                                                <td className="table-cell">{user.retailerId?.fullName || 'N/A'}</td>
-                                                <td className="table-cell">{user.address.district}</td>
-                                                <td className="table-cell">{user.address.pincode}</td>
-                                            </tr>
-                                        );
-                                    })
+                                            ))}
+                                        </tr>
+                                    ))
                                 )}
                             </tbody>
                         </table>
@@ -510,4 +413,4 @@ const UsersReport = () => {
     );
 };
 
-export default UsersReport;
+export default EMIReport;

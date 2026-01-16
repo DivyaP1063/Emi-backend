@@ -1,46 +1,22 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { reportsAPI, downloadExcel } from '../services/api';
 
-const OverdueEMIReport = () => {
-    const [overdueCustomers, setOverdueCustomers] = useState([]);
-    const [retailers, setRetailers] = useState([]);
+const RecoveryReport = () => {
+    const [recoveryData, setRecoveryData] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
-    const [retailerSearchOpen, setRetailerSearchOpen] = useState(false);
-    const [retailerSearchTerm, setRetailerSearchTerm] = useState('');
-    const retailerDropdownRef = useRef(null);
 
     const [filters, setFilters] = useState({
-        retailerId: '',
-        isLocked: '',
-        minAmount: '',
-        maxAmount: '',
+        recoveryPersonId: '',
+        recoveryHeadId: '',
+        collectionStatus: '',
+        paymentStatus: '',
         dateRange: 'all',
         startDate: '',
         endDate: '',
     });
 
-    // Close dropdown when clicking outside
-    useEffect(() => {
-        const handleClickOutside = (event) => {
-            if (retailerDropdownRef.current && !retailerDropdownRef.current.contains(event.target)) {
-                setRetailerSearchOpen(false);
-            }
-        };
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, []);
-
-    const fetchRetailers = async () => {
-        try {
-            const response = await reportsAPI.getAllRetailers({});
-            setRetailers(response.data.data);
-        } catch (err) {
-            console.error('Failed to fetch retailers:', err);
-        }
-    };
-
-    const fetchOverdueEMI = async () => {
+    const fetchRecoveryReport = async () => {
         setLoading(true);
         setError('');
 
@@ -48,7 +24,6 @@ const OverdueEMIReport = () => {
             const params = {};
             Object.keys(filters).forEach(key => {
                 if (filters[key]) {
-                    // Handle date range
                     if (key === 'dateRange') {
                         if (filters[key] !== 'all') {
                             const now = new Date();
@@ -88,33 +63,26 @@ const OverdueEMIReport = () => {
                             if (endDate) params.endDate = endDate.toISOString();
                         }
                     }
-                    // Skip startDate and endDate as they're handled in dateRange
                     else if (key !== 'startDate' && key !== 'endDate') {
                         params[key] = filters[key];
                     }
                 }
             });
 
-            const response = await reportsAPI.getOverdueEMI(params);
-            setOverdueCustomers(response.data.data);
+            const response = await reportsAPI.getRecoveryReport(params);
+            setRecoveryData(response.data.data);
         } catch (err) {
-            setError(err.response?.data?.message || 'Failed to fetch overdue EMI data');
+            setError(err.response?.data?.message || 'Failed to fetch recovery report');
         } finally {
             setLoading(false);
         }
     };
-
-    useEffect(() => {
-        fetchRetailers();
-        fetchOverdueEMI();
-    }, []);
 
     const handleExport = async () => {
         try {
             const params = new URLSearchParams();
             Object.keys(filters).forEach(key => {
                 if (filters[key]) {
-                    // Handle date range
                     if (key === 'dateRange') {
                         if (filters[key] !== 'all') {
                             const now = new Date();
@@ -162,29 +130,20 @@ const OverdueEMIReport = () => {
             params.append('export', 'excel');
 
             await downloadExcel(
-                `/admin/reports/overdue-emi?${params.toString()}`,
-                `overdue-emi-report-${new Date().toISOString().split('T')[0]}.xlsx`
+                `/admin/reports/recovery?${params.toString()}`,
+                `recovery-report-${new Date().toISOString().split('T')[0]}.xlsx`
             );
         } catch (err) {
             alert('Failed to export Excel file');
         }
     };
 
-    const filteredRetailers = retailers.filter(retailer => {
-        if (!retailerSearchTerm) return true;
-        const searchLower = retailerSearchTerm.toLowerCase();
-        return retailer.fullName.toLowerCase().includes(searchLower) ||
-            retailer.shopName.toLowerCase().includes(searchLower);
-    });
-
-    const selectedRetailer = retailers.find(r => r._id === filters.retailerId);
-
     return (
         <div className="space-y-6">
             <div className="flex items-center justify-between">
                 <div>
-                    <h2 className="text-2xl font-bold text-gray-900">Overdue EMI Report</h2>
-                    <p className="text-gray-600 mt-1">Track customers with overdue EMI payments</p>
+                    <h2 className="text-2xl font-bold text-gray-900">Recovery Report</h2>
+                    <p className="text-gray-600 mt-1">Track recovery persons and device collections</p>
                 </div>
                 <button onClick={handleExport} className="btn-primary flex items-center gap-2">
                     <span>📥</span>
@@ -196,77 +155,29 @@ const OverdueEMIReport = () => {
             <div className="card">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Filters</h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div ref={retailerDropdownRef}>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Retailer</label>
-                        <div className="relative">
-                            <div
-                                className="input-field cursor-pointer flex items-center justify-between"
-                                onClick={() => setRetailerSearchOpen(!retailerSearchOpen)}
-                            >
-                                <span className={selectedRetailer ? 'text-gray-900' : 'text-gray-500'}>
-                                    {selectedRetailer ? `${selectedRetailer.fullName} - ${selectedRetailer.shopName}` : 'All Retailers'}
-                                </span>
-                                <span className="text-gray-400">▼</span>
-                            </div>
-
-                            {retailerSearchOpen && (
-                                <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-64 overflow-hidden">
-                                    <div className="p-2 border-b border-gray-200">
-                                        <input
-                                            type="text"
-                                            value={retailerSearchTerm}
-                                            onChange={(e) => setRetailerSearchTerm(e.target.value)}
-                                            placeholder="Search retailers..."
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
-                                            onClick={(e) => e.stopPropagation()}
-                                        />
-                                    </div>
-                                    <div className="overflow-y-auto max-h-48">
-                                        <div
-                                            className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
-                                            onClick={() => {
-                                                setFilters(prev => ({ ...prev, retailerId: '' }));
-                                                setRetailerSearchOpen(false);
-                                                setRetailerSearchTerm('');
-                                            }}
-                                        >
-                                            All Retailers
-                                        </div>
-                                        {filteredRetailers.map((retailer) => (
-                                            <div
-                                                key={retailer._id}
-                                                className={`px-4 py-2 hover:bg-gray-100 cursor-pointer ${filters.retailerId === retailer._id ? 'bg-primary-50 text-primary-700' : ''
-                                                    }`}
-                                                onClick={() => {
-                                                    setFilters(prev => ({ ...prev, retailerId: retailer._id }));
-                                                    setRetailerSearchOpen(false);
-                                                    setRetailerSearchTerm('');
-                                                }}
-                                            >
-                                                {retailer.fullName} - {retailer.shopName}
-                                            </div>
-                                        ))}
-                                        {filteredRetailers.length === 0 && (
-                                            <div className="px-4 py-2 text-gray-500 text-center">
-                                                No retailers found
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Lock Status</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Collection Status</label>
                         <select
-                            value={filters.isLocked}
-                            onChange={(e) => setFilters(prev => ({ ...prev, isLocked: e.target.value }))}
+                            value={filters.collectionStatus}
+                            onChange={(e) => setFilters(prev => ({ ...prev, collectionStatus: e.target.value }))}
                             className="input-field"
                         >
                             <option value="">All</option>
-                            <option value="true">Locked</option>
-                            <option value="false">Unlocked</option>
+                            <option value="collected">Collected</option>
+                            <option value="pending">Pending</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Payment Status</label>
+                        <select
+                            value={filters.paymentStatus}
+                            onChange={(e) => setFilters(prev => ({ ...prev, paymentStatus: e.target.value }))}
+                            className="input-field"
+                        >
+                            <option value="">All</option>
+                            <option value="paid">Paid</option>
+                            <option value="pending">Pending</option>
                         </select>
                     </div>
 
@@ -284,28 +195,6 @@ const OverdueEMIReport = () => {
                             <option value="year">This Year</option>
                             <option value="custom">Custom Range</option>
                         </select>
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Min Amount</label>
-                        <input
-                            type="number"
-                            value={filters.minAmount}
-                            onChange={(e) => setFilters(prev => ({ ...prev, minAmount: e.target.value }))}
-                            placeholder="e.g., 1000"
-                            className="input-field"
-                        />
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Max Amount</label>
-                        <input
-                            type="number"
-                            value={filters.maxAmount}
-                            onChange={(e) => setFilters(prev => ({ ...prev, maxAmount: e.target.value }))}
-                            placeholder="e.g., 10000"
-                            className="input-field"
-                        />
                     </div>
 
                     {filters.dateRange === 'custom' && (
@@ -334,9 +223,9 @@ const OverdueEMIReport = () => {
                 </div>
 
                 <div className="flex gap-3 mt-4">
-                    <button onClick={fetchOverdueEMI} className="btn-primary">Apply Filters</button>
+                    <button onClick={fetchRecoveryReport} className="btn-primary">Apply Filters</button>
                     <button
-                        onClick={() => setFilters({ retailerId: '', isLocked: '', minAmount: '', maxAmount: '', dateRange: 'all', startDate: '', endDate: '' })}
+                        onClick={() => setFilters({ recoveryPersonId: '', recoveryHeadId: '', collectionStatus: '', paymentStatus: '', dateRange: 'all', startDate: '', endDate: '' })}
                         className="btn-secondary"
                     >
                         Reset
@@ -359,7 +248,7 @@ const OverdueEMIReport = () => {
                 <div className="card">
                     <div className="flex items-center justify-between mb-4">
                         <h3 className="text-lg font-semibold text-gray-900">
-                            Results ({overdueCustomers.length} customers)
+                            Results ({recoveryData.length} assignments)
                         </h3>
                     </div>
 
@@ -367,51 +256,56 @@ const OverdueEMIReport = () => {
                         <table className="table">
                             <thead className="table-header">
                                 <tr>
+                                    <th className="table-header-cell">Recovery Person</th>
                                     <th className="table-header-cell">Customer Name</th>
                                     <th className="table-header-cell">Father Name</th>
                                     <th className="table-header-cell">Mobile</th>
                                     <th className="table-header-cell">Product</th>
-                                    <th className="table-header-cell">Retailer</th>
-                                    <th className="table-header-cell">Overdue EMIs</th>
-                                    <th className="table-header-cell">Total Overdue Amount</th>
+                                    <th className="table-header-cell">Device Collected</th>
+                                    <th className="table-header-cell">Collection Date</th>
+                                    <th className="table-header-cell">Money Received</th>
+                                    <th className="table-header-cell">Balance Amount</th>
                                     <th className="table-header-cell">District</th>
                                     <th className="table-header-cell">Pincode</th>
-                                    <th className="table-header-cell">Status</th>
                                 </tr>
                             </thead>
                             <tbody className="table-body">
-                                {overdueCustomers.length === 0 ? (
+                                {recoveryData.length === 0 ? (
                                     <tr>
-                                        <td colSpan="10" className="table-cell text-center text-gray-500 py-8">
-                                            No overdue EMIs found
+                                        <td colSpan="11" className="table-cell text-center text-gray-500 py-8">
+                                            No recovery data found
                                         </td>
                                     </tr>
                                 ) : (
-                                    overdueCustomers.map((customer) => (
-                                        <tr key={customer._id} className="hover:bg-gray-50">
-                                            <td className="table-cell font-medium">{customer.fullName}</td>
-                                            <td className="table-cell">{customer.fatherName || 'N/A'}</td>
-                                            <td className="table-cell">{customer.mobileNumber}</td>
-                                            <td className="table-cell">{customer.emiDetails.productName}</td>
-                                            <td className="table-cell">{customer.retailerId?.fullName || 'N/A'}</td>
+                                    recoveryData.map((data, index) => (
+                                        <tr key={index} className="hover:bg-gray-50">
+                                            <td className="table-cell font-medium">{data.recoveryPersonName}</td>
+                                            <td className="table-cell">{data.customerName}</td>
+                                            <td className="table-cell">{data.fatherName || 'N/A'}</td>
+                                            <td className="table-cell">{data.mobile}</td>
+                                            <td className="table-cell">{data.product}</td>
                                             <td className="table-cell">
-                                                <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">
-                                                    {customer.totalOverdueEmis} EMI(s)
-                                                </span>
-                                            </td>
-                                            <td className="table-cell font-semibold text-red-600">
-                                                ₹{customer.totalOverdueAmount.toLocaleString()}
-                                            </td>
-                                            <td className="table-cell">{customer.address.district}</td>
-                                            <td className="table-cell">{customer.address.pincode}</td>
-                                            <td className="table-cell">
-                                                <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${customer.isLocked
-                                                    ? 'bg-red-100 text-red-800'
+                                                <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${data.isCollected
+                                                    ? 'bg-green-100 text-green-800'
                                                     : 'bg-yellow-100 text-yellow-800'
                                                     }`}>
-                                                    {customer.isLocked ? 'Locked' : 'Active'}
+                                                    {data.isCollected ? 'Yes' : 'No'}
                                                 </span>
                                             </td>
+                                            <td className="table-cell">
+                                                {data.collectionDate ? new Date(data.collectionDate).toLocaleDateString() : 'N/A'}
+                                            </td>
+                                            <td className="table-cell">
+                                                <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${data.moneyReceived
+                                                    ? 'bg-green-100 text-green-800'
+                                                    : 'bg-red-100 text-red-800'
+                                                    }`}>
+                                                    {data.moneyReceived ? 'Yes' : 'No'}
+                                                </span>
+                                            </td>
+                                            <td className="table-cell font-semibold">₹{data.balanceAmount.toLocaleString()}</td>
+                                            <td className="table-cell">{data.district}</td>
+                                            <td className="table-cell">{data.pincode}</td>
                                         </tr>
                                     ))
                                 )}
@@ -424,4 +318,4 @@ const OverdueEMIReport = () => {
     );
 };
 
-export default OverdueEMIReport;
+export default RecoveryReport;
