@@ -12,6 +12,7 @@ const recoveryPersonApiRoutes = require('./routes/recoveryPersonApiRoutes');
 const stockistRoutes = require('./routes/stockistRoutes');
 const customerDeviceRoutes = require('./routes/customerDeviceRoutes');
 const webhookRoutes = require('./routes/webhookRoutes');
+const publicBrandRoutes = require('./routes/publicBrandRoutes');
 const { initializeFirebase } = require('./services/firebaseService');
 const { startCronService, stopCronService } = require('./services/cronService');
 const { initializeAndroidManagement } = require('./services/androidManagementService');
@@ -95,12 +96,14 @@ app.use('/api/recovery-person', recoveryPersonApiRoutes);
 app.use('/api/stockist', stockistRoutes);
 app.use('/api/customer/device', customerDeviceRoutes);
 app.use('/api/webhooks', webhookRoutes); // AMAPI webhooks
+app.use('/api', publicBrandRoutes); // Public brand browsing (no auth required)
 
 console.log('✅ Accountant routes mounted at /api/accountant');
 console.log('✅ Recovery head routes mounted at /api/recovery-head');
 console.log('✅ Recovery person routes mounted at /api/recovery-person');
 console.log('✅ Stockist routes mounted at /api/stockist');
 console.log('✅ Customer device routes mounted at /api/customer/device');
+console.log('✅ Public brand routes mounted at /api');
 
 // Root endpoint
 app.get('/', (req, res) => {
