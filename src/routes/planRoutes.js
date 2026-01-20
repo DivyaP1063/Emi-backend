@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { authenticateAdmin } = require('../middleware/authMiddleware');
+const { authenticate } = require('../middleware/auth');
 const {
     createPlan,
     getAllPlans,
@@ -12,7 +12,7 @@ const {
 } = require('../controllers/planController');
 
 // All routes require admin authentication
-router.use(authenticateAdmin);
+router.use(authenticate);
 
 // Plan CRUD routes
 router.post('/plans', createPlanValidation, createPlan);

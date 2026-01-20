@@ -37,6 +37,7 @@ const {
 
 const googleRoutes = require('./googleRoute');
 const adminBrandRoutes = require('./adminBrandRoutes');
+const publicBrandRoutes = require('./publicBrandRoutes');
 
 // Mount routes
 router.use("/auth", authRoutes);
