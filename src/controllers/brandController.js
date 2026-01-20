@@ -327,8 +327,8 @@ const uploadBrandLogo = async (req, res) => {
         }
 
         // Upload new logo
-        const logoUrl = await uploadToCloudinary(req.file.buffer, 'brands');
-        brand.logo = logoUrl;
+        const uploadResult = await uploadToCloudinary(req.file.buffer, 'brands');
+        brand.logo = uploadResult.secure_url;
         await brand.save();
 
         return res.status(200).json({

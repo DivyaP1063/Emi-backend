@@ -354,7 +354,8 @@ const uploadPhoneModelImages = async (req, res) => {
         const uploadPromises = req.files.map(file =>
             uploadToCloudinary(file.buffer, 'phone-models')
         );
-        const imageUrls = await Promise.all(uploadPromises);
+        const uploadResults = await Promise.all(uploadPromises);
+        const imageUrls = uploadResults.map(result => result.secure_url);
 
         // Add to phone model
         phoneModel.images.push(...imageUrls);
