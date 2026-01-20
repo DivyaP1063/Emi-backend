@@ -81,8 +81,8 @@ router.use("/amapi", amapiAdminRoutes);
 // Admin OAuth routes (for Private App Uploader login)
 router.use("/oauth", adminOAuthRoutes);
 
-// Brand Management routes (Admin only)
-router.use("/admin", adminBrandRoutes);
+// Brand Management routes (Admin only) - mounted at root since server.js already has /api/admin
+router.use("/", adminBrandRoutes);
 
 // Public Brand routes (for retailers/public)
 router.use("/", publicBrandRoutes);
