@@ -134,7 +134,7 @@ const createCustomer = async (req, res) => {
       mobileNumber,
       fatherName, village, nearbyLocation, post, district,
       // EMI Details (Step 5)
-      branch, phoneType, model, productName, sellPrice, landingPrice,
+      branch, phoneType, variantId, sellPrice, landingPrice,
       downPayment, downPaymentPending, numberOfMonths
     } = req.body;
 
@@ -157,8 +157,7 @@ const createCustomer = async (req, res) => {
     // EMI Details validation
     if (!branch || !branch.trim()) validationErrors.branch = 'Branch is required';
     if (!phoneType || !['NEW', 'OLD'].includes(phoneType.toUpperCase())) validationErrors.phoneType = 'Phone type must be NEW or OLD';
-    if (!model || !model.trim()) validationErrors.model = 'Model is required';
-    if (!productName || !productName.trim()) validationErrors.productName = 'Product name is required';
+    if (!variantId || !variantId.trim()) validationErrors.variantId = 'Product variant is required';
     if (!sellPrice || isNaN(sellPrice) || Number(sellPrice) <= 0) validationErrors.sellPrice = 'Valid sell price is required';
     if (!landingPrice || isNaN(landingPrice) || Number(landingPrice) <= 0) validationErrors.landingPrice = 'Valid landing price is required';
     if (downPayment === undefined || isNaN(downPayment) || Number(downPayment) < 0) validationErrors.downPayment = 'Valid down payment is required';
@@ -173,6 +172,59 @@ const createCustomer = async (req, res) => {
         details: validationErrors
       });
     }
+
+    // Fetch variant details from brand system
+    const PhoneVariant = require('../models/PhoneVariant');
+    const PhoneModel = require('../models/PhoneModel');
+    const Brand = require('../models/Brand');
+
+    const variant = await PhoneVariant.findById(variantId)
+      .populate({
+        path: 'phoneModelId',
+        populate: {
+          path: 'brandId'
+        }
+      });
+
+    if (!variant) {
+      return res.status(404).json({
+        success: false,
+        message: 'Product variant not found',
+        error: 'VARIANT_NOT_FOUND'
+      });
+    }
+
+    if (!variant.isActive) {
+      return res.status(400).json({
+        success: false,
+        message: 'Selected product variant is not available',
+        error: 'VARIANT_INACTIVE'
+      });
+    }
+
+    if (!variant.phoneModelId || !variant.phoneModelId.isActive) {
+      return res.status(400).json({
+        success: false,
+        message: 'Selected product model is not available',
+        error: 'MODEL_INACTIVE'
+      });
+    }
+
+    if (!variant.phoneModelId.brandId || !variant.phoneModelId.brandId.isActive) {
+      return res.status(400).json({
+        success: false,
+        message: 'Selected product brand is not available',
+        error: 'BRAND_INACTIVE'
+      });
+    }
+
+    // Extract product details from variant
+    const brandName = variant.phoneModelId.brandId.name;
+    const modelName = variant.phoneModelId.modelName;
+    const variantSpec = `${variant.ram}GB/${variant.rom}GB${variant.color ? ` - ${variant.color}` : ''}`;
+    const productName = `${brandName} ${modelName} (${variantSpec})`;
+    const model = modelName;
+
 
     // Calculate EMI details using plan-based system
     const sellPriceNum = Number(sellPrice);

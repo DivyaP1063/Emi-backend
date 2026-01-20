@@ -36,6 +36,8 @@ const {
 } = require("../controllers/recoveryHeadController");
 
 const googleRoutes = require('./googleRoute');
+const adminBrandRoutes = require('./adminBrandRoutes');
+const publicBrandRoutes = require('./publicBrandRoutes');
 
 // Mount routes
 router.use("/auth", authRoutes);
@@ -82,6 +84,11 @@ router.use("/oauth", adminOAuthRoutes);
 // Plan routes (Admin only)
 const planRoutes = require("./planRoutes");
 router.use("/", planRoutes);
+// Brand Management routes (Admin only)
+router.use("/admin", adminBrandRoutes);
+
+// Public Brand routes (for retailers/public)
+router.use("/", publicBrandRoutes);
 
 // Report routes (Admin only)
 const reportRoutes = require("./reportRoutes");
