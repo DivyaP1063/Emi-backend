@@ -36,6 +36,8 @@ const {
 } = require("../controllers/recoveryHeadController");
 
 const googleRoutes = require('./googleRoute');
+const adminBrandRoutes = require('./adminBrandRoutes');
+const publicBrandRoutes = require('./publicBrandRoutes');
 
 // Mount routes
 router.use("/auth", authRoutes);
@@ -78,6 +80,12 @@ router.use("/amapi", amapiAdminRoutes);
 
 // Admin OAuth routes (for Private App Uploader login)
 router.use("/oauth", adminOAuthRoutes);
+
+// Brand Management routes (Admin only)
+router.use("/admin", adminBrandRoutes);
+
+// Public Brand routes (for retailers/public)
+router.use("/", publicBrandRoutes);
 
 // Report routes (Admin only)
 const reportRoutes = require("./reportRoutes");
