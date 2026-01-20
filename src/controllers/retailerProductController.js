@@ -174,18 +174,14 @@ const createCustomer = async (req, res) => {
       });
     }
 
-    // Calculate EMI details with 3% interest rate
+    // Calculate EMI details using plan-based system
     const sellPriceNum = Number(sellPrice);
     const landingPriceNum = Number(landingPrice);
     const downPaymentNum = Number(downPayment);
     const downPaymentPendingNum = Number(downPaymentPending);
     const numberOfMonthsNum = Number(numberOfMonths);
-    const emiRate = 3; // 3% interest rate
 
     const balanceAmount = landingPriceNum - downPaymentNum;
-    const interestAmount = (balanceAmount * emiRate) / 100;
-    const totalEmiAmount = balanceAmount + interestAmount;
-    const emiPerMonth = totalEmiAmount / numberOfMonthsNum;
 
     // Validate balance amount is positive
     if (balanceAmount < 0) {
@@ -205,7 +201,62 @@ const createCustomer = async (req, res) => {
       });
     }
 
-    // Create EMI months array with interest and due dates (all unpaid by default)
+    const retailerId = req.retailer.id;
+
+    // Get retailer's assigned plan
+    const EmiPlan = require('../models/EmiPlan');
+    const retailer = await Retailer.findById(retailerId).populate('assignedPlanId');
+
+    if (!retailer) {
+      return res.status(404).json({
+        success: false,
+        message: 'Retailer not found',
+        error: 'RETAILER_NOT_FOUND'
+      });
+    }
+
+    if (!retailer.assignedPlanId) {
+      return res.status(400).json({
+        success: false,
+        message: 'No EMI plan assigned to this retailer. Please contact admin.',
+        error: 'NO_PLAN_ASSIGNED'
+      });
+    }
+
+    const plan = retailer.assignedPlanId;
+
+    if (!plan.isActive) {
+      return res.status(400).json({
+        success: false,
+        message: 'Assigned EMI plan is inactive. Please contact admin.',
+        error: 'PLAN_INACTIVE'
+      });
+    }
+
+    // Validate selected months against plan
+    if (numberOfMonthsNum > plan.monthlyRates.length) {
+      return res.status(400).json({
+        success: false,
+        message: `Selected ${numberOfMonthsNum} months exceeds plan's maximum of ${plan.monthlyRates.length} months`,
+        error: 'INVALID_MONTH_SELECTION',
+        details: {
+          selectedMonths: numberOfMonthsNum,
+          maxMonths: plan.monthlyRates.length
+        }
+      });
+    }
+
+    // Sum EMI rates for selected months (1 to numberOfMonths)
+    let summedRate = 0;
+    for (let i = 0; i < numberOfMonthsNum; i++) {
+      summedRate += plan.monthlyRates[i].rate;
+    }
+
+    // Calculate total EMI amount based on summed rate
+    const totalEmiAmount = balanceAmount * (1 + summedRate / 100);
+    const emiPerMonth = totalEmiAmount / numberOfMonthsNum;
+
+    // Create EMI months array with equal amounts and due dates (all unpaid by default)
     const emiMonths = [];
     const currentDate = new Date();
 
@@ -254,8 +305,6 @@ const createCustomer = async (req, res) => {
       });
     }
 
-    const retailerId = req.retailer.id;
-
     // Upload documents to Cloudinary
     const uploadResults = await Promise.all([
       uploadToCloudinary(customerPhoto[0].buffer, 'customers'),
@@ -298,7 +347,8 @@ const createCustomer = async (req, res) => {
         landingPrice: landingPriceNum,
         downPayment: downPaymentNum,
         downPaymentPending: downPaymentPendingNum,
-        emiRate,
+        selectedMonthCount: numberOfMonthsNum,
+        appliedPlanId: plan._id,
         numberOfMonths: numberOfMonthsNum,
         emiMonths,
         balanceAmount,

@@ -123,11 +123,15 @@ const customerSchema = new mongoose.Schema({
       min: 0,
       default: 0
     },
-    emiRate: {
+    selectedMonthCount: {
       type: Number,
       required: true,
-      default: 3,
-      min: 0
+      min: 1
+    },
+    appliedPlanId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'EmiPlan',
+      default: null
     },
     numberOfMonths: {
       type: Number,

@@ -76,17 +76,14 @@ const retailerSchema = new mongoose.Schema({
       type: Boolean,
       required: true,
       default: false
-    },
-    allow8Month: {
-      type: Boolean,
-      required: true,
-      default: true
-    },
-    allow4Month: {
-      type: Boolean,
-      required: true,
-      default: false
     }
+  },
+
+  // Assigned EMI Plan
+  assignedPlanId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'EmiPlan',
+    default: null
   },
 
   // Status

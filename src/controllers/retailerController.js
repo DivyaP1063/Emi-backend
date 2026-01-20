@@ -65,12 +65,10 @@ const createRetailerValidation = [
   body('permissions.allowIPhone')
     .isBoolean()
     .withMessage('allowIPhone must be a boolean'),
-  body('permissions.allow8Month')
-    .isBoolean()
-    .withMessage('allow8Month must be a boolean'),
-  body('permissions.allow4Month')
-    .isBoolean()
-    .withMessage('allow4Month must be a boolean')
+  body('assignedPlanId')
+    .optional()
+    .isMongoId()
+    .withMessage('Invalid plan ID format')
 ];
 
 /**
@@ -94,7 +92,7 @@ const createRetailer = async (req, res) => {
       });
     }
 
-    const { basicInfo, address, permissions } = req.body;
+    const { basicInfo, address, permissions, assignedPlanId } = req.body;
 
     // Check if mobile number already exists
     const existingMobile = await Retailer.findOne({
@@ -122,6 +120,26 @@ const createRetailer = async (req, res) => {
       });
     }
 
+    // Validate plan if provided
+    if (assignedPlanId) {
+      const EmiPlan = require('../models/EmiPlan');
+      const plan = await EmiPlan.findById(assignedPlanId);
+      if (!plan) {
+        return res.status(404).json({
+          success: false,
+          message: 'EMI plan not found',
+          error: 'PLAN_NOT_FOUND'
+        });
+      }
+      if (!plan.isActive) {
+        return res.status(400).json({
+          success: false,
+          message: 'Cannot assign inactive plan',
+          error: 'PLAN_INACTIVE'
+        });
+      }
+    }
+
     // Create retailer
     const retailer = await Retailer.create({
       fullName: basicInfo.fullName,
@@ -130,6 +148,7 @@ const createRetailer = async (req, res) => {
       shopName: basicInfo.shopName,
       address,
       permissions,
+      assignedPlanId: assignedPlanId || null,
       status: 'ACTIVE'
     });
 
@@ -191,7 +210,8 @@ const getAllRetailers = async (req, res) => {
 
     // Get retailers
     const retailers = await Retailer.find(query)
-      .select('fullName email mobileNumber shopName address.city address.state status createdAt')
+      .select('fullName email mobileNumber shopName address.city address.state status assignedPlanId createdAt')
+      .populate('assignedPlanId', 'planName monthlyRates isActive')
       .skip(skip)
       .limit(limit)
       .sort({ createdAt: -1 });
@@ -211,6 +231,12 @@ const getAllRetailers = async (req, res) => {
           city: retailer.address.city,
           state: retailer.address.state,
           status: retailer.status,
+          assignedPlan: retailer.assignedPlanId ? {
+            planId: retailer.assignedPlanId._id,
+            planName: retailer.assignedPlanId.planName,
+            maxMonths: retailer.assignedPlanId.monthlyRates?.length || 0,
+            isActive: retailer.assignedPlanId.isActive
+          } : null,
           createdAt: retailer.createdAt
         })),
         pagination: {

@@ -11,7 +11,9 @@ const getPermissions = async (req, res) => {
   try {
     const retailerId = req.retailer.id;
 
-    const retailer = await Retailer.findById(retailerId).select('permissions');
+    const retailer = await Retailer.findById(retailerId)
+      .select('permissions assignedPlanId')
+      .populate('assignedPlanId');
 
     if (!retailer) {
       return res.status(404).json({
@@ -21,14 +23,14 @@ const getPermissions = async (req, res) => {
       });
     }
 
-    // Calculate allowed EMI months based on permissions
-    const allowedEmiMonths = [];
-    if (retailer.permissions.allow4Month) {
-      allowedEmiMonths.push(4);
-    }
-    if (retailer.permissions.allow8Month) {
-      allowedEmiMonths.push(8);
-    }
+    // Format assigned plan
+    const assignedPlan = retailer.assignedPlanId ? {
+      planId: retailer.assignedPlanId._id,
+      planName: retailer.assignedPlanId.planName,
+      monthlyRates: retailer.assignedPlanId.monthlyRates,
+      maxMonths: retailer.assignedPlanId.monthlyRates.length,
+      isActive: retailer.assignedPlanId.isActive
+    } : null;
 
     return res.status(200).json({
       success: true,
@@ -36,7 +38,7 @@ const getPermissions = async (req, res) => {
       data: {
         retailerId: retailerId,
         permissions: retailer.permissions,
-        allowedEmiMonths
+        assignedPlan
       }
     });
   } catch (error) {

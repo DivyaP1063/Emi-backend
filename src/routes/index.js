@@ -79,6 +79,10 @@ router.use("/amapi", amapiAdminRoutes);
 // Admin OAuth routes (for Private App Uploader login)
 router.use("/oauth", adminOAuthRoutes);
 
+// Plan routes (Admin only)
+const planRoutes = require("./planRoutes");
+router.use("/", planRoutes);
+
 // Report routes (Admin only)
 const reportRoutes = require("./reportRoutes");
 router.use("/reports", reportRoutes);
