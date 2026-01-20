@@ -37,7 +37,6 @@ const {
 
 const googleRoutes = require('./googleRoute');
 const adminBrandRoutes = require('./adminBrandRoutes');
-const publicBrandRoutes = require('./publicBrandRoutes');
 
 // Mount routes
 router.use("/auth", authRoutes);
@@ -89,6 +88,8 @@ router.use("/admin", adminBrandRoutes);
 
 // Public Brand routes (for retailers/public)
 router.use("/", publicBrandRoutes);
+// Brand Management routes (Admin only) - mounted at root since server.js already has /api/admin
+router.use("/", adminBrandRoutes);
 
 // Report routes (Admin only)
 const reportRoutes = require("./reportRoutes");
