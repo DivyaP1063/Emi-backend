@@ -6,6 +6,7 @@ const { uploadDocuments } = require("../middleware/upload");
 const retailerAuthController = require("../controllers/retailerAuthController");
 const retailerBusinessController = require("../controllers/retailerBusinessController");
 const retailerProductController = require("../controllers/retailerProductController");
+const pincodeController = require("../controllers/pincodeController");
 const retailerDeviceSetupRoutes = require("./retailerDeviceSetupRoutes");
 
 /**
@@ -121,6 +122,17 @@ router.get(
   "/customers/count",
   authenticateRetailer,
   retailerProductController.getCustomerCountRetailer
+);
+
+/**
+ * @route   GET /api/retailer/pincodes
+ * @desc    Get all active pincodes for dropdown
+ * @access  Protected (Retailer only)
+ */
+router.get(
+  "/pincodes",
+  authenticateRetailer,
+  pincodeController.getActivePincodes
 );
 
 /**

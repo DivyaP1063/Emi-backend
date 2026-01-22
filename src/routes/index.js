@@ -38,6 +38,7 @@ const {
 const googleRoutes = require('./googleRoute');
 const adminBrandRoutes = require('./adminBrandRoutes');
 const publicBrandRoutes = require('./publicBrandRoutes');
+const adminPincodeRoutes = require('./adminPincodeRoutes');
 
 // Mount routes
 router.use("/auth", authRoutes);
@@ -91,6 +92,9 @@ router.use("/admin", adminBrandRoutes);
 router.use("/", publicBrandRoutes);
 // Brand Management routes (Admin only) - mounted at root since server.js already has /api/admin
 router.use("/", adminBrandRoutes);
+
+// Pincode Management routes (Admin only)
+router.use("/admin", adminPincodeRoutes);
 
 // Report routes (Admin only)
 const reportRoutes = require("./reportRoutes");
