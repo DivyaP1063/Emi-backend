@@ -24,6 +24,12 @@ const customerSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  alternateMobileNumber: {
+    type: String,
+    required: false,
+    match: /^[0-9]{10}$/,
+    default: null
+  },
   imei1: {
     type: String,
     required: true,

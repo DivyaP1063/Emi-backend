@@ -131,7 +131,7 @@ const createCustomer = async (req, res) => {
     // Extract all data from form fields
     const {
       fullName, aadharNumber, dob, pincode, imei1, imei2,
-      mobileNumber,
+      mobileNumber, alternateMobileNumber,
       fatherName, village, nearbyLocation, post, district,
       // EMI Details (Step 5)
       branch, phoneType, variantId, sellPrice, landingPrice,
@@ -148,6 +148,7 @@ const createCustomer = async (req, res) => {
     if (!imei1 || !/^[0-9]{15}$/.test(imei1)) validationErrors.imei1 = 'IMEI 1 must be exactly 15 digits';
     if (imei2 && !/^[0-9]{15}$/.test(imei2)) validationErrors.imei2 = 'IMEI 2 must be exactly 15 digits';
     if (!mobileNumber || !/^[0-9]{10}$/.test(mobileNumber)) validationErrors.mobileNumber = 'Mobile number must be exactly 10 digits';
+    if (alternateMobileNumber && !/^[0-9]{10}$/.test(alternateMobileNumber)) validationErrors.alternateMobileNumber = 'Alternate mobile number must be exactly 10 digits';
     if (!fatherName || !fatherName.trim()) validationErrors.fatherName = 'Father name is required';
     if (!village || !village.trim()) validationErrors.village = 'Village is required';
     if (!nearbyLocation || !nearbyLocation.trim()) validationErrors.nearbyLocation = 'Nearby location is required';
@@ -374,6 +375,7 @@ const createCustomer = async (req, res) => {
       dob,
       mobileNumber,
       mobileVerified: true,
+      alternateMobileNumber: alternateMobileNumber || null,
       imei1,
       imei2: imei2 || undefined,
       fatherName,
