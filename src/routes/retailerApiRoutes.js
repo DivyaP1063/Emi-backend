@@ -69,6 +69,29 @@ router.post(
 );
 
 /**
+ * @route   POST /api/retailer/customers/aadhaar/send-otp
+ * @desc    Step 3a: Send OTP to Aadhaar-linked mobile number (required if landing price > 20000)
+ * @access  Protected (Retailer only)
+ */
+router.post(
+  "/customers/aadhaar/send-otp",
+  authenticateRetailer,
+  otpRateLimiter,
+  retailerProductController.sendAadhaarOtpController
+);
+
+/**
+ * @route   POST /api/retailer/customers/aadhaar/verify-otp
+ * @desc    Step 3b: Verify Aadhaar OTP and retrieve KYC data (required if landing price > 20000)
+ * @access  Protected (Retailer only)
+ */
+router.post(
+  "/customers/aadhaar/verify-otp",
+  authenticateRetailer,
+  retailerProductController.verifyAadhaarOtpController
+);
+
+/**
  * @route   POST /api/retailer/customers
  * @desc    Step 4 (Final): Create customer with all data from steps 1-4 (basic details, verified mobile, address, documents)
  * @access  Protected (Retailer only)

@@ -7,6 +7,7 @@ const Transaction = require('../models/Transaction');
 const { sendOTP, verifyOTP } = require('../utils/otpService');
 const { uploadToCloudinary, deleteFromCloudinary } = require('../config/cloudinary');
 const { createCustomerPolicy } = require('../services/androidManagementService');
+const { sendAadhaarOtp, verifyAadhaarOtp } = require('../services/kycService');
 
 /**
  * Send OTP to customer mobile number
@@ -100,6 +101,106 @@ const verifyCustomerOTP = async (req, res) => {
   }
 };
 
+
+/**
+ * Send OTP to Aadhaar-linked mobile number
+ */
+const sendAadhaarOtpController = async (req, res) => {
+  try {
+    const { aadhaarNumber } = req.body;
+
+    // Validate Aadhaar number
+    if (!aadhaarNumber || !/^[0-9]{12}$/.test(aadhaarNumber)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Aadhaar number must be exactly 12 digits',
+        error: 'VALIDATION_ERROR'
+      });
+    }
+
+    // Call KYC service to send OTP
+    const result = await sendAadhaarOtp(aadhaarNumber);
+
+    if (!result.success) {
+      return res.status(400).json({
+        success: false,
+        message: result.message,
+        error: result.responseCode || 'KYC_ERROR'
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: result.message,
+      data: {
+        referenceId: result.referenceId
+      }
+    });
+  } catch (error) {
+    console.error('Send Aadhaar OTP controller error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to send Aadhaar OTP',
+      error: 'SERVER_ERROR'
+    });
+  }
+};
+
+/**
+ * Verify Aadhaar OTP and retrieve KYC data
+ */
+const verifyAadhaarOtpController = async (req, res) => {
+  try {
+    const { aadhaarNumber, otp } = req.body;
+
+    // Validate inputs
+    if (!aadhaarNumber || !/^[0-9]{12}$/.test(aadhaarNumber)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Aadhaar number must be exactly 12 digits',
+        error: 'VALIDATION_ERROR'
+      });
+    }
+
+    if (!otp || !/^[0-9]{6}$/.test(otp)) {
+      return res.status(400).json({
+        success: false,
+        message: 'OTP must be exactly 6 digits',
+        error: 'VALIDATION_ERROR'
+      });
+    }
+
+    // Call KYC service to verify OTP
+    const result = await verifyAadhaarOtp(aadhaarNumber, otp);
+
+    if (!result.success) {
+      return res.status(400).json({
+        success: false,
+        message: result.message,
+        error: result.responseCode || 'KYC_ERROR'
+      });
+    }
+
+    // Return verified data
+    return res.status(200).json({
+      success: true,
+      message: result.message,
+      data: {
+        referenceId: result.referenceId,
+        verified: true,
+        verifiedData: result.data
+      }
+    });
+  } catch (error) {
+    console.error('Verify Aadhaar OTP controller error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to verify Aadhaar OTP',
+      error: 'SERVER_ERROR'
+    });
+  }
+};
+
 /**
  * Create customer with all details, IMEI, and document uploads
  * Note: Mobile number should already be verified via verify-otp endpoint
@@ -135,7 +236,9 @@ const createCustomer = async (req, res) => {
       fatherName, village, nearbyLocation, post, district,
       // EMI Details (Step 5)
       branch, phoneType, variantId, sellPrice, landingPrice,
-      downPayment, downPaymentPending, numberOfMonths
+      downPayment, downPaymentPending, numberOfMonths,
+      // Aadhaar Verification Data (if verified)
+      aadhaarVerificationData
     } = req.body;
 
     // Validate required fields
@@ -171,6 +274,29 @@ const createCustomer = async (req, res) => {
         error: 'VALIDATION_ERROR',
         details: validationErrors
       });
+    }
+
+    // Check if Aadhaar verification is required (landing price > 20000)
+    const requiresAadhaarVerification = Number(landingPrice) > 20000;
+
+    if (requiresAadhaarVerification) {
+      // Validate that Aadhaar verification data is provided
+      if (!aadhaarVerificationData || !aadhaarVerificationData.verified) {
+        return res.status(400).json({
+          success: false,
+          message: 'Aadhaar OTP verification is mandatory for landing price greater than ₹20,000. Please complete Aadhaar verification first.',
+          error: 'AADHAAR_VERIFICATION_REQUIRED'
+        });
+      }
+
+      // Validate that the Aadhaar number matches
+      if (aadhaarVerificationData.aadhaarNumber !== aadharNumber) {
+        return res.status(400).json({
+          success: false,
+          message: 'Aadhaar number mismatch. Please verify with the same Aadhaar number.',
+          error: 'AADHAAR_MISMATCH'
+        });
+      }
     }
 
     // Fetch variant details from brand system
@@ -406,6 +532,14 @@ const createCustomer = async (req, res) => {
         balanceAmount,
         emiPerMonth: Math.round(emiPerMonth * 100) / 100,
         totalEmiAmount: Math.round(totalEmiAmount * 100) / 100
+      },
+      aadhaarVerification: requiresAadhaarVerification && aadhaarVerificationData ? {
+        verified: true,
+        verifiedAt: new Date(),
+        referenceId: aadhaarVerificationData.referenceId || null,
+        verifiedData: aadhaarVerificationData.verifiedData || null
+      } : {
+        verified: false
       },
       retailerId
     });
@@ -965,6 +1099,8 @@ const verifyAadharNumber = async (req, res) => {
 module.exports = {
   sendCustomerOTP,
   verifyCustomerOTP,
+  sendAadhaarOtpController,
+  verifyAadhaarOtpController,
   createCustomer,
   getCustomers,
   getPendingEmiCustomers,

@@ -256,6 +256,79 @@ const customerSchema = new mongoose.Schema({
     type: Date,
     default: null
   },
+  aadhaarVerification: {
+    verified: {
+      type: Boolean,
+      default: false
+    },
+    verifiedAt: {
+      type: Date,
+      default: null
+    },
+    referenceId: {
+      type: String,
+      default: null,
+      trim: true
+    },
+    verifiedData: {
+      name: {
+        type: String,
+        default: null,
+        trim: true
+      },
+      dateOfBirth: {
+        type: String,
+        default: null
+      },
+      gender: {
+        type: String,
+        default: null,
+        enum: ['M', 'F', 'O', null]
+      },
+      address: {
+        house: {
+          type: String,
+          default: null
+        },
+        street: {
+          type: String,
+          default: null
+        },
+        landmark: {
+          type: String,
+          default: null
+        },
+        locality: {
+          type: String,
+          default: null
+        },
+        vtc: {
+          type: String,
+          default: null
+        },
+        district: {
+          type: String,
+          default: null
+        },
+        state: {
+          type: String,
+          default: null
+        },
+        pincode: {
+          type: String,
+          default: null
+        },
+        country: {
+          type: String,
+          default: 'India'
+        }
+      },
+      photoBase64: {
+        type: String,
+        default: null
+      }
+    }
+  },
   deviceCollection: {
     deviceFrontImage: {
       type: String, // Cloudinary URL
