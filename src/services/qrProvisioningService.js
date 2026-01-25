@@ -14,15 +14,15 @@ const { generateQRCode } = require('./qrCodeService');
  */
 const buildProvisioningPayload = (customerId, frpUserId = '') => {
     const componentName = process.env.DPC_COMPONENT_NAME || 'com.mdmandroid/.receiver.DeviceAdminReceiver';
-    const downloadUrl = process.env.APP_DOWNLOAD_URL;
-    const signatureChecksum = process.env.APP_SIGNATURE_CHECKSUM;
+    const downloadUrl = process.env.PROVISIONING_DEVICE_ADMIN_PACKAGE_DOWNLOAD_LOCATION || process.env.APP_DOWNLOAD_URL;
+    const signatureChecksum = process.env.PROVISIONING_DEVICE_ADMIN_SIGNATURE_CHECKSUM || process.env.APP_SIGNATURE_CHECKSUM;
     const backendUrl = process.env.BACKEND_URL;
 
     if (!downloadUrl) {
-        throw new Error('APP_DOWNLOAD_URL is not configured');
+        throw new Error('PROVISIONING_DEVICE_ADMIN_PACKAGE_DOWNLOAD_LOCATION is not configured');
     }
     if (!signatureChecksum) {
-        throw new Error('APP_SIGNATURE_CHECKSUM is not configured');
+        throw new Error('PROVISIONING_DEVICE_ADMIN_SIGNATURE_CHECKSUM is not configured');
     }
 
     const payload = {
