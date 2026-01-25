@@ -40,6 +40,15 @@ const customerSchema = new mongoose.Schema({
     match: /^[0-9]{15}$/,
     sparse: true
   },
+  // Phone numbers from the device SIM cards
+  deviceMobileNumber1: {
+    type: String,
+    default: null
+  },
+  deviceMobileNumber2: {
+    type: String,
+    default: null
+  },
   fatherName: {
     type: String,
     required: true,

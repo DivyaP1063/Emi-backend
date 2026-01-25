@@ -50,11 +50,18 @@ const generateCustomerQR = async (req, res) => {
       });
     }
 
-    // AMAPI returns qrCode as a string - we need to generate the actual QR image
-    // The qrCode string is what needs to be encoded into a QR image
-    const qrData = tokenResult.qrCode || tokenResult.token;
-    
-    const qrResult = await generateQRCode(qrData, 512);
+    // Get FRP UserId from admin
+    const admin = await Admin.findOne({ 
+        isActive: true, 
+        googleUserId: { $ne: null } 
+    }).select('googleUserId').lean();
+    const frpUserId = admin?.googleUserId || '';
+
+    // Build custom provisioning payload with FRP UserId
+    const payload = buildProvisioningPayload(customerId, tokenResult.token, process.env.BACKEND_URL, frpUserId);
+
+    // Generate QR code from custom payload
+    const qrResult = await generateQRCode(payload, 512);
     if (!qrResult.success) {
       return res.status(500).json({
         success: false,
@@ -63,19 +70,20 @@ const generateCustomerQR = async (req, res) => {
       });
     }
 
-    console.log("✅ QR Code image generated successfully (Google DPC)");
+    console.log("✅ QR Code generated successfully (Custom Provisioning)");
     console.log("====================================\n");
 
     return res.status(200).json({
       success: true,
-      message: "QR code generated successfully (Google DPC)",
+      message: "QR code generated successfully",
       data: {
         customerId,
         customerName: customer.fullName,
-        qrCode: qrResult.qrCode,  // Base64 data URL of the QR image
+        qrCode: qrResult.qrCode,
         enrollmentToken: tokenResult.token,
         expiresAt: tokenResult.expirationTime,
         policyId,
+        payload,
       },
     });
   } catch (error) {

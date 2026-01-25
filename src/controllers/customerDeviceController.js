@@ -608,6 +608,92 @@ const getRetailerShop = async (req, res) => {
     }
 };
 
+/**
+ * Validation rules for updating device mobile numbers
+ */
+const updateDeviceMobileNumbersValidation = [
+    body('imei1')
+        .trim()
+        .matches(/^[0-9]{15}$/)
+        .withMessage('IMEI1 must be exactly 15 digits'),
+    body('deviceMobileNumber1')
+        .optional({ nullable: true })
+        .trim(),
+    body('deviceMobileNumber2')
+        .optional({ nullable: true })
+        .trim()
+];
+
+/**
+ * Update Device Mobile Numbers
+ * Called by mobile app to report phone numbers from SIM cards
+ * POST /api/customer/device/mobile-numbers
+ */
+const updateDeviceMobileNumbers = async (req, res) => {
+    try {
+        // Validate request
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({
+                success: false,
+                message: 'Validation failed',
+                error: 'VALIDATION_ERROR',
+                details: errors.array()
+            });
+        }
+
+        const { imei1, deviceMobileNumber1, deviceMobileNumber2 } = req.body;
+
+        console.log('\n📱 ===== UPDATE DEVICE MOBILE NUMBERS =====');
+        console.log(`IMEI: ${imei1}`);
+        console.log(`Mobile 1: ${deviceMobileNumber1 || 'Not provided'}`);
+        console.log(`Mobile 2: ${deviceMobileNumber2 || 'Not provided'}`);
+
+        // Find customer by IMEI
+        const customer = await Customer.findOne({ imei1 });
+
+        if (!customer) {
+            console.log('❌ Customer not found');
+            return res.status(404).json({
+                success: false,
+                message: 'Customer not found with this IMEI',
+                error: 'CUSTOMER_NOT_FOUND'
+            });
+        }
+
+        // Update device mobile numbers
+        if (deviceMobileNumber1 !== undefined) {
+            customer.deviceMobileNumber1 = deviceMobileNumber1 || null;
+        }
+        if (deviceMobileNumber2 !== undefined) {
+            customer.deviceMobileNumber2 = deviceMobileNumber2 || null;
+        }
+
+        await customer.save();
+
+        console.log('✅ Device mobile numbers updated');
+        console.log('==========================================\n');
+
+        return res.status(200).json({
+            success: true,
+            message: 'Device mobile numbers updated successfully',
+            data: {
+                imei1: customer.imei1,
+                deviceMobileNumber1: customer.deviceMobileNumber1,
+                deviceMobileNumber2: customer.deviceMobileNumber2
+            }
+        });
+
+    } catch (error) {
+        console.error('❌ Update device mobile numbers error:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Failed to update device mobile numbers',
+            error: 'SERVER_ERROR'
+        });
+    }
+};
+
 module.exports = {
     updateCustomerFcmToken,
     updateFcmTokenValidation,
@@ -618,4 +704,6 @@ module.exports = {
     updateCustomerLocation,
     updateLocationValidation,
     getRetailerShop,
+    updateDeviceMobileNumbers,
+    updateDeviceMobileNumbersValidation,
 };
