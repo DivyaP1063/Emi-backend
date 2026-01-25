@@ -11,11 +11,9 @@ const recoveryHeadApiRoutes = require('./routes/recoveryHeadApiRoutes');
 const recoveryPersonApiRoutes = require('./routes/recoveryPersonApiRoutes');
 const stockistRoutes = require('./routes/stockistRoutes');
 const customerDeviceRoutes = require('./routes/customerDeviceRoutes');
-const webhookRoutes = require('./routes/webhookRoutes');
 const publicBrandRoutes = require('./routes/publicBrandRoutes');
 const { initializeFirebase } = require('./services/firebaseService');
 const { startCronService, stopCronService } = require('./services/cronService');
-const { initializeAndroidManagement } = require('./services/androidManagementService');
 const { initializeActivityMonitor } = require('./services/deviceActivityMonitor');
 
 // Initialize Express app
@@ -33,14 +31,6 @@ try {
 } catch (error) {
   console.error('⚠️  Firebase initialization failed:', error.message);
   console.log('ℹ️  Server will continue without FCM notifications');
-}
-
-// Initialize Android Management API
-try {
-  initializeAndroidManagement();
-} catch (error) {
-  console.error('⚠️  Android Management API initialization failed:', error.message);
-  console.log('ℹ️  Server will continue without Android Management fallback');
 }
 
 // Initialize Device Activity Monitor (auto-mark inactive devices)
@@ -95,7 +85,6 @@ app.use('/api/recovery-head', recoveryHeadApiRoutes);
 app.use('/api/recovery-person', recoveryPersonApiRoutes);
 app.use('/api/stockist', stockistRoutes);
 app.use('/api/customer/device', customerDeviceRoutes);
-app.use('/api/webhooks', webhookRoutes); // AMAPI webhooks
 app.use('/api', publicBrandRoutes); // Public brand browsing (no auth required)
 
 console.log('✅ Accountant routes mounted at /api/accountant');

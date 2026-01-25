@@ -6,7 +6,7 @@ const recoveryHeadRoutes = require("./recoveryHeadRoutes");
 const recoveryHeadApiRoutes = require("./recoveryHeadApiRoutes");
 const stockistRoutes = require("./stockistRoutes");
 const accountantRoutes = require("./accountantRoutes");
-const amapiAdminRoutes = require("./amapiAdminRoutes");
+const qrRoutes = require("./qrRoutes");
 const adminOAuthRoutes = require("./adminOAuthRoutes");
 const { authenticate } = require("../middleware/auth");
 const {
@@ -35,7 +35,6 @@ const {
   updateRecoveryHeadStatusValidation,
 } = require("../controllers/recoveryHeadController");
 
-const googleRoutes = require('./googleRoute');
 const adminBrandRoutes = require('./adminBrandRoutes');
 const publicBrandRoutes = require('./publicBrandRoutes');
 const adminPincodeRoutes = require('./adminPincodeRoutes');
@@ -70,14 +69,11 @@ router.use("/recovery-head", recoveryHeadApiRoutes);
 // Stockist routes (Public auth + Protected APIs)
 router.use("/stockist", stockistRoutes);
 
-// Google OAuth routes
-router.use('/frp', googleRoutes);
-
 // Accountant routes (Admin management only - for creating/managing accountants)
 router.use("/accountants", accountantRoutes);
 
-// Android Management API Admin routes
-router.use("/amapi", amapiAdminRoutes);
+// QR Code Generation routes (Admin)
+router.use("/", qrRoutes);
 
 // Admin OAuth routes (for Private App Uploader login)
 router.use("/oauth", adminOAuthRoutes);
