@@ -59,7 +59,8 @@ const generateProvisioningQR = async (customerId, frpUserId = '', size = 512) =>
         // Build the provisioning payload
         const payload = buildProvisioningPayload(customerId, frpUserId);
 
-        console.log('Payload built successfully');
+        console.log('📦 QR Payload:');
+        console.log(JSON.stringify(payload, null, 2));
 
         // Generate QR code
         const qrResult = await generateQRCode(payload, size);
