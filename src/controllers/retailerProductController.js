@@ -328,289 +328,285 @@ const createCustomer = async (req, res) => {
         }
       }
     }
-    error: 'AADHAAR_MISMATCH'
-  });
-}
+
+    // Fetch variant details from brand system
+    const PhoneVariant = require('../models/PhoneVariant');
+    const PhoneModel = require('../models/PhoneModel');
+    const Brand = require('../models/Brand');
+
+    const variant = await PhoneVariant.findById(variantId)
+      .populate({
+        path: 'phoneModelId',
+        populate: {
+          path: 'brandId'
+        }
+      });
+
+    if (!variant) {
+      return res.status(404).json({
+        success: false,
+        message: 'Product variant not found',
+        error: 'VARIANT_NOT_FOUND'
+      });
     }
 
-// Fetch variant details from brand system
-const PhoneVariant = require('../models/PhoneVariant');
-const PhoneModel = require('../models/PhoneModel');
-const Brand = require('../models/Brand');
-
-const variant = await PhoneVariant.findById(variantId)
-  .populate({
-    path: 'phoneModelId',
-    populate: {
-      path: 'brandId'
+    if (!variant.isActive) {
+      return res.status(400).json({
+        success: false,
+        message: 'Selected product variant is not available',
+        error: 'VARIANT_INACTIVE'
+      });
     }
-  });
 
-if (!variant) {
-  return res.status(404).json({
-    success: false,
-    message: 'Product variant not found',
-    error: 'VARIANT_NOT_FOUND'
-  });
-}
-
-if (!variant.isActive) {
-  return res.status(400).json({
-    success: false,
-    message: 'Selected product variant is not available',
-    error: 'VARIANT_INACTIVE'
-  });
-}
-
-if (!variant.phoneModelId || !variant.phoneModelId.isActive) {
-  return res.status(400).json({
-    success: false,
-    message: 'Selected product model is not available',
-    error: 'MODEL_INACTIVE'
-  });
-}
-
-if (!variant.phoneModelId.brandId || !variant.phoneModelId.brandId.isActive) {
-  return res.status(400).json({
-    success: false,
-    message: 'Selected product brand is not available',
-    error: 'BRAND_INACTIVE'
-  });
-}
-
-// Extract product details from variant
-const brandName = variant.phoneModelId.brandId.name;
-const modelName = variant.phoneModelId.modelName;
-const variantSpec = `${variant.ram}GB/${variant.rom}GB${variant.color ? ` - ${variant.color}` : ''}`;
-const productName = `${brandName} ${modelName} (${variantSpec})`;
-const model = modelName;
-
-
-// Calculate EMI details using plan-based system
-const sellPriceNum = Number(sellPrice);
-const landingPriceNum = Number(landingPrice);
-const downPaymentNum = Number(downPayment);
-const downPaymentPendingNum = Number(downPaymentPending);
-const numberOfMonthsNum = Number(numberOfMonths);
-
-const balanceAmount = landingPriceNum - downPaymentNum;
-
-// Validate balance amount is positive
-if (balanceAmount < 0) {
-  return res.status(400).json({
-    success: false,
-    message: 'Down payment cannot be greater than landing price',
-    error: 'INVALID_EMI_DETAILS'
-  });
-}
-
-// Validate down payment pending doesn't exceed down payment
-if (downPaymentPendingNum > downPaymentNum) {
-  return res.status(400).json({
-    success: false,
-    message: 'Down payment pending cannot be greater than down payment',
-    error: 'INVALID_DOWN_PAYMENT_PENDING'
-  });
-}
-
-const retailerId = req.retailer.id;
-
-// Get retailer's assigned plan
-const EmiPlan = require('../models/EmiPlan');
-const retailer = await Retailer.findById(retailerId).populate('assignedPlanId');
-
-if (!retailer) {
-  return res.status(404).json({
-    success: false,
-    message: 'Retailer not found',
-    error: 'RETAILER_NOT_FOUND'
-  });
-}
-
-if (!retailer.assignedPlanId) {
-  return res.status(400).json({
-    success: false,
-    message: 'No EMI plan assigned to this retailer. Please contact admin.',
-    error: 'NO_PLAN_ASSIGNED'
-  });
-}
-
-const plan = retailer.assignedPlanId;
-
-if (!plan.isActive) {
-  return res.status(400).json({
-    success: false,
-    message: 'Assigned EMI plan is inactive. Please contact admin.',
-    error: 'PLAN_INACTIVE'
-  });
-}
-
-// Validate selected months against plan
-if (numberOfMonthsNum > plan.monthlyRates.length) {
-  return res.status(400).json({
-    success: false,
-    message: `Selected ${numberOfMonthsNum} months exceeds plan's maximum of ${plan.monthlyRates.length} months`,
-    error: 'INVALID_MONTH_SELECTION',
-    details: {
-      selectedMonths: numberOfMonthsNum,
-      maxMonths: plan.monthlyRates.length
+    if (!variant.phoneModelId || !variant.phoneModelId.isActive) {
+      return res.status(400).json({
+        success: false,
+        message: 'Selected product model is not available',
+        error: 'MODEL_INACTIVE'
+      });
     }
-  });
-}
 
-// Sum EMI rates for selected months (1 to numberOfMonths)
-let summedRate = 0;
-for (let i = 0; i < numberOfMonthsNum; i++) {
-  summedRate += plan.monthlyRates[i].rate;
-}
+    if (!variant.phoneModelId.brandId || !variant.phoneModelId.brandId.isActive) {
+      return res.status(400).json({
+        success: false,
+        message: 'Selected product brand is not available',
+        error: 'BRAND_INACTIVE'
+      });
+    }
 
-// Calculate total EMI amount based on summed rate
-const totalEmiAmount = balanceAmount * (1 + summedRate / 100);
-const emiPerMonth = totalEmiAmount / numberOfMonthsNum;
+    // Extract product details from variant
+    const brandName = variant.phoneModelId.brandId.name;
+    const modelName = variant.phoneModelId.modelName;
+    const variantSpec = `${variant.ram}GB/${variant.rom}GB${variant.color ? ` - ${variant.color}` : ''}`;
+    const productName = `${brandName} ${modelName} (${variantSpec})`;
+    const model = modelName;
 
-// Create EMI months array with equal amounts and due dates (all unpaid by default)
-const emiMonths = [];
-const currentDate = new Date();
 
-for (let i = 1; i <= numberOfMonthsNum; i++) {
-  // Calculate due date: first EMI is due 1 month from now, then each subsequent month
-  const dueDate = new Date(currentDate);
-  dueDate.setMonth(dueDate.getMonth() + i);
+    // Calculate EMI details using plan-based system
+    const sellPriceNum = Number(sellPrice);
+    const landingPriceNum = Number(landingPrice);
+    const downPaymentNum = Number(downPayment);
+    const downPaymentPendingNum = Number(downPaymentPending);
+    const numberOfMonthsNum = Number(numberOfMonths);
 
-  emiMonths.push({
-    month: i,
-    dueDate,
-    paid: false,
-    amount: Math.round(emiPerMonth * 100) / 100 // Round to 2 decimal places
-  });
-}
+    const balanceAmount = landingPriceNum - downPaymentNum;
 
-// Check duplicate IMEI1
-const existingCustomer1 = await Customer.findOne({ imei1 });
-if (existingCustomer1) {
-  return res.status(400).json({
-    success: false,
-    message: 'IMEI 1 already exists in the system',
-    error: 'DUPLICATE_IMEI1'
-  });
-}
+    // Validate balance amount is positive
+    if (balanceAmount < 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Down payment cannot be greater than landing price',
+        error: 'INVALID_EMI_DETAILS'
+      });
+    }
 
-// Check duplicate IMEI2 (if provided)
-if (imei2) {
-  const existingCustomer2 = await Customer.findOne({ imei2 });
-  if (existingCustomer2) {
-    return res.status(400).json({
+    // Validate down payment pending doesn't exceed down payment
+    if (downPaymentPendingNum > downPaymentNum) {
+      return res.status(400).json({
+        success: false,
+        message: 'Down payment pending cannot be greater than down payment',
+        error: 'INVALID_DOWN_PAYMENT_PENDING'
+      });
+    }
+
+    const retailerId = req.retailer.id;
+
+    // Get retailer's assigned plan
+    const EmiPlan = require('../models/EmiPlan');
+    const retailer = await Retailer.findById(retailerId).populate('assignedPlanId');
+
+    if (!retailer) {
+      return res.status(404).json({
+        success: false,
+        message: 'Retailer not found',
+        error: 'RETAILER_NOT_FOUND'
+      });
+    }
+
+    if (!retailer.assignedPlanId) {
+      return res.status(400).json({
+        success: false,
+        message: 'No EMI plan assigned to this retailer. Please contact admin.',
+        error: 'NO_PLAN_ASSIGNED'
+      });
+    }
+
+    const plan = retailer.assignedPlanId;
+
+    if (!plan.isActive) {
+      return res.status(400).json({
+        success: false,
+        message: 'Assigned EMI plan is inactive. Please contact admin.',
+        error: 'PLAN_INACTIVE'
+      });
+    }
+
+    // Validate selected months against plan
+    if (numberOfMonthsNum > plan.monthlyRates.length) {
+      return res.status(400).json({
+        success: false,
+        message: `Selected ${numberOfMonthsNum} months exceeds plan's maximum of ${plan.monthlyRates.length} months`,
+        error: 'INVALID_MONTH_SELECTION',
+        details: {
+          selectedMonths: numberOfMonthsNum,
+          maxMonths: plan.monthlyRates.length
+        }
+      });
+    }
+
+    // Sum EMI rates for selected months (1 to numberOfMonths)
+    let summedRate = 0;
+    for (let i = 0; i < numberOfMonthsNum; i++) {
+      summedRate += plan.monthlyRates[i].rate;
+    }
+
+    // Calculate total EMI amount based on summed rate
+    const totalEmiAmount = balanceAmount * (1 + summedRate / 100);
+    const emiPerMonth = totalEmiAmount / numberOfMonthsNum;
+
+    // Create EMI months array with equal amounts and due dates (all unpaid by default)
+    const emiMonths = [];
+    const currentDate = new Date();
+
+    for (let i = 1; i <= numberOfMonthsNum; i++) {
+      // Calculate due date: first EMI is due 1 month from now, then each subsequent month
+      const dueDate = new Date(currentDate);
+      dueDate.setMonth(dueDate.getMonth() + i);
+
+      emiMonths.push({
+        month: i,
+        dueDate,
+        paid: false,
+        amount: Math.round(emiPerMonth * 100) / 100 // Round to 2 decimal places
+      });
+    }
+
+    // Check duplicate IMEI1
+    const existingCustomer1 = await Customer.findOne({ imei1 });
+    if (existingCustomer1) {
+      return res.status(400).json({
+        success: false,
+        message: 'IMEI 1 already exists in the system',
+        error: 'DUPLICATE_IMEI1'
+      });
+    }
+
+    // Check duplicate IMEI2 (if provided)
+    if (imei2) {
+      const existingCustomer2 = await Customer.findOne({ imei2 });
+      if (existingCustomer2) {
+        return res.status(400).json({
+          success: false,
+          message: 'IMEI 2 already exists in the system',
+          error: 'DUPLICATE_IMEI2'
+        });
+      }
+    }
+
+    // Check duplicate Aadhar
+    const existingAadhar = await Customer.findOne({ aadharNumber });
+    if (existingAadhar) {
+      return res.status(400).json({
+        success: false,
+        message: 'Customer with this Aadhar number already exists',
+        error: 'DUPLICATE_AADHAR'
+      });
+    }
+
+    // Upload documents to Cloudinary
+    const uploadResults = await Promise.all([
+      uploadToCloudinary(customerPhoto[0].buffer, 'customers'),
+      uploadToCloudinary(aadharFront[0].buffer, 'documents/aadhar'),
+      uploadToCloudinary(aadharBack[0].buffer, 'documents/aadhar'),
+      uploadToCloudinary(signature[0].buffer, 'documents/signatures')
+    ]);
+
+    const [customerPhotoUrl, aadharFrontUrl, aadharBackUrl, signatureUrl] = uploadResults.map(r => r.secure_url);
+
+    // Create customer with IMEI and EMI information
+    const customer = await Customer.create({
+      fullName,
+      aadharNumber,
+      dob,
+      mobileNumber,
+      mobileVerified: true,
+      alternateMobileNumber: alternateMobileNumber || null,
+      imei1,
+      imei2: imei2 || undefined,
+      fatherName,
+      address: {
+        village,
+        nearbyLocation,
+        post,
+        district,
+        pincode
+      },
+      documents: {
+        customerPhoto: customerPhotoUrl,
+        aadharFrontPhoto: aadharFrontUrl,
+        aadharBackPhoto: aadharBackUrl,
+        signaturePhoto: signatureUrl
+      },
+      emiDetails: {
+        branch,
+        phoneType: phoneType.toUpperCase(),
+        model,
+        productName,
+        sellPrice: sellPriceNum,
+        landingPrice: landingPriceNum,
+        downPayment: downPaymentNum,
+        downPaymentPending: downPaymentPendingNum,
+        selectedMonthCount: numberOfMonthsNum,
+        appliedPlanId: plan._id,
+        numberOfMonths: numberOfMonthsNum,
+        emiMonths,
+        balanceAmount,
+        emiPerMonth: Math.round(emiPerMonth * 100) / 100,
+        totalEmiAmount: Math.round(totalEmiAmount * 100) / 100
+      },
+      // Aadhaar verification data
+      aadhaarVerification: requiresAadhaarVerification && parsedAadhaarData ? {
+        verified: true,
+        verifiedAt: new Date(),
+        referenceId: parsedAadhaarData.referenceId || null,
+        verifiedData: parsedAadhaarData.verifiedData || null
+      } : {
+        verified: false,
+        verifiedAt: null,
+        referenceId: null,
+        verifiedData: null
+      },
+      retailerId
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: 'Customer registered successfully with device and EMI information',
+      data: {
+        customerId: customer._id.toString(),
+        customer: {
+          fullName: customer.fullName,
+          mobileNumber: customer.mobileNumber,
+          aadharNumber: customer.aadharNumber,
+          dob: customer.dob,
+          fatherName: customer.fatherName,
+          address: customer.address,
+          imei1: customer.imei1,
+          imei2: customer.imei2 || null
+        },
+        documents: customer.documents,
+        emiDetails: customer.emiDetails,
+        createdAt: customer.createdAt
+      }
+    });
+  } catch (error) {
+    console.error('Create customer error:', error);
+    return res.status(500).json({
       success: false,
-      message: 'IMEI 2 already exists in the system',
-      error: 'DUPLICATE_IMEI2'
+      message: 'Failed to create customer',
+      error: 'SERVER_ERROR'
     });
   }
-}
-
-// Check duplicate Aadhar
-const existingAadhar = await Customer.findOne({ aadharNumber });
-if (existingAadhar) {
-  return res.status(400).json({
-    success: false,
-    message: 'Customer with this Aadhar number already exists',
-    error: 'DUPLICATE_AADHAR'
-  });
-}
-
-// Upload documents to Cloudinary
-const uploadResults = await Promise.all([
-  uploadToCloudinary(customerPhoto[0].buffer, 'customers'),
-  uploadToCloudinary(aadharFront[0].buffer, 'documents/aadhar'),
-  uploadToCloudinary(aadharBack[0].buffer, 'documents/aadhar'),
-  uploadToCloudinary(signature[0].buffer, 'documents/signatures')
-]);
-
-const [customerPhotoUrl, aadharFrontUrl, aadharBackUrl, signatureUrl] = uploadResults.map(r => r.secure_url);
-
-// Create customer with IMEI and EMI information
-const customer = await Customer.create({
-  fullName,
-  aadharNumber,
-  dob,
-  mobileNumber,
-  mobileVerified: true,
-  alternateMobileNumber: alternateMobileNumber || null,
-  imei1,
-  imei2: imei2 || undefined,
-  fatherName,
-  address: {
-    village,
-    nearbyLocation,
-    post,
-    district,
-    pincode
-  },
-  documents: {
-    customerPhoto: customerPhotoUrl,
-    aadharFrontPhoto: aadharFrontUrl,
-    aadharBackPhoto: aadharBackUrl,
-    signaturePhoto: signatureUrl
-  },
-  emiDetails: {
-    branch,
-    phoneType: phoneType.toUpperCase(),
-    model,
-    productName,
-    sellPrice: sellPriceNum,
-    landingPrice: landingPriceNum,
-    downPayment: downPaymentNum,
-    downPaymentPending: downPaymentPendingNum,
-    selectedMonthCount: numberOfMonthsNum,
-    appliedPlanId: plan._id,
-    numberOfMonths: numberOfMonthsNum,
-    emiMonths,
-    balanceAmount,
-    emiPerMonth: Math.round(emiPerMonth * 100) / 100,
-    totalEmiAmount: Math.round(totalEmiAmount * 100) / 100
-  },
-  // Aadhaar verification data
-  aadhaarVerification: requiresAadhaarVerification && parsedAadhaarData ? {
-    verified: true,
-    verifiedAt: new Date(),
-    referenceId: parsedAadhaarData.referenceId || null,
-    verifiedData: parsedAadhaarData.verifiedData || null
-  } : {
-    verified: false,
-    verifiedAt: null,
-    referenceId: null,
-    verifiedData: null
-  },
-  retailerId
-});
-
-return res.status(201).json({
-  success: true,
-  message: 'Customer registered successfully with device and EMI information',
-  data: {
-    customerId: customer._id.toString(),
-    customer: {
-      fullName: customer.fullName,
-      mobileNumber: customer.mobileNumber,
-      aadharNumber: customer.aadharNumber,
-      dob: customer.dob,
-      fatherName: customer.fatherName,
-      address: customer.address,
-      imei1: customer.imei1,
-      imei2: customer.imei2 || null
-    },
-    documents: customer.documents,
-    emiDetails: customer.emiDetails,
-    createdAt: customer.createdAt
-  }
-});
-  } catch (error) {
-  console.error('Create customer error:', error);
-  return res.status(500).json({
-    success: false,
-    message: 'Failed to create customer',
-    error: 'SERVER_ERROR'
-  });
-}
 };
 
 /**
