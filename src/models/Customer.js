@@ -298,7 +298,7 @@ const customerSchema = new mongoose.Schema({
       gender: {
         type: String,
         default: null,
-        enum: ['M', 'F', 'O', null]
+        enum: ['M', 'F', 'O', 'MALE', 'FEMALE', 'OTHER', null]
       },
       address: {
         house: {
