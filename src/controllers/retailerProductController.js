@@ -106,10 +106,17 @@ const verifyCustomerOTP = async (req, res) => {
  */
 const sendAadhaarOtpController = async (req, res) => {
   try {
+    console.log('🔍 Aadhaar OTP Request received:', {
+      body: req.body,
+      aadhaarNumber: req.body.aadhaarNumber,
+      retailerId: req.retailer?.id
+    });
+
     const { aadhaarNumber } = req.body;
 
     // Validate Aadhaar number
     if (!aadhaarNumber || !/^[0-9]{12}$/.test(aadhaarNumber)) {
+      console.log('❌ Aadhaar validation failed:', { aadhaarNumber, isValid: !/^[0-9]{12}$/.test(aadhaarNumber) });
       return res.status(400).json({
         success: false,
         message: 'Aadhaar number must be exactly 12 digits',
@@ -117,16 +124,31 @@ const sendAadhaarOtpController = async (req, res) => {
       });
     }
 
+    console.log('✅ Calling KYC service for Aadhaar:', aadhaarNumber);
+
     // Call KYC service to send OTP
     const result = await sendAadhaarOtp(aadhaarNumber);
 
+    console.log('📡 KYC Service Response:', {
+      success: result.success,
+      message: result.message,
+      responseCode: result.responseCode,
+      referenceId: result.referenceId
+    });
+
     if (!result.success) {
+      console.log('❌ KYC service returned error:', result);
       return res.status(400).json({
         success: false,
         message: result.message,
         error: result.responseCode || 'KYC_ERROR'
       });
     }
+
+    console.log('✅ Aadhaar OTP sent successfully:', {
+      referenceId: result.referenceId,
+      message: result.message
+    });
 
     return res.status(200).json({
       success: true,
@@ -136,11 +158,13 @@ const sendAadhaarOtpController = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Send Aadhaar OTP controller error:', error);
+    console.error('💥 Send Aadhaar OTP controller error:', error);
+    console.error('Error stack:', error.stack);
     return res.status(500).json({
       success: false,
       message: 'Failed to send Aadhaar OTP',
-      error: 'SERVER_ERROR'
+      error: 'SERVER_ERROR',
+      debug: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };

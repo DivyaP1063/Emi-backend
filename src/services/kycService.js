@@ -49,12 +49,19 @@ const sendAadhaarOtp = async (aadhaarNumber) => {
 
         // Validate credentials
         if (!CLIENT_ID || !CLIENT_SECRET) {
-            console.error('KYC API credentials not configured');
+            console.error('❌ KYC API credentials not configured');
             return {
                 success: false,
                 message: 'KYC service not configured. Please contact administrator.'
             };
         }
+
+        console.log('🚀 Making KYC API request:', {
+            url: `${KYC_BASE_URL}/kyc/external/aadhaarOtp`,
+            aadhaarNumber: aadhaarNumber.slice(0, 4) + '****' + aadhaarNumber.slice(-4),
+            hasClientId: !!CLIENT_ID,
+            hasClientSecret: !!CLIENT_SECRET
+        });
 
         const response = await axios.post(
             `${KYC_BASE_URL}/kyc/external/aadhaarOtp`,
@@ -71,6 +78,11 @@ const sendAadhaarOtp = async (aadhaarNumber) => {
             }
         );
 
+        console.log('📡 KYC API Response:', {
+            status: response.status,
+            data: response.data
+        });
+
         const { referenceId, responseMessage, responseCode } = response.data;
 
         // Check for success
@@ -84,6 +96,12 @@ const sendAadhaarOtp = async (aadhaarNumber) => {
         }
 
         // Handle error response codes
+        console.log('❌ KYC API Error Response:', {
+            responseCode,
+            responseMessage,
+            errorMessage: ERROR_MESSAGES[responseCode]
+        });
+
         const errorMessage = ERROR_MESSAGES[responseCode] || responseMessage || 'Failed to send OTP';
         return {
             success: false,
@@ -92,7 +110,14 @@ const sendAadhaarOtp = async (aadhaarNumber) => {
         };
 
     } catch (error) {
-        console.error('Send Aadhaar OTP error:', error.message);
+        console.error('💥 Send Aadhaar OTP catch block error:', {
+            message: error.message,
+            code: error.code,
+            config: {
+                url: error.config?.url,
+                method: error.config?.method
+            }
+        });
 
         // Log full error details for debugging
         if (error.response) {
