@@ -39,7 +39,7 @@ const phoneVariantSchema = new mongoose.Schema({
     sku: {
         type: String,
         unique: true,
-        sparse: true,
+        sparse: true, // Allows multiple documents without SKU field
         trim: true
     },
     isActive: {

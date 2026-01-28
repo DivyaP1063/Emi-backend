@@ -104,17 +104,21 @@ const createPhoneVariant = async (req, res) => {
         }
 
         // Create phone variant
-        const phoneVariant = new PhoneVariant({
+        const variantData = {
             phoneModelId: modelId,
             ram,
             rom,
             price,
-            mrp: mrp || null,
-            color: color || null,
-            stock: stock || 0,
-            sku: sku || null,
             createdBy: new mongoose.Types.ObjectId(req.admin.id)
-        });
+        };
+
+        // Only add optional fields if they have values
+        if (mrp) variantData.mrp = mrp;
+        if (color) variantData.color = color;
+        if (stock !== undefined) variantData.stock = stock;
+        if (sku) variantData.sku = sku; // Only add SKU if provided to avoid duplicate null values
+
+        const phoneVariant = new PhoneVariant(variantData);
 
         await phoneVariant.save();
 
