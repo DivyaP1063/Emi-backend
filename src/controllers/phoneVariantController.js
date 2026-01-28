@@ -1,4 +1,5 @@
 const { body, param, query, validationResult } = require('express-validator');
+const mongoose = require('mongoose');
 const PhoneVariant = require('../models/PhoneVariant');
 const PhoneModel = require('../models/PhoneModel');
 const Brand = require('../models/Brand');
@@ -92,6 +93,16 @@ const createPhoneVariant = async (req, res) => {
             }
         }
 
+
+        // Validate that admin ID is a valid ObjectId
+        if (!mongoose.Types.ObjectId.isValid(req.admin.id)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid admin ID format',
+                error: 'INVALID_ADMIN_ID'
+            });
+        }
+
         // Create phone variant
         const phoneVariant = new PhoneVariant({
             phoneModelId: modelId,
@@ -102,10 +113,11 @@ const createPhoneVariant = async (req, res) => {
             color: color || null,
             stock: stock || 0,
             sku: sku || null,
-            createdBy: req.admin.id
+            createdBy: new mongoose.Types.ObjectId(req.admin.id)
         });
 
         await phoneVariant.save();
+
 
         return res.status(201).json({
             success: true,
@@ -130,10 +142,16 @@ const createPhoneVariant = async (req, res) => {
         });
     } catch (error) {
         console.error('Create phone variant error:', error);
+        console.error('Error details:', {
+            message: error.message,
+            stack: error.stack,
+            name: error.name
+        });
         return res.status(500).json({
             success: false,
             message: 'Failed to create phone variant',
-            error: 'SERVER_ERROR'
+            error: 'SERVER_ERROR',
+            details: error.message // Add error message for debugging
         });
     }
 };
