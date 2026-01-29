@@ -29,6 +29,9 @@ const buildProvisioningPayload = (customerId, frpUserId = '') => {
         'android.app.extra.PROVISIONING_DEVICE_ADMIN_COMPONENT_NAME': componentName,
         'android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_DOWNLOAD_LOCATION': downloadUrl,
         'android.app.extra.PROVISIONING_DEVICE_ADMIN_SIGNATURE_CHECKSUM': signatureChecksum,
+        // Android 12+ compatibility fields
+        'android.app.extra.PROVISIONING_SKIP_ENCRYPTION': true,
+        'android.app.extra.PROVISIONING_LEAVE_ALL_SYSTEM_APPS_ENABLED': true,
         'android.app.extra.PROVISIONING_ADMIN_EXTRAS_BUNDLE': {
             backend_url: backendUrl,
             customer_id: customerId
