@@ -6,6 +6,26 @@ const { generateQRCode } = require('./qrCodeService');
  */
 
 /**
+ * Ensure proper Base64 padding for checksums
+ * Android 12+ requires strict Base64 format with proper padding
+ * @param {string} checksum - Base64 checksum string
+ * @returns {string} Properly padded Base64 checksum
+ */
+const ensureBase64Padding = (checksum) => {
+    if (!checksum) return checksum;
+
+    // Remove any existing padding
+    let normalized = checksum.replace(/=+$/, '');
+
+    // Add proper padding based on length
+    // Base64 strings should be multiples of 4 characters
+    const paddingNeeded = (4 - (normalized.length % 4)) % 4;
+    normalized += '='.repeat(paddingNeeded);
+
+    return normalized;
+};
+
+/**
  * Build provisioning payload for QR code
  * This payload tells Android to install our DPC app and pass extras to it
  * @param {string} customerId - Customer ID
@@ -15,7 +35,10 @@ const { generateQRCode } = require('./qrCodeService');
 const buildProvisioningPayload = (customerId, frpUserId = '') => {
     const componentName = process.env.DPC_COMPONENT_NAME || 'com.mdmandroid/.receiver.DeviceAdminReceiver';
     const downloadUrl = process.env.PROVISIONING_DEVICE_ADMIN_PACKAGE_DOWNLOAD_LOCATION || process.env.APP_DOWNLOAD_URL;
-    const signatureChecksum = process.env.PROVISIONING_DEVICE_ADMIN_SIGNATURE_CHECKSUM || process.env.APP_SIGNATURE_CHECKSUM;
+    const rawChecksum = process.env.PROVISIONING_DEVICE_ADMIN_SIGNATURE_CHECKSUM || process.env.APP_SIGNATURE_CHECKSUM;
+
+    // Ensure proper Base64 padding for Android 12+ compatibility
+    const signatureChecksum = ensureBase64Padding(rawChecksum);
     const backendUrl = process.env.BACKEND_URL;
 
     if (!downloadUrl) {
@@ -61,6 +84,11 @@ const generateProvisioningQR = async (customerId, frpUserId = '', size = 512) =>
 
         // Build the provisioning payload
         const payload = buildProvisioningPayload(customerId, frpUserId);
+
+        // Log checksum info for debugging Android 12+ compatibility
+        const rawChecksum = process.env.PROVISIONING_DEVICE_ADMIN_SIGNATURE_CHECKSUM || process.env.APP_SIGNATURE_CHECKSUM;
+        console.log(`🔐 Checksum (raw): ${rawChecksum} (length: ${rawChecksum?.length || 0})`);
+        console.log(`🔐 Checksum (padded): ${payload['android.app.extra.PROVISIONING_DEVICE_ADMIN_SIGNATURE_CHECKSUM']} (length: ${payload['android.app.extra.PROVISIONING_DEVICE_ADMIN_SIGNATURE_CHECKSUM']?.length || 0})`);
 
         console.log('📦 QR Payload:');
         console.log(JSON.stringify(payload, null, 2));
