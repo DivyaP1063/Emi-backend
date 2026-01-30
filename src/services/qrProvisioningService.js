@@ -66,18 +66,18 @@ const buildProvisioningPayload = (customerId, frpUserId = '') => {
     console.log(`   Using: ${downloadUrl || '(MISSING!)'}`);
     console.log(`   Source: ${process.env.PROVISIONING_DEVICE_ADMIN_PACKAGE_DOWNLOAD_LOCATION ? 'PROVISIONING_DEVICE_ADMIN_PACKAGE_DOWNLOAD_LOCATION' : process.env.APP_DOWNLOAD_URL ? 'APP_DOWNLOAD_URL' : 'NONE'}`);
 
-    // Checksum
-    const rawChecksum = process.env.PROVISIONING_DEVICE_ADMIN_SIGNATURE_CHECKSUM || process.env.APP_SIGNATURE_CHECKSUM;
-    console.log(`\n🔐 Signature Checksum:`);
-    console.log(`   PROVISIONING_DEVICE_ADMIN_SIGNATURE_CHECKSUM: ${process.env.PROVISIONING_DEVICE_ADMIN_SIGNATURE_CHECKSUM || '(not set)'}`);
-    console.log(`   APP_SIGNATURE_CHECKSUM (fallback): ${process.env.APP_SIGNATURE_CHECKSUM || '(not set)'}`);
+    // Package Checksum (CRITICAL: Changed from SIGNATURE to PACKAGE for Oppo compatibility)
+    const rawChecksum = process.env.PROVISIONING_DEVICE_ADMIN_PACKAGE_CHECKSUM || process.env.APP_PACKAGE_CHECKSUM;
+    console.log(`\n🔐 Package Checksum:`);
+    console.log(`   PROVISIONING_DEVICE_ADMIN_PACKAGE_CHECKSUM: ${process.env.PROVISIONING_DEVICE_ADMIN_PACKAGE_CHECKSUM || '(not set)'}`);
+    console.log(`   APP_PACKAGE_CHECKSUM (fallback): ${process.env.APP_PACKAGE_CHECKSUM || '(not set)'}`);
     console.log(`   Raw checksum: "${rawChecksum || '(MISSING!)'}"`);
     console.log(`   Raw length: ${rawChecksum?.length || 0} characters`);
-    console.log(`   Source: ${process.env.PROVISIONING_DEVICE_ADMIN_SIGNATURE_CHECKSUM ? 'PROVISIONING_DEVICE_ADMIN_SIGNATURE_CHECKSUM' : process.env.APP_SIGNATURE_CHECKSUM ? 'APP_SIGNATURE_CHECKSUM' : 'NONE'}`);
+    console.log(`   Source: ${process.env.PROVISIONING_DEVICE_ADMIN_PACKAGE_CHECKSUM ? 'PROVISIONING_DEVICE_ADMIN_PACKAGE_CHECKSUM' : process.env.APP_PACKAGE_CHECKSUM ? 'APP_PACKAGE_CHECKSUM' : 'NONE'}`);
 
     // CRITICAL: Remove Base64 padding for Oppo/Realme compatibility
     // Competitor analysis shows their working solution uses unpadded checksums
-    const signatureChecksum = removeBase64Padding(rawChecksum);
+    const packageChecksum = removeBase64Padding(rawChecksum);
 
     // Backend URL
     const backendUrl = process.env.BACKEND_URL;
@@ -92,9 +92,9 @@ const buildProvisioningPayload = (customerId, frpUserId = '') => {
         console.error('❌ CRITICAL ERROR: PROVISIONING_DEVICE_ADMIN_PACKAGE_DOWNLOAD_LOCATION is not configured');
         throw new Error('PROVISIONING_DEVICE_ADMIN_PACKAGE_DOWNLOAD_LOCATION is not configured');
     }
-    if (!signatureChecksum) {
-        console.error('❌ CRITICAL ERROR: PROVISIONING_DEVICE_ADMIN_SIGNATURE_CHECKSUM is not configured');
-        throw new Error('PROVISIONING_DEVICE_ADMIN_SIGNATURE_CHECKSUM is not configured');
+    if (!packageChecksum) {
+        console.error('❌ CRITICAL ERROR: PROVISIONING_DEVICE_ADMIN_PACKAGE_CHECKSUM is not configured');
+        throw new Error('PROVISIONING_DEVICE_ADMIN_PACKAGE_CHECKSUM is not configured');
     }
 
     console.log('\n✅ All required environment variables are present');
@@ -103,8 +103,8 @@ const buildProvisioningPayload = (customerId, frpUserId = '') => {
 
     const payload = {
         'android.app.extra.PROVISIONING_DEVICE_ADMIN_COMPONENT_NAME': componentName,
+        'android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_CHECKSUM': packageChecksum,
         'android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_DOWNLOAD_LOCATION': downloadUrl,
-        'android.app.extra.PROVISIONING_DEVICE_ADMIN_SIGNATURE_CHECKSUM': signatureChecksum,
         // CRITICAL: Set to false for Oppo/Realme compatibility
         // Competitor analysis shows their working solution uses false
         // Oppo/ColorOS may reject true as "insecure enterprise setup"
@@ -117,8 +117,8 @@ const buildProvisioningPayload = (customerId, frpUserId = '') => {
     };
 
     console.log(`✓ Component Name: ${componentName}`);
+    console.log(`✓ Package Checksum: "${packageChecksum}" (${packageChecksum.length} chars - NO PADDING)`);
     console.log(`✓ Download Location: ${downloadUrl}`);
-    console.log(`✓ Signature Checksum: "${signatureChecksum}" (${signatureChecksum.length} chars - NO PADDING)`);
     console.log(`✓ Skip Encryption: false (CRITICAL: Required for Oppo/Realme)`);
     console.log(`✓ Leave System Apps Enabled: true`);
     console.log(`✓ Admin Extras Bundle:`);
@@ -183,8 +183,8 @@ const generateProvisioningQR = async (customerId, frpUserId = '', size = 512) =>
         console.log('───────────────────────────────────────────────────────────');
         console.log(`⏱️  Generation time: ${duration}ms`);
         console.log(`📏 QR code size: ${size}x${size}px`);
-        console.log(`🔐 Final checksum in payload: "${payload['android.app.extra.PROVISIONING_DEVICE_ADMIN_SIGNATURE_CHECKSUM']}"`);
-        console.log(`📏 Final checksum length: ${payload['android.app.extra.PROVISIONING_DEVICE_ADMIN_SIGNATURE_CHECKSUM']?.length || 0} characters`);
+        console.log(`🔐 Final package checksum in payload: "${payload['android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_CHECKSUM']}"`);
+        console.log(`📏 Final checksum length: ${payload['android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_CHECKSUM']?.length || 0} characters`);
         console.log('═══════════════════════════════════════════════════════════\n\n');
 
         return {
