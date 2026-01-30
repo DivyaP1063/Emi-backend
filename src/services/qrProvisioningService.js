@@ -79,12 +79,6 @@ const buildProvisioningPayload = (customerId, frpUserId = '') => {
     // Competitor analysis shows their working solution uses unpadded checksums
     const packageChecksum = removeBase64Padding(rawChecksum);
 
-    // Backend URL
-    const backendUrl = process.env.BACKEND_URL;
-    console.log(`\n🌐 Backend URL:`);
-    console.log(`   BACKEND_URL: ${backendUrl || '(not set)'}`);
-    console.log(`   Using: ${backendUrl || '(MISSING!)'}`);
-
     console.log('\n─────────────────────────────────────────');
 
     // Validation
@@ -98,38 +92,27 @@ const buildProvisioningPayload = (customerId, frpUserId = '') => {
     }
 
     console.log('\n✅ All required environment variables are present');
-    console.log('\n🔨 CONSTRUCTING PAYLOAD:');
+    console.log('\n🔨 CONSTRUCTING PAYLOAD (EXACT COMPETITOR MATCH):');
     console.log('─────────────────────────────────────────');
 
+    // CRITICAL: Exact 5-field structure matching competitor's working QR
+    // NO admin extras bundle - Oppo/Realme devices require this exact structure
     const payload = {
         'android.app.extra.PROVISIONING_DEVICE_ADMIN_COMPONENT_NAME': componentName,
         'android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_CHECKSUM': packageChecksum,
         'android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_DOWNLOAD_LOCATION': downloadUrl,
-        // CRITICAL: Set to false for Oppo/Realme compatibility
-        // Competitor analysis shows their working solution uses false
-        // Oppo/ColorOS may reject true as "insecure enterprise setup"
-        'android.app.extra.PROVISIONING_SKIP_ENCRYPTION': false,
         'android.app.extra.PROVISIONING_LEAVE_ALL_SYSTEM_APPS_ENABLED': true,
-        'android.app.extra.PROVISIONING_ADMIN_EXTRAS_BUNDLE': {
-            backend_url: backendUrl,
-            customer_id: customerId
-        }
+        'android.app.extra.PROVISIONING_SKIP_ENCRYPTION': false
     };
 
     console.log(`✓ Component Name: ${componentName}`);
     console.log(`✓ Package Checksum: "${packageChecksum}" (${packageChecksum.length} chars - NO PADDING)`);
     console.log(`✓ Download Location: ${downloadUrl}`);
-    console.log(`✓ Skip Encryption: false (CRITICAL: Required for Oppo/Realme)`);
     console.log(`✓ Leave System Apps Enabled: true`);
-    console.log(`✓ Admin Extras Bundle:`);
-    console.log(`  - backend_url: ${backendUrl}`);
-    console.log(`  - customer_id: ${customerId}`);
-
-    // Add FRP user ID if provided
-    if (frpUserId) {
-        payload['android.app.extra.PROVISIONING_ADMIN_EXTRAS_BUNDLE'].frpUserId = frpUserId;
-        console.log(`  - frpUserId: ${frpUserId}`);
-    }
+    console.log(`✓ Skip Encryption: false (CRITICAL: Required for Oppo/Realme)`);
+    console.log(`\n⚠️  NOTE: Admin extras bundle REMOVED for Oppo/Realme compatibility`);
+    console.log(`   Customer ID (${customerId}) and FRP User ID (${frpUserId || 'N/A'}) are NOT included in QR`);
+    console.log(`   These must be handled separately by the DPC app after provisioning`);
 
     console.log('\n📦 COMPLETE PAYLOAD OBJECT:');
     console.log(JSON.stringify(payload, null, 2));
