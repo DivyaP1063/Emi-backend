@@ -12,15 +12,35 @@ const { generateQRCode } = require('./qrCodeService');
  * @returns {string} Properly padded Base64 checksum
  */
 const ensureBase64Padding = (checksum) => {
-    if (!checksum) return checksum;
+    console.log('\n🔧 ===== BASE64 PADDING PROCESS =====');
+    console.log(`📥 Input checksum: "${checksum}"`);
+    console.log(`📏 Input length: ${checksum?.length || 0} characters`);
+
+    if (!checksum) {
+        console.log('⚠️  No checksum provided, returning as-is');
+        console.log('=====================================\n');
+        return checksum;
+    }
 
     // Remove any existing padding
     let normalized = checksum.replace(/=+$/, '');
+    const removedPadding = checksum.length - normalized.length;
+    console.log(`🧹 Removed ${removedPadding} existing padding character(s)`);
+    console.log(`📏 Normalized length: ${normalized.length} characters`);
 
     // Add proper padding based on length
     // Base64 strings should be multiples of 4 characters
-    const paddingNeeded = (4 - (normalized.length % 4)) % 4;
+    const remainder = normalized.length % 4;
+    const paddingNeeded = (4 - remainder) % 4;
+    console.log(`🔢 Length modulo 4: ${remainder}`);
+    console.log(`➕ Padding needed: ${paddingNeeded} character(s)`);
+
     normalized += '='.repeat(paddingNeeded);
+
+    console.log(`📤 Output checksum: "${normalized}"`);
+    console.log(`📏 Output length: ${normalized.length} characters`);
+    console.log(`✅ Checksum is now properly padded (length % 4 = ${normalized.length % 4})`);
+    console.log('=====================================\n');
 
     return normalized;
 };
@@ -33,20 +53,61 @@ const ensureBase64Padding = (checksum) => {
  * @returns {object} Provisioning payload
  */
 const buildProvisioningPayload = (customerId, frpUserId = '') => {
+    console.log('\n🏗️  ===== BUILDING PROVISIONING PAYLOAD =====');
+    console.log(`📋 Customer ID: ${customerId}`);
+    console.log(`📋 FRP User ID: ${frpUserId || '(not provided)'}`);
+
+    console.log('\n🌍 ENVIRONMENT VARIABLES:');
+    console.log('─────────────────────────────────────────');
+
+    // Component Name
     const componentName = process.env.DPC_COMPONENT_NAME || 'com.mdmandroid/.receiver.DeviceAdminReceiver';
+    console.log(`📱 DPC_COMPONENT_NAME:`);
+    console.log(`   Raw value: ${process.env.DPC_COMPONENT_NAME || '(not set)'}`);
+    console.log(`   Using: ${componentName}`);
+    console.log(`   Source: ${process.env.DPC_COMPONENT_NAME ? 'ENV' : 'DEFAULT'}`);
+
+    // Download URL
     const downloadUrl = process.env.PROVISIONING_DEVICE_ADMIN_PACKAGE_DOWNLOAD_LOCATION || process.env.APP_DOWNLOAD_URL;
+    console.log(`\n📦 Download URL:`);
+    console.log(`   PROVISIONING_DEVICE_ADMIN_PACKAGE_DOWNLOAD_LOCATION: ${process.env.PROVISIONING_DEVICE_ADMIN_PACKAGE_DOWNLOAD_LOCATION || '(not set)'}`);
+    console.log(`   APP_DOWNLOAD_URL (fallback): ${process.env.APP_DOWNLOAD_URL || '(not set)'}`);
+    console.log(`   Using: ${downloadUrl || '(MISSING!)'}`);
+    console.log(`   Source: ${process.env.PROVISIONING_DEVICE_ADMIN_PACKAGE_DOWNLOAD_LOCATION ? 'PROVISIONING_DEVICE_ADMIN_PACKAGE_DOWNLOAD_LOCATION' : process.env.APP_DOWNLOAD_URL ? 'APP_DOWNLOAD_URL' : 'NONE'}`);
+
+    // Checksum
     const rawChecksum = process.env.PROVISIONING_DEVICE_ADMIN_SIGNATURE_CHECKSUM || process.env.APP_SIGNATURE_CHECKSUM;
+    console.log(`\n🔐 Signature Checksum:`);
+    console.log(`   PROVISIONING_DEVICE_ADMIN_SIGNATURE_CHECKSUM: ${process.env.PROVISIONING_DEVICE_ADMIN_SIGNATURE_CHECKSUM || '(not set)'}`);
+    console.log(`   APP_SIGNATURE_CHECKSUM (fallback): ${process.env.APP_SIGNATURE_CHECKSUM || '(not set)'}`);
+    console.log(`   Raw checksum: "${rawChecksum || '(MISSING!)'}"`);
+    console.log(`   Raw length: ${rawChecksum?.length || 0} characters`);
+    console.log(`   Source: ${process.env.PROVISIONING_DEVICE_ADMIN_SIGNATURE_CHECKSUM ? 'PROVISIONING_DEVICE_ADMIN_SIGNATURE_CHECKSUM' : process.env.APP_SIGNATURE_CHECKSUM ? 'APP_SIGNATURE_CHECKSUM' : 'NONE'}`);
 
     // Ensure proper Base64 padding for Android 12+ compatibility
     const signatureChecksum = ensureBase64Padding(rawChecksum);
-    const backendUrl = process.env.BACKEND_URL;
 
+    // Backend URL
+    const backendUrl = process.env.BACKEND_URL;
+    console.log(`\n🌐 Backend URL:`);
+    console.log(`   BACKEND_URL: ${backendUrl || '(not set)'}`);
+    console.log(`   Using: ${backendUrl || '(MISSING!)'}`);
+
+    console.log('\n─────────────────────────────────────────');
+
+    // Validation
     if (!downloadUrl) {
+        console.error('❌ CRITICAL ERROR: PROVISIONING_DEVICE_ADMIN_PACKAGE_DOWNLOAD_LOCATION is not configured');
         throw new Error('PROVISIONING_DEVICE_ADMIN_PACKAGE_DOWNLOAD_LOCATION is not configured');
     }
     if (!signatureChecksum) {
+        console.error('❌ CRITICAL ERROR: PROVISIONING_DEVICE_ADMIN_SIGNATURE_CHECKSUM is not configured');
         throw new Error('PROVISIONING_DEVICE_ADMIN_SIGNATURE_CHECKSUM is not configured');
     }
+
+    console.log('\n✅ All required environment variables are present');
+    console.log('\n🔨 CONSTRUCTING PAYLOAD:');
+    console.log('─────────────────────────────────────────');
 
     const payload = {
         'android.app.extra.PROVISIONING_DEVICE_ADMIN_COMPONENT_NAME': componentName,
@@ -61,10 +122,24 @@ const buildProvisioningPayload = (customerId, frpUserId = '') => {
         }
     };
 
+    console.log(`✓ Component Name: ${componentName}`);
+    console.log(`✓ Download Location: ${downloadUrl}`);
+    console.log(`✓ Signature Checksum: "${signatureChecksum}" (${signatureChecksum.length} chars)`);
+    console.log(`✓ Skip Encryption: true`);
+    console.log(`✓ Leave System Apps Enabled: true`);
+    console.log(`✓ Admin Extras Bundle:`);
+    console.log(`  - backend_url: ${backendUrl}`);
+    console.log(`  - customer_id: ${customerId}`);
+
     // Add FRP user ID if provided
     if (frpUserId) {
         payload['android.app.extra.PROVISIONING_ADMIN_EXTRAS_BUNDLE'].frpUserId = frpUserId;
+        console.log(`  - frpUserId: ${frpUserId}`);
     }
+
+    console.log('\n📦 COMPLETE PAYLOAD OBJECT:');
+    console.log(JSON.stringify(payload, null, 2));
+    console.log('=============================================\n');
 
     return payload;
 };
@@ -77,32 +152,46 @@ const buildProvisioningPayload = (customerId, frpUserId = '') => {
  * @returns {Promise<object>} QR code result
  */
 const generateProvisioningQR = async (customerId, frpUserId = '', size = 512) => {
+    const startTime = Date.now();
+
     try {
-        console.log('\n📱 ===== GENERATING PROVISIONING QR =====');
-        console.log(`Customer ID: ${customerId}`);
-        console.log(`FRP User ID: ${frpUserId || 'Not provided'}`);
+        console.log('\n\n');
+        console.log('═══════════════════════════════════════════════════════════');
+        console.log('📱 QR PROVISIONING SERVICE - GENERATION REQUEST');
+        console.log('═══════════════════════════════════════════════════════════');
+        console.log(`⏰ Timestamp: ${new Date().toISOString()}`);
+        console.log(`📋 Request Parameters:`);
+        console.log(`   - Customer ID: ${customerId}`);
+        console.log(`   - FRP User ID: ${frpUserId || '(not provided)'}`);
+        console.log(`   - QR Size: ${size}px`);
+        console.log('───────────────────────────────────────────────────────────\n');
 
         // Build the provisioning payload
+        console.log('🔄 STEP 1: Building provisioning payload...\n');
         const payload = buildProvisioningPayload(customerId, frpUserId);
 
-        // Log checksum info for debugging Android 12+ compatibility
-        const rawChecksum = process.env.PROVISIONING_DEVICE_ADMIN_SIGNATURE_CHECKSUM || process.env.APP_SIGNATURE_CHECKSUM;
-        console.log(`🔐 Checksum (raw): ${rawChecksum} (length: ${rawChecksum?.length || 0})`);
-        console.log(`🔐 Checksum (padded): ${payload['android.app.extra.PROVISIONING_DEVICE_ADMIN_SIGNATURE_CHECKSUM']} (length: ${payload['android.app.extra.PROVISIONING_DEVICE_ADMIN_SIGNATURE_CHECKSUM']?.length || 0})`);
-
-        console.log('📦 QR Payload:');
-        console.log(JSON.stringify(payload, null, 2));
+        console.log('🔄 STEP 2: Generating QR code from payload...\n');
+        console.log(`📊 Payload size: ${JSON.stringify(payload).length} bytes`);
 
         // Generate QR code
         const qrResult = await generateQRCode(payload, size);
 
         if (!qrResult.success) {
-            console.error('❌ QR generation failed:', qrResult.error);
+            console.error('\n❌ QR GENERATION FAILED');
+            console.error(`   Error: ${qrResult.error}`);
+            console.error('═══════════════════════════════════════════════════════════\n\n');
             return qrResult;
         }
 
-        console.log('✅ Provisioning QR generated successfully');
-        console.log('==========================================\n');
+        const duration = Date.now() - startTime;
+
+        console.log('✅ QR CODE GENERATED SUCCESSFULLY');
+        console.log('───────────────────────────────────────────────────────────');
+        console.log(`⏱️  Generation time: ${duration}ms`);
+        console.log(`📏 QR code size: ${size}x${size}px`);
+        console.log(`🔐 Final checksum in payload: "${payload['android.app.extra.PROVISIONING_DEVICE_ADMIN_SIGNATURE_CHECKSUM']}"`);
+        console.log(`📏 Final checksum length: ${payload['android.app.extra.PROVISIONING_DEVICE_ADMIN_SIGNATURE_CHECKSUM']?.length || 0} characters`);
+        console.log('═══════════════════════════════════════════════════════════\n\n');
 
         return {
             success: true,
@@ -111,7 +200,21 @@ const generateProvisioningQR = async (customerId, frpUserId = '', size = 512) =>
             size
         };
     } catch (error) {
-        console.error('❌ Error generating provisioning QR:', error.message);
+        const duration = Date.now() - startTime;
+
+        console.error('\n\n');
+        console.error('═══════════════════════════════════════════════════════════');
+        console.error('❌ QR PROVISIONING SERVICE - ERROR');
+        console.error('═══════════════════════════════════════════════════════════');
+        console.error(`⏰ Timestamp: ${new Date().toISOString()}`);
+        console.error(`⏱️  Failed after: ${duration}ms`);
+        console.error(`📋 Customer ID: ${customerId}`);
+        console.error(`🔴 Error Type: ${error.name}`);
+        console.error(`🔴 Error Message: ${error.message}`);
+        console.error(`🔴 Stack Trace:`);
+        console.error(error.stack);
+        console.error('═══════════════════════════════════════════════════════════\n\n');
+
         return {
             success: false,
             error: error.message
