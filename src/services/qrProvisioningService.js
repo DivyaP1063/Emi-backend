@@ -6,41 +6,32 @@ const { generateQRCode } = require('./qrCodeService');
  */
 
 /**
- * Ensure proper Base64 padding for checksums
- * Android 12+ requires strict Base64 format with proper padding
+ * Remove Base64 padding from checksums
+ * CRITICAL: Oppo/Realme devices require checksums WITHOUT padding
+ * Based on competitor analysis - their working solution uses unpadded checksums
  * @param {string} checksum - Base64 checksum string
- * @returns {string} Properly padded Base64 checksum
+ * @returns {string} Base64 checksum without padding
  */
-const ensureBase64Padding = (checksum) => {
-    console.log('\n🔧 ===== BASE64 PADDING PROCESS =====');
+const removeBase64Padding = (checksum) => {
+    console.log('\n🔧 ===== BASE64 PADDING REMOVAL PROCESS =====');
     console.log(`📥 Input checksum: "${checksum}"`);
     console.log(`📏 Input length: ${checksum?.length || 0} characters`);
 
     if (!checksum) {
         console.log('⚠️  No checksum provided, returning as-is');
-        console.log('=====================================\n');
+        console.log('==============================================\n');
         return checksum;
     }
 
-    // Remove any existing padding
+    // Remove any existing padding (trailing = characters)
     let normalized = checksum.replace(/=+$/, '');
     const removedPadding = checksum.length - normalized.length;
-    console.log(`🧹 Removed ${removedPadding} existing padding character(s)`);
-    console.log(`📏 Normalized length: ${normalized.length} characters`);
 
-    // Add proper padding based on length
-    // Base64 strings should be multiples of 4 characters
-    const remainder = normalized.length % 4;
-    const paddingNeeded = (4 - remainder) % 4;
-    console.log(`🔢 Length modulo 4: ${remainder}`);
-    console.log(`➕ Padding needed: ${paddingNeeded} character(s)`);
-
-    normalized += '='.repeat(paddingNeeded);
-
+    console.log(`🧹 Removed ${removedPadding} padding character(s)`);
+    console.log(`📏 Final length: ${normalized.length} characters`);
     console.log(`📤 Output checksum: "${normalized}"`);
-    console.log(`📏 Output length: ${normalized.length} characters`);
-    console.log(`✅ Checksum is now properly padded (length % 4 = ${normalized.length % 4})`);
-    console.log('=====================================\n');
+    console.log(`✅ Checksum padding removed for Oppo/Realme compatibility`);
+    console.log('==============================================\n');
 
     return normalized;
 };
@@ -84,8 +75,9 @@ const buildProvisioningPayload = (customerId, frpUserId = '') => {
     console.log(`   Raw length: ${rawChecksum?.length || 0} characters`);
     console.log(`   Source: ${process.env.PROVISIONING_DEVICE_ADMIN_SIGNATURE_CHECKSUM ? 'PROVISIONING_DEVICE_ADMIN_SIGNATURE_CHECKSUM' : process.env.APP_SIGNATURE_CHECKSUM ? 'APP_SIGNATURE_CHECKSUM' : 'NONE'}`);
 
-    // Ensure proper Base64 padding for Android 12+ compatibility
-    const signatureChecksum = ensureBase64Padding(rawChecksum);
+    // CRITICAL: Remove Base64 padding for Oppo/Realme compatibility
+    // Competitor analysis shows their working solution uses unpadded checksums
+    const signatureChecksum = removeBase64Padding(rawChecksum);
 
     // Backend URL
     const backendUrl = process.env.BACKEND_URL;
@@ -113,8 +105,10 @@ const buildProvisioningPayload = (customerId, frpUserId = '') => {
         'android.app.extra.PROVISIONING_DEVICE_ADMIN_COMPONENT_NAME': componentName,
         'android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_DOWNLOAD_LOCATION': downloadUrl,
         'android.app.extra.PROVISIONING_DEVICE_ADMIN_SIGNATURE_CHECKSUM': signatureChecksum,
-        // Android 12+ compatibility fields
-        'android.app.extra.PROVISIONING_SKIP_ENCRYPTION': true,
+        // CRITICAL: Set to false for Oppo/Realme compatibility
+        // Competitor analysis shows their working solution uses false
+        // Oppo/ColorOS may reject true as "insecure enterprise setup"
+        'android.app.extra.PROVISIONING_SKIP_ENCRYPTION': false,
         'android.app.extra.PROVISIONING_LEAVE_ALL_SYSTEM_APPS_ENABLED': true,
         'android.app.extra.PROVISIONING_ADMIN_EXTRAS_BUNDLE': {
             backend_url: backendUrl,
@@ -124,8 +118,8 @@ const buildProvisioningPayload = (customerId, frpUserId = '') => {
 
     console.log(`✓ Component Name: ${componentName}`);
     console.log(`✓ Download Location: ${downloadUrl}`);
-    console.log(`✓ Signature Checksum: "${signatureChecksum}" (${signatureChecksum.length} chars)`);
-    console.log(`✓ Skip Encryption: true`);
+    console.log(`✓ Signature Checksum: "${signatureChecksum}" (${signatureChecksum.length} chars - NO PADDING)`);
+    console.log(`✓ Skip Encryption: false (CRITICAL: Required for Oppo/Realme)`);
     console.log(`✓ Leave System Apps Enabled: true`);
     console.log(`✓ Admin Extras Bundle:`);
     console.log(`  - backend_url: ${backendUrl}`);
